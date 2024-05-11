@@ -55,3 +55,46 @@ public static function calculateDistance($lat1, $lon1, $lat2, $lon2)
 
         return view('search-results', compact('clinics'));
     }
+*********************************************************************
+
+public function filterData(Request $request)
+    {
+        // Retrieve filter criteria from request
+        $type = $request->input('type');
+        $location = $request->input('location');
+        // Add other criteria here...
+
+        // Filter users
+        $filteredUsers = User::where('type', $type)
+            ->where('location', $location)
+            // Add other filters as needed
+            ->get();
+
+        // Filter clinics
+        $filteredClinics = Clinic::where('type', $type)
+            ->where('location', $location)
+            // Add other filters as needed
+            ->get();
+
+        // Alternatively, if you want to filter based on a relationship, you can use whereHas
+
+        // Filter users based on a relationship
+        $filteredUsers = User::whereHas('clinics', function ($query) use ($type, $location) {
+            $query->where('type', $type)
+                ->where('location', $location);
+            // Add other filters as needed
+        })->get();
+
+        // Filter clinics based on a relationship
+        $filteredClinics = Clinic::whereHas('users', function ($query) use ($type, $location) {
+            $query->where('type', $type)
+                ->where('location', $location);
+            // Add other filters as needed
+        })->get();
+
+        // Return filtered data
+        return response()->json([
+            'users' => $filteredUsers,
+            'clinics' => $filteredClinics,
+        ]);
+    }
