@@ -60,3 +60,64 @@ public function createSchedule(Request $request)
             return $this->responseJson(false, 500, $e->getMessage(), []);
         }
     }
+
+
+{
+    "clinic_id": "1",
+    "doctor_id": "11",
+    "timing": [
+        {
+            "available_day": "Sunday",
+            "timing": [
+                {
+                    "startTime": "4:45:00",
+                    "endTime": "8:45:00",
+                    "breaks": [
+                        {
+                            "start": "8:45:00",
+                            "end": "8:45:00"
+                        },
+                        {
+                            "start": "8:45:00",
+                            "end": "8:45:00"
+                        }
+                    ]
+                }
+            ],
+            "isSelected": true
+        },
+        {
+            "available_day": "Tuesday",
+            "timing": [
+                {
+                    "startTime": "8:45:00",
+                    "endTime": "9:45:00",
+                    "breaks": [
+                        {
+                            "start": "10:45:00",
+                            "end": "10:45:00"
+                        }
+                    ]
+                }
+            ],
+            "isSelected": true
+        },
+        {
+            "available_day": "Tuesday",
+            "timing": [
+                {
+                    "startTime": "10:45:00",
+                    "endTime": "13:45:00",
+                    "breaks": [
+                        {
+                            "start": "11:45:00",
+                            "end": "11:45:00"
+                        }
+                    ]
+                }
+            ],
+            "isSelected": true
+        }
+    ],
+    "valid_date": "2024-05-30"
+}
