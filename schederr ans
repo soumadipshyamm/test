@@ -1,0 +1,97 @@
+$rules = [
+        'clinic_id' => 'required|exists:profile_clinics,id',
+        'doctor_id' => 'required|exists:doctors,id',
+        'valid_date' => 'required|date',
+        'timing' => 'required|array',
+        'timing.*.available_day' => 'required|string',
+        'timing.*.timing' => 'required|array',
+        'timing.*.timing.*.startTime' => 'required|string|date_format:H:i:s',
+        'timing.*.timing.*.endTime' => 'required|string|date_format:H:i:s|after:timing.*.timing.*.startTime',
+        'timing.*.breaks' => 'required|array',
+        'timing.*.breaks.*.start' => 'required|string|date_format:H:i:s|before:timing.*.timing.*.endTime',
+        'timing.*.breaks.*.end' => 'required|string|date_format:H:i:s|after:timing.*.timing.*.startTime',
+    ];
+
+    // Validate request
+    $validator = Validator::make($request->all(), $rules);
+
+    // Check if validation fails
+    if ($validator->fails()) {
+        return response()->json([
+            'success' => false,
+            'message' => $validator->errors()->first(),
+            'data' => [],
+        ], 400);
+    }
+
+// Start database transaction
+    DB::beginTransaction();
+
+    try {
+        // Find or create the clinic
+        $clinic = ProfileClinic::find($request->clinic_id);
+
+        // Create or update the schedule
+        $schedule = Schedule::updateOrCreate(
+            ['doctor_id' => $request->doctor_id, 'clinic_id' => $clinic ? $clinic->id : null],
+            ['valid_date' => $request->valid_date]
+        );
+
+        // Insert doctor availabilities and breaks
+        foreach ($request->timing as $timingData) {
+            $availableDay = $timingData['available_day'];
+
+            foreach ($timingData['timing'] as $timing) {
+                $startTime = $timing['startTime'];
+                $endTime = $timing['endTime'];
+
+                // Create or update doctor availability
+                $doctorAvailability = DoctorsAvailabilities::updateOrCreate(
+                    [
+                        'schedule_id' => $schedule->id,
+                        'available_day' => $availableDay,
+                        'available_from' => $startTime,
+                        'available_to' => $endTime,
+                    ],
+                    ['is_active' => true]
+                );
+
+                // Insert breaks
+                foreach ($timing['breaks'] as $break) {
+                    $breakStart = $break['start'];
+                    $breakEnd = $break['end'];
+
+                    DoctorBreakTime::updateOrCreate(
+                        [
+                            'schedule_id' => $schedule->id,
+                            'doctors_availabilitie_id' => $doctorAvailability->id,
+                            'break_day' => $availableDay,
+                            'break_from' => $breakStart,
+                            'break_to' => $breakEnd,
+                        ],
+                        ['is_active' => true]
+                    );
+                }
+            }
+        }
+
+        // Commit transaction
+        DB::commit();
+
+        // Return success response
+        return response()->json([
+            'success' => true,
+            'message' => 'Schedule created or updated successfully',
+            'data' => [],
+        ], 200);
+    } catch (\Exception $e) {
+        // Rollback transaction on exception
+        DB::rollBack();
+
+        // Return error response
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create or update schedule: ' . $e->getMessage(),
+            'data' => [],
+        ], 500);
+    }
