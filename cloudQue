@@ -98,3 +98,18 @@ public function filterData(Request $request)
             'clinics' => $filteredClinics,
         ]);
     }
+
+
+
+***************************************************************************
+
+
+array:7 [▼ // app\Http\Controllers\Schedule\ScheduleController.php:81
+  0 => "Friday"
+  1 => "Monday"
+  2 => "Saturday"
+  3 => "Sunday"
+  4 => "Thursday"
+  5 => "Tuesday"
+  6 => "Wednesday"
+]
