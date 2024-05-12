@@ -113,3 +113,22 @@ array:7 [▼ // app\Http\Controllers\Schedule\ScheduleController.php:81
   5 => "Tuesday"
   6 => "Wednesday"
 ]
+
+
+$orderedWeekdays = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday"
+];
+
+// Sort the weekdays based on the order defined
+usort($weekdays, function ($a, $b) use ($orderedWeekdays) {
+    return array_search($a, $orderedWeekdays) <=> array_search($b, $orderedWeekdays);
+});
+
+// Output the sorted weekdays
+print_r($weekdays);
