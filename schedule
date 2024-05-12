@@ -1,0 +1,62 @@
+public function createSchedule(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            "clinic_id" => "required",
+            "doctor_id" => "required",
+            "valid_date" => "required",
+            "timing" => "required",
+        ]);
+        if ($validator->fails()) return $this->responseJson(false, 200, $validator->errors()->first());
+        DB::beginTransaction();
+        try {
+            // Find the clinic
+            $isClinic = ProfileClinic::find($request->clinic_id);
+            // Create or update a new schedule
+            $schedule = Schedule::updateOrCreate(
+                [
+                    'doctor_id' => $request->doctor_id,
+                    'clinics_id' => $isClinic ? $isClinic->id : null,
+                ],
+                [
+                    'valid_date' => $request->valid_date
+                ] // No additional attributes to update
+            );
+            // Insert data into the doctor_available table
+            foreach ($request->timing as $scheduleData) {
+                $available_day = $scheduleData['available_day'];
+                foreach ($scheduleData['timing'] as $timing) {
+                    if ($timing['startTime'] != null) {
+                        $isDoctorAvailableCreate = DoctorsAvailabilities::updateOrCreate(
+                            [
+                                "schedule_id" => $schedule->id,
+                                "available_day" => $available_day,
+                                "available_from" => $timing['startTime'],
+                                "available_to" => $timing['endTime']
+                            ],
+                            ["is_active" => true] // Additional attributes to update
+                        );
+                        foreach ($timing['breaks'] as $break) {
+                            $isBreakAdd = DoctorBreakTime::updateOrCreate(
+                                [
+                                    "schedule_id" => $schedule->id,
+                                    "doctors_availabilitie_id" => $isDoctorAvailableCreate->id,
+                                    "break_day" => $available_day,
+                                    "break_from" => $break['start'],
+                                    "break_to" => $break['end']
+                                ],
+                                ["is_active" => true] // Additional attributes to update
+                            );
+                        }
+                    }
+                }
+            }
+            if ($schedule) {
+                DB::commit();
+                return $this->responseJson(true, 200, 'Schedule Created Successfully', [$schedule, $isDoctorAvailableCreate, $isBreakAdd]);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . '--' . $e->getFile() . '--' . $e->getLine());
+            return $this->responseJson(false, 500, $e->getMessage(), []);
+        }
+    }
