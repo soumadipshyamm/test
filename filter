@@ -83,3 +83,96 @@ public function filterData(Request $request)
 
     return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($data));
 }
+
+
+
+************************************************************************************************************
+
+public function filterData(Request $request)
+{
+    $name = $request->name;
+    $latitude = $request->lat;
+    $longitude = $request->long;
+    $maxDistance = $request->distance;
+    $fees = $request->fees;
+    $specialist = $request->specialist;
+    $sort = $request->sort;
+
+    $data = User::with('doctorProfile', 'doctorsCategories')
+        ->where('type', 'doctor')
+        ->where('is_active', 1)
+        ->when($name, function ($query) use ($name) {
+            $query->where('name', 'like', '%' . $name . '%');
+        });
+
+    if (isset($specialist) && !empty($specialist)) {
+        $data->whereHas('doctorsCategories', function ($query) use ($specialist) {
+            $query->whereIn('id', $specialist);
+        });
+    }
+
+    if (isset($sort) && !empty($sort)) {
+        switch ($sort) {
+            case 1:
+                $data->orderBy('name', 'asc');
+                break;
+            case 2:
+                $data->orderBy('name', 'desc');
+                break;
+            case 3:
+                $data->orderBy('name', 'desc');
+                break;
+            case 4:
+                $data->whereHas('doctorProfile', function ($q) {
+                    $q->orderBy('price', 'asc');
+                });
+                break;
+            case 5:
+                $data->whereHas('doctorProfile', function ($q) {
+                    $q->orderBy('price', 'desc');
+                });
+                break;
+        }
+    }
+
+    if (isset($fees) && !empty($fees)) {
+        $data->whereHas('doctorProfile', function ($q) use ($fees) {
+            $q->where(function ($query) use ($fees) {
+                foreach ($fees as $fee) {
+                    switch ($fee) {
+                        case 1:
+                            $min = 0;
+                            $max = 200;
+                            break;
+                        case 2:
+                            $min = 200;
+                            $max = 500;
+                            break;
+                        case 3:
+                            $min = 500;
+                            $max = 800;
+                            break;
+                        case 4:
+                            $min = 800;
+                            $max = 1100;
+                            break;
+                        case 5:
+                            $min = 1100;
+                            $max = 1400;
+                            break;
+                        case 6:
+                            $min = 1400;
+                            $max = PHP_INT_MAX;
+                            break;
+                    }
+                    $query->orWhereBetween('price', [$min, $max]);
+                }
+            });
+        });
+    }
+
+    $data = $data->get();
+
+    return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($data));
+}
+
