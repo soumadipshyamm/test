@@ -248,3 +248,217 @@ private function calculateDistance($lat1, $lon1, $lat2, $lon2)
     return $distance; // Distance in meters
 }
 **********************************************************************************************************
+
+use Illuminate\Support\Facades\DB;
+
+public function filterData(Request $request)
+{
+    $name = $request->name;
+    $latitude = $request->lat;
+    $longitude = $request->long;
+    $maxDistance = $request->distance;
+    $fees = $request->fees;
+    $specialist = $request->specialist;
+    $sort = $request->sort;
+
+    $query = User::query()
+        ->with(['doctorProfile', 'doctorsCategories', 'doctorAssignmentClinics'])
+        ->where('type', 'doctor')
+        ->where('is_active', 1);
+
+    if ($name) {
+        $query->where('name', 'like', '%' . $name . '%');
+    }
+
+    if ($specialist) {
+        $query->whereHas('doctorsCategories', function ($query) use ($specialist) {
+            $query->whereIn('id', $specialist);
+        });
+    }
+
+    if ($sort) {
+        switch ($sort) {
+            case 1:
+                $query->orderBy('name');
+                break;
+            case 2:
+                $query->orderByDesc('name');
+                break;
+            case 4:
+                $query->with(['doctorProfile' => function ($query) {
+                    $query->orderBy('price');
+                }]);
+                break;
+            case 5:
+                $query->with(['doctorProfile' => function ($query) {
+                    $query->orderByDesc('price');
+                }]);
+                break;
+        }
+    }
+
+    if ($fees) {
+        $query->whereHas('doctorProfile', function ($query) use ($fees) {
+            $query->where(function ($query) use ($fees) {
+                foreach ($fees as $fee) {
+                    $query->orWhereBetween('price', [
+                        ($fee - 1) * 200, $fee * 200
+                    ]);
+                }
+            });
+        });
+    }
+
+    $query->select('users.*');
+
+    $query->addSelect(DB::raw('(SELECT MIN(
+            6371 * ACOS(
+                COS(RADIANS(clinics.lat)) * COS(RADIANS(' . $latitude . ')) *
+                COS(RADIANS(clinics.long) - RADIANS(' . $longitude . ')) +
+                SIN(RADIANS(clinics.lat)) * SIN(RADIANS(' . $latitude . '))
+            )
+        ) FROM clinics
+        JOIN clinic_user ON clinic_user.clinic_id = clinics.id
+        WHERE clinic_user.user_id = users.id) AS distance'));
+
+    $query->having('distance', '<=', $maxDistance);
+
+    $data = $query->get();
+
+    return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($data));
+}
+
+************************************************************************************************************
+
+public function filterData(Request $request)
+{
+    $data = User::with(['doctorProfile', 'doctorsCategories', 'doctorAssignmentClinics'])
+        ->where('type', 'doctor')
+        ->where('is_active', 1)
+        ->when($request->filled('name'), function ($query) use ($request) {
+            $query->where('name', 'like', '%' . $request->name . '%');
+        })
+        ->when($request->filled('specialist'), function ($query) use ($request) {
+            $query->whereHas('doctorsCategories', function ($subQuery) use ($request) {
+                $subQuery->whereIn('id', $request->specialist);
+            });
+        })
+        ->when($request->filled('sort'), function ($query) use ($request) {
+            switch ($request->sort) {
+                case 1:
+                    $query->orderBy('name', 'asc');
+                    break;
+                case 2:
+                    $query->orderBy('name', 'desc');
+                    break;
+                case 4:
+                    $query->orderBy('doctorProfile.price', 'asc');
+                    break;
+                case 5:
+                    $query->orderBy('doctorProfile.price', 'desc');
+                    break;
+            }
+        })
+        ->when($request->filled('fees'), function ($query) use ($request) {
+            $query->whereHas('doctorProfile', function ($subQuery) use ($request) {
+                $feesRanges = [
+                    [0, 200], [200, 500], [500, 800], [800, 1100], [1100, 1400], [1400, PHP_INT_MAX]
+                ];
+                foreach ($request->fees as $fee) {
+                    $subQuery->orWhereBetween('price', $feesRanges[$fee - 1]);
+                }
+            });
+        })
+        ->get()
+        ->filter(function ($user) use ($request) {
+            $maxDistance = $request->distance;
+            $latitude = $request->lat;
+            $longitude = $request->long;
+            
+            foreach ($user->doctorAssignmentClinics as $clinic) {
+                $distance = haversine($latitude, $longitude, $clinic->lat, $clinic->long);
+                if ($distance <= $maxDistance) {
+                    return true;
+                }
+            }
+            return false;
+        });
+
+    return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($data));
+}
+*************************************************************************************
+
+public function filterData(Request $request)
+{
+    $data = User::with(['doctorProfile', 'doctorsCategories', 'doctorAssignmentClinics'])
+        ->where('type', 'doctor')
+        ->where('is_active', 1);
+
+    // Filter by name
+    if ($request->has('name')) {
+        $data->where('name', 'like', '%' . $request->name . '%');
+    }
+
+    // Filter by specialist
+    if ($request->has('specialist') && !empty($request->specialist)) {
+        $data->whereHas('doctorsCategories', function ($query) use ($request) {
+            $query->whereIn('id', $request->specialist);
+        });
+    }
+
+    // Sort data
+    if ($request->has('sort')) {
+        switch ($request->sort) {
+            case 1:
+                $data->orderBy('name', 'asc');
+                break;
+            case 2:
+                $data->orderBy('name', 'desc');
+                break;
+            case 4:
+                $data->orderBy('doctorProfile.price', 'asc');
+                break;
+            case 5:
+                $data->orderBy('doctorProfile.price', 'desc');
+                break;
+        }
+    }
+
+    // Filter by fees
+    if ($request->has('fees') && !empty($request->fees)) {
+        $data->whereHas('doctorProfile', function ($query) use ($request) {
+            $query->where(function ($query) use ($request) {
+                foreach ($request->fees as $fee) {
+                    $query->orWhereBetween('price', $this->getFeeRange($fee));
+                }
+            });
+        });
+    }
+
+    // Filter by distance
+    if ($request->has('lat') && $request->has('long') && $request->has('distance')) {
+        $data->whereHas('doctorAssignmentClinics', function ($query) use ($request) {
+            $query->whereRaw('
+                (6371 * acos(cos(radians(?)) * cos(radians(lat)) * cos(radians(long) - radians(?)) + sin(radians(?)) * sin(radians(lat)))) <= ?', 
+                [$request->lat, $request->long, $request->lat, $request->distance]
+            );
+        });
+    }
+
+    $doctors = $data->get();
+
+    return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($doctors));
+}
+
+private function getFeeRange($fee)
+{
+    switch ($fee) {
+        case 1: return [0, 200];
+        case 2: return [200, 500];
+        case 3: return [500, 800];
+        case 4: return [800, 1100];
+        case 5: return [1100, 1400];
+        case 6: return [1400, PHP_INT_MAX];
+        default: return [0, PHP_INT_MAX];
+    }
+}
