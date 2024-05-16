@@ -114,3 +114,137 @@ public function filterData(Request $request)
 
     return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($filteredData));
 }
+
+
+***************************************************************************************************
+
+public function filterData(Request $request)
+{
+    $name = $request->name;
+    $latitude = $request->lat;
+    $longitude = $request->long;
+    $maxDistance = $request->distance;
+    $fees = $request->fees;
+    $specialist = $request->specialist;
+    $sort = $request->sort;
+
+    $data = User::with('doctorProfile', 'doctorsCategories', 'doctorAssignmentClinics')
+        ->where('type', 'doctor')
+        ->where('is_active', 1)
+        ->when($name, function ($query) use ($name) {
+            $query->where('name', 'like', '%' . $name . '%');
+        });
+
+    if (isset($specialist) && !empty($specialist)) {
+        $data->whereHas('doctorsCategories', function ($query) use ($specialist) {
+            $query->whereIn('id', $specialist);
+        });
+    }
+
+    if (isset($fees) && !empty($fees)) {
+        $data->whereHas('doctorProfile', function ($q) use ($fees) {
+            $q->where(function ($query) use ($fees) {
+                foreach ($fees as $fee) {
+                    switch ($fee) {
+                        case 1:
+                            $min = 0;
+                            $max = 200;
+                            break;
+                        case 2:
+                            $min = 200;
+                            $max = 500;
+                            break;
+                        case 3:
+                            $min = 500;
+                            $max = 800;
+                            break;
+                        case 4:
+                            $min = 800;
+                            $max = 1100;
+                            break;
+                        case 5:
+                            $min = 1100;
+                            $max = 1400;
+                            break;
+                        case 6:
+                            $min = 1400;
+                            $max = PHP_INT_MAX;
+                            break;
+                    }
+                    $query->orWhereBetween('price', [$min, $max]);
+                }
+            });
+        });
+    }
+
+    if (isset($latitude) && isset($longitude) && isset($maxDistance)) {
+        $data->whereHas('doctorAssignmentClinics', function ($q) use ($latitude, $longitude, $maxDistance) {
+            $q->whereRaw("ST_Distance_Sphere(point(long, lat), point(?, ?)) <= ?", [
+                $longitude,
+                $latitude,
+                $maxDistance * 1000
+            ]);
+        });
+    }
+
+    if (isset($sort) && !empty($sort)) {
+        switch ($sort) {
+            case 1:
+                $data->orderBy('name', 'asc');
+                break;
+            case 2:
+                $data->orderBy('name', 'desc');
+                break;
+            case 3:
+                $data->orderBy('name', 'desc');
+                break;
+            case 4:
+                $data->whereHas('doctorProfile', function ($q) {
+                    $q->orderBy('price', 'asc');
+                });
+                break;
+            case 5:
+                $data->whereHas('doctorProfile', function ($q) {
+                    $q->orderBy('price', 'desc');
+                });
+                break;
+        }
+    }
+
+    $data = $data->get();
+
+    // Optionally, you could calculate the distance for each clinic here and sort/filter accordingly
+    $data = $data->map(function ($user) use ($latitude, $longitude) {
+        $user->doctorAssignmentClinics = $user->doctorAssignmentClinics->map(function ($clinic) use ($latitude, $longitude) {
+            $clinic->distance = $this->calculateDistance($latitude, $longitude, $clinic->lat, $clinic->long);
+            return $clinic;
+        });
+        return $user;
+    });
+
+    return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($data));
+}
+
+private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+{
+    $earthRadius = 6371000; // Earth's radius in meters
+
+    $lat1 = deg2rad($lat1);
+    $lon1 = deg2rad($lon1);
+    $lat2 = deg2rad($lat2);
+    $lon2 = deg2rad($lon2);
+
+    $deltaLat = $lat2 - $lat1;
+    $deltaLon = $lon2 - $lon1;
+
+    $a = sin($deltaLat / 2) * sin($deltaLat / 2) +
+         cos($lat1) * cos($lat2) *
+         sin($deltaLon / 2) * sin($deltaLon / 2);
+
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+    $distance = $earthRadius * $c;
+
+    return $distance; // Distance in meters
+}
+**********************************************************************************************************
