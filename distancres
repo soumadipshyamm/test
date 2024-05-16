@@ -1,201 +1,116 @@
-array:2 [ // app\Http\Controllers\Api\Patient\PatientController.php:1810 => array:25 [    "id" => 3    "uuid" => "e7bac9cb-835e-46f4-8460-13756f3325ea"
-    "parent_id" => null    "name" => "sudiksha chhetri"
-    "email" => "sudeeiksha@gmail.com"
-    "email_verified_at" => "2010-01-19T06:22:48.000000Z"
-    "mobile_number" => 987654321    "verification_code" => 7346    "mobile_number_verified_at" => "1997-01-27 20:43:44"
-    "alternative_mobile_no" => 2343234543    "gender" => "female"
-    "type" => "doctor"
-    "country_id" => null    "state_id" => null    "city_id" => null    "address" => "DLF-2, Candoe, Newtown, Kolkata"
-    "is_active" => 1    "profile_images" => "662a5b7039f2e.png"
-    "created_at" => "2024-03-08T06:23:28.000000Z"
-    "updated_at" => "2024-04-29T09:55:17.000000Z"
-    "deleted_at" => null
-    "fcm_token" => null
-    "subscriptions_id" => null
-    "is_free_subscriptions" => null
-    "doctor_assignment_clinics" => array:3 [0 => array:24 [
-        "id" => 1
-        "uuid" => "890d57af-c09b-4d78-98fd-244486e413db"
-        "clinic_name" => "Jack Saunders"
-        "email" => "cujuxot@mailinator.com"
-        "phone" => 1230567890
-        "alt_phone" => 1234567889
-        "country_id" => 101
-        "state_id" => 4853
-        "city_id" => 141852
-        "address" => "Nulla eu anim evenie"
-        "time" => null
-        "end_time" => "22:00:00"
-        "type" => "clinic"
-        "lat" => "098.876543"
-        "long" => "23.2345678"
-        "description" => "Ab et porro tenetur"
-        "image" => null
-        "registration_date" => "2024-03-08"
-        "registration_number" => "2345678"
-        "is_active" => 1
-        "profile_images" => null
-        "created_at" => "2024-03-08T06:32:26.000000Z"
-        "updated_at" => "2024-03-08T06:32:26.000000Z"
-        "pivot" => array:2 [
-          "user_id" => 3
-          "profile_clinics_id" => 1]
-      ]
-      1 => array:24 [
-        "id" => 2
-        "uuid" => "83a8af27-4742-432b-a627-42d9f22dcdf7"
-        "clinic_name" => "Beatrice Savage"
-        "email" => "zyxu@mailinator.com"
-        "phone" => 987654321
-        "alt_phone" => 987654321
-        "country_id" => 101
-        "state_id" => 4853
-        "city_id" => 141852
-        "address" => "Nihil molestiae volu"
-        "time" => null
-        "end_time" => "22:00:00"
-        "type" => "clinic"
-        "lat" => "098.876543"
-        "long" => "23.2345678"
-        "description" => "Ex neque exercitatio"
-        "image" => null
-        "registration_date" => "2024-03-08"
-        "registration_number" => "2345678"
-        "is_active" => 1
-        "profile_images" => null
-        "created_at" => "2024-03-08T06:33:02.000000Z"
-        "updated_at" => "2024-03-08T06:33:02.000000Z"
-        "pivot" => array:2 [
-          "user_id" => 3
-          "profile_clinics_id" => 2]
-      ]
-      2 => array:24 [
-        "id" => 10
-        "uuid" => "26d5c666-4ab9-47f7-9a25-1f0637d328c8"
-        "clinic_name" => "Tjff"
-        "email" => "soumdadip@abc.com"
-        "phone" => 8956589558
-        "alt_phone" => 9246555555
-        "country_id" => 1
-        "state_id" => 3870
-        "city_id" => 71
-        "address" => "Kolkata, West Bengal, India"
-        "time" => "10:00:00"
-        "end_time" => "22:00:00"
-        "type" => "clinic"
-        "lat" => "22.572646"
-        "long" => "88.363895"
-        "description" => "Why vjrr titg che"
-        "image" => "dash-logo.png"
-        "registration_date" => "2024-03-13"
-        "registration_number" => "El259"
-        "is_active" => 1
-        "profile_images" => null
-        "created_at" => "2024-03-21T13:44:19.000000Z"
-        "updated_at" => "2024-03-21T13:44:19.000000Z"
-        "pivot" => array:2 [
-          "user_id" => 3
-          "profile_clinics_id" => 10]
-      ]
-    ]
-  ]
-  1 => array:25 [    "id" => 11    "uuid" => "59aa5760-9072-4ee2-ba8a-a247b193d119"
-    "parent_id" => null    "name" => "sudiksha chhetri"
-    "email" => "sudeeiksha9@gmail.com"
-    "email_verified_at" => null    "mobile_number" => 1987654311    "verification_code" => null    "mobile_number_verified_at" => null    "alternative_mobile_no" => 2343234543    "gender" => "female"
-    "type" => "doctor"
-    "country_id" => 101    "state_id" => 4853    "city_id" => 141852    "address" => "DLF-2, Candoe, Newtown, Kolkata"
-    "is_active" => 1    "profile_images" => "662f98914fd5b.png"
-    "created_at" => "2024-03-08T06:35:48.000000Z"
-    "updated_at" => "2024-05-10T07:57:06.000000Z"
-    "deleted_at" => null
-    "fcm_token" => null
-    "subscriptions_id" => null
-    "is_free_subscriptions" => "1"
-    "doctor_assignment_clinics" => array:3 [0 => array:24 [
-        "id" => 1
-        "uuid" => "890d57af-c09b-4d78-98fd-244486e413db"
-        "clinic_name" => "Jack Saunders"
-        "email" => "cujuxot@mailinator.com"
-        "phone" => 1230567890
-        "alt_phone" => 1234567889
-        "country_id" => 101
-        "state_id" => 4853
-        "city_id" => 141852
-        "address" => "Nulla eu anim evenie"
-        "time" => null
-        "end_time" => "22:00:00"
-        "type" => "clinic"
-        "lat" => "098.876543"
-        "long" => "23.2345678"
-        "description" => "Ab et porro tenetur"
-        "image" => null
-        "registration_date" => "2024-03-08"
-        "registration_number" => "2345678"
-        "is_active" => 1
-        "profile_images" => null
-        "created_at" => "2024-03-08T06:32:26.000000Z"
-        "updated_at" => "2024-03-08T06:32:26.000000Z"
-        "pivot" => array:2 [
-          "user_id" => 11
-          "profile_clinics_id" => 1]
-      ]
-      1 => array:24 [
-        "id" => 2
-        "uuid" => "83a8af27-4742-432b-a627-42d9f22dcdf7"
-        "clinic_name" => "Beatrice Savage"
-        "email" => "zyxu@mailinator.com"
-        "phone" => 987654321
-        "alt_phone" => 987654321
-        "country_id" => 101
-        "state_id" => 4853
-        "city_id" => 141852
-        "address" => "Nihil molestiae volu"
-        "time" => null
-        "end_time" => "22:00:00"
-        "type" => "clinic"
-        "lat" => "098.876543"
-        "long" => "23.2345678"
-        "description" => "Ex neque exercitatio"
-        "image" => null
-        "registration_date" => "2024-03-08"
-        "registration_number" => "2345678"
-        "is_active" => 1
-        "profile_images" => null
-        "created_at" => "2024-03-08T06:33:02.000000Z"
-        "updated_at" => "2024-03-08T06:33:02.000000Z"
-        "pivot" => array:2 [
-          "user_id" => 11
-          "profile_clinics_id" => 2]
-      ]
-      2 => array:24 [
-        "id" => 10
-        "uuid" => "26d5c666-4ab9-47f7-9a25-1f0637d328c8"
-        "clinic_name" => "Tjff"
-        "email" => "soumdadip@abc.com"
-        "phone" => 8956589558
-        "alt_phone" => 9246555555
-        "country_id" => 1
-        "state_id" => 3870
-        "city_id" => 71
-        "address" => "Kolkata, West Bengal, India"
-        "time" => "10:00:00"
-        "end_time" => "22:00:00"
-        "type" => "clinic"
-        "lat" => "22.572646"
-        "long" => "88.363895"
-        "description" => "Why vjrr titg che"
-        "image" => "dash-logo.png"
-        "registration_date" => "2024-03-13"
-        "registration_number" => "El259"
-        "is_active" => 1
-        "profile_images" => null
-        "created_at" => "2024-03-21T13:44:19.000000Z"
-        "updated_at" => "2024-03-21T13:44:19.000000Z"
-        "pivot" => array:2 [
-          "user_id" => 11
-          "profile_clinics_id" => 10]
-      ]
-    ]
-  ]
-]
+function haversineGreatCircleDistance($latitudeFrom, $longitudeFrom, $latitudeTo, $longitudeTo, $earthRadius = 6371)
+{
+    // Convert from degrees to radians.
+    $latFrom = deg2rad($latitudeFrom);
+    $lonFrom = deg2rad($longitudeFrom);
+    $latTo = deg2rad($latitudeTo);
+    $lonTo = deg2rad($longitudeTo);
+
+    $latDelta = $latTo - $latFrom;
+    $lonDelta = $lonTo - $lonFrom;
+
+    $angle = 2 * asin(sqrt(pow(sin($latDelta / 2), 2) +
+        cos($latFrom) * cos($latTo) * pow(sin($lonDelta / 2), 2)));
+    return $angle * $earthRadius;
+}
+
+
+public function filterData(Request $request)
+{
+    $name = $request->name;
+    $latitude = $request->lat;
+    $longitude = $request->long;
+    $maxDistance = $request->distance;
+    $fees = $request->fees;
+    $specialist = $request->specialist;
+    $sort = $request->sort;
+
+    $data = User::with(['doctorProfile', 'doctorsCategories', 'doctorAssignmentClinics'])
+        ->where('type', 'doctor')
+        ->where('is_active', 1)
+        ->when($name, function ($query) use ($name) {
+            $query->where('name', 'like', '%' . $name . '%');
+        });
+
+    if (isset($specialist) && !empty($specialist)) {
+        $data->whereHas('doctorsCategories', function ($query) use ($specialist) {
+            $query->whereIn('id', $specialist);
+        });
+    }
+
+    if (isset($sort) && !empty($sort)) {
+        switch ($sort) {
+            case 1:
+                $data->orderBy('name', 'asc');
+                break;
+            case 2:
+                $data->orderBy('name', 'desc');
+                break;
+            case 3:
+                $data->orderBy('name', 'desc');
+                break;
+            case 4:
+                $data->whereHas('doctorProfile', function ($q) {
+                    $q->orderBy('price', 'asc');
+                });
+                break;
+            case 5:
+                $data->whereHas('doctorProfile', function ($q) {
+                    $q->orderBy('price', 'desc');
+                });
+                break;
+        }
+    }
+
+    if (isset($fees) && !empty($fees)) {
+        $data->whereHas('doctorProfile', function ($q) use ($fees) {
+            $q->where(function ($query) use ($fees) {
+                foreach ($fees as $fee) {
+                    switch ($fee) {
+                        case 1:
+                            $min = 0;
+                            $max = 200;
+                            break;
+                        case 2:
+                            $min = 200;
+                            $max = 500;
+                            break;
+                        case 3:
+                            $min = 500;
+                            $max = 800;
+                            break;
+                        case 4:
+                            $min = 800;
+                            $max = 1100;
+                            break;
+                        case 5:
+                            $min = 1100;
+                            $max = 1400;
+                            break;
+                        case 6:
+                            $min = 1400;
+                            $max = PHP_INT_MAX;
+                            break;
+                    }
+                    $query->orWhereBetween('price', [$min, $max]);
+                }
+            });
+        });
+    }
+
+    $data = $data->get();
+
+    // Calculate distance for each clinic and filter by maxDistance
+    $filteredData = $data->filter(function($doctor) use ($latitude, $longitude, $maxDistance) {
+        foreach ($doctor->doctorAssignmentClinics as $clinic) {
+            $distance = haversineGreatCircleDistance($latitude, $longitude, $clinic->lat, $clinic->long);
+            if ($distance <= $maxDistance) {
+                $clinic->distance = $distance;
+                return true;
+            }
+        }
+        return false;
+    });
+
+    return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($filteredData));
+}
