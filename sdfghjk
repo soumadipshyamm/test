@@ -1,0 +1,36 @@
+"booking"=>["id" => 173
+      "uuid" => "fc8f7521-b61e-47cf-8656-4d7758755a4c"
+      "book_no" => null
+      "patient_id" => 3
+      "schedule_id" => 48
+      "doctors_availabilities_id" => 133
+      "booking_datetime" => "2024-05-22 07:56:00"
+      "slot_id" => "3"
+      "slot_day" => null
+      "slot_type" => null
+      "type" => "general"
+      "status" => 1
+      "created_at" => "2024-05-08 13:06:10"
+      "updated_at" => "2024-05-08 13:06:10"
+      "booking_date" => "2024-05-22"
+      "booking_time" => "17:56:00"
+      "reason" => null
+      "estimate_time" => null
+      "total_time" => null
+      "booking_for" => null
+]
+"scheduleSession"=>[
+      "user_id" => 11
+      "clinics_id" => 10
+      "schedule_id" => 48
+      "doctors_availability_id" => 133
+      "day" => "Wednesday"
+      "time" => "17:45:00"
+      "date" => "2024-05-22"
+      "start_time" => "19:45:24"
+      "status" => 0
+      "uuid" => "526b1101-dfec-47ff-af1e-716cfaaf9ba1"
+      "updated_at" => "2024-05-22 19:45:24"
+      "created_at" => "2024-05-22 19:45:24"
+      "id" => 77
+]
