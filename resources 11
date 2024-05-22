@@ -1,0 +1,57 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class BookingScheduleSessionResource extends JsonResource
+{
+    /**
+     * Transform the resource into an array.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return array
+     */
+    public function toArray($request)
+    {
+        return [
+            'booking' => [
+                'id' => $this->booking->id,
+                'uuid' => $this->booking->uuid,
+                'book_no' => $this->booking->book_no,
+                'patient_id' => $this->booking->patient_id,
+                'schedule_id' => $this->booking->schedule_id,
+                'doctors_availabilities_id' => $this->booking->doctors_availabilities_id,
+                'booking_datetime' => $this->booking->booking_datetime,
+                'slot_id' => $this->booking->slot_id,
+                'slot_day' => $this->booking->slot_day,
+                'slot_type' => $this->booking->slot_type,
+                'type' => $this->booking->type,
+                'status' => $this->booking->status,
+                'created_at' => $this->booking->created_at,
+                'updated_at' => $this->booking->updated_at,
+                'booking_date' => $this->booking->booking_date,
+                'booking_time' => $this->booking->booking_time,
+                'reason' => $this->booking->reason,
+                'estimate_time' => $this->booking->estimate_time,
+                'total_time' => $this->booking->total_time,
+                'booking_for' => $this->booking->booking_for,
+            ],
+            'scheduleSession' => [
+                'id' => $this->scheduleSession->id,
+                'user_id' => $this->scheduleSession->user_id,
+                'clinics_id' => $this->scheduleSession->clinics_id,
+                'schedule_id' => $this->scheduleSession->schedule_id,
+                'doctors_availability_id' => $this->scheduleSession->doctors_availability_id,
+                'day' => $this->scheduleSession->day,
+                'time' => $this->scheduleSession->time,
+                'date' => $this->scheduleSession->date,
+                'start_time' => $this->scheduleSession->start_time,
+                'status' => $this->scheduleSession->status,
+                'uuid' => $this->scheduleSession->uuid,
+                'updated_at' => $this->scheduleSession->updated_at,
+                'created_at' => $this->scheduleSession->created_at,
+            ],
+        ];
+    }
+}
