@@ -1,0 +1,81 @@
+Sure, let's create a helper function to add two times together using the Carbon library. You can add this function to a helper file in your Laravel application.
+
+First, create a helper file if you don't have one. For example, you can create a file named `helpers.php` in the `app/` directory.
+
+In `app/helpers.php`, add the following code:
+
+```php
+use Carbon\Carbon;
+
+if (!function_exists('add_times')) {
+    /**
+     * Add two times together.
+     *
+     * @param string $time1
+     * @param string $time2
+     * @return string
+     */
+    function add_times(string $time1, string $time2): string
+    {
+        $time1 = Carbon::createFromTimeString($time1);
+        $time2 = Carbon::createFromTimeString($time2);
+
+        $totalSeconds = $time1->secondsSinceMidnight() + $time2->secondsSinceMidnight();
+        $totalTime = Carbon::createFromTimestampUTC($totalSeconds);
+
+        return $totalTime->format('H:i:s');
+    }
+}
+
+if (!function_exists('add_time_to_initial')) {
+    /**
+     * Add a time duration to an initial time.
+     *
+     * @param string $initialTime
+     * @param string $durationToAdd
+     * @return string
+     */
+    function add_time_to_initial(string $initialTime, string $durationToAdd): string
+    {
+        $initialTime = Carbon::createFromTimeString($initialTime);
+        $addedTime = Carbon::createFromTimeString($durationToAdd);
+
+        $newTime = $initialTime->addHours($addedTime->hour)->addMinutes($addedTime->minute)->addSeconds($addedTime->second);
+
+        return $newTime->format('H:i:s');
+    }
+}
+```
+
+Next, you need to make sure that this helper file is autoloaded by Laravel. To do this, add the file to the `autoload` section of your `composer.json`:
+
+```json
+"autoload": {
+    "files": [
+        "app/helpers.php"
+    ]
+}
+```
+
+After adding this, run the following command to update Composer's autoload files:
+
+```bash
+composer dump-autoload
+```
+
+Now, you can use these helper functions in your Laravel application. Here are examples of how to use them:
+
+```php
+use function add_times;
+use function add_time_to_initial;
+
+// Example 1: Add two times together
+$result1 = add_times('02:08:00', '15:00:59');
+echo $result1; // Output: 17:08:59
+
+// Example 2: Add a duration to an initial time
+$result2 = add_time_to_initial('15:00:00', '02:10:00');
+echo $result2; // Output: 17:10:00
+```
+
+These helper functions encapsulate the logic for adding times, making it easier to reuse and maintain.
