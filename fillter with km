@@ -112,3 +112,20 @@ public function filterData(Request $request)
 
     return $this->responseJson(true, 200, 'Doctor List Found Successfully', DoctorResource::collection($data));
 }
+
+
+**************************************************************************************************
+if ($request->has('lat') && $request->has('long')) {
+        $maxDistance = 10; // Maximum distance in kilometers
+        $latitude = $request->lat;
+        $longitude = $request->long;
+
+        $data->whereHas('doctorAssignmentClinics', function ($query) use ($latitude, $longitude, $maxDistance) {
+            $query->whereRaw('
+                (6371 * acos(cos(radians(?)) * cos(radians(lat)) * cos(radians(long) - radians(?)) + sin(radians(?)) * sin(radians(lat)))) <= ?', 
+                [$latitude, $longitude, $latitude, $maxDistance]
+            );
+        });
+    }
+
+    $doctors = $data->get();
