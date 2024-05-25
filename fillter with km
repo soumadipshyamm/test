@@ -1,3 +1,61 @@
+
+
+****************************************************************************************************************************************************
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+
+class DistanceController extends Controller
+{
+    public function calculateDistance(Request $request)
+    {
+        $request->validate([
+            'latitudeFrom' => 'required|numeric',
+            'longitudeFrom' => 'required|numeric',
+            'latitudeTo' => 'required|numeric',
+            'longitudeTo' => 'required|numeric',
+            'unit' => 'required|string|in:K,N',
+        ]);
+
+        $latitudeFrom = $request->input('latitudeFrom');
+        $longitudeFrom = $request->input('longitudeFrom');
+        $latitudeTo = $request->input('latitudeTo');
+        $longitudeTo = $request->input('longitudeTo');
+        $unit = $request->input('unit');
+
+        $result = $this->calculateDistanceJS($latitudeFrom, $longitudeFrom, $latitudeTo, $longitudeTo, $unit);
+
+        return response()->json(['distance' => $result]);
+    }
+
+    private function calculateDistanceJS($latitudeFrom, $longitudeFrom, $latitudeTo, $longitudeTo, $unit)
+    {
+        $radlat1 = pi() * $latitudeFrom / 180;
+        $radlat2 = pi() * $latitudeTo / 180;
+        $theta = $longitudeFrom - $longitudeTo;
+        $radtheta = pi() * $theta / 180;
+        $dist = sin($radlat1) * sin($radlat2) + cos($radlat1) * cos($radlat2) * cos($radtheta);
+        $dist = acos($dist);
+        $dist = $dist * 180 / pi();
+        $dist = $dist * 60 * 1.1515;
+
+        if ($unit == "K") {
+            $dist = $dist * 1.609344;
+        } elseif ($unit == "N") {
+            $dist = $dist * 0.8684;
+        }
+
+        return $dist;
+    }
+}
+
+****************************************************************************************************************************************************
+****************************************************************************************************************************************************
+****************************************************************************************************************************************************
+****************************************************************************************************************************************************
+****************************************************************************************************************************************************
+****************************************************************************************************************************************************
+****************************************************************************************************************************************************
 function haversine($lat1, $lon1, $lat2, $lon2)
 {
     $earth_radius = 6371; // Earth radius in kilometers
@@ -133,16 +191,3 @@ if ($request->has('lat') && $request->has('long')) {
  "distance" => 9850.2083754814
 
 ********************************************************************************************
-    function distance(lat1, lon1, lat2, lon2, unit) {
-        var radlat1 = Math.PI * lat1/180
-        var radlat2 = Math.PI * lat2/180
-        var theta = lon1-lon2
-        var radtheta = Math.PI * theta/180
-        var dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
-        dist = Math.acos(dist)
-        dist = dist * 180/Math.PI
-        dist = dist * 60 * 1.1515
-        if (unit=="K") { dist = dist * 1.609344 }
-        if (unit=="N") { dist = dist * 0.8684 }
-        return dist
-}
