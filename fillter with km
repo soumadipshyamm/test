@@ -1,4 +1,4 @@
-
+Calculate distance b/w two places with Haversine formula  distance in laravel
 
 ****************************************************************************************************************************************************
 namespace App\Http\Controllers;
