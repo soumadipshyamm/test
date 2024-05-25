@@ -129,3 +129,5 @@ if ($request->has('lat') && $request->has('long')) {
     }
 
     $doctors = $data->get();
+
+ "distance" => 9850.2083754814
