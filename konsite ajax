@@ -1,0 +1,22 @@
+ $.ajax({
+                url: "{{ route('ajax.company.dashboard.workstatus') }}",
+                type: "post",
+                data: {
+                    project: project,
+                    subproject: subproject,
+                    date: date
+                },
+                success: function(response) {
+                    console.log(response);
+                    console.log('response');
+                    alert(response.estimatedCost);
+                    $('#estimatedCost').attr(response.estimatedCost);
+
+
+                    $('.comp-body').show()
+                    $("#constGroup").html(response);
+                },
+                error: function(error) {
+                    alert(error);
+                }
+            });
