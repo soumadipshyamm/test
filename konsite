@@ -1,0 +1,16 @@
+
+        $fetchData = ActivityHistory::select('id', 'qty', 'total_qty', 'activities_id')
+            ->whereNotNull('qty')
+            ->where('company_id', 2)
+            ->whereHas('dpr', function ($query) {
+                $query->where('projects_id', 1);
+                $query->where('date', '2024-04-26');
+                // $query->orWhere('sub_projects_id', 1);
+            })
+            ->get();
+
+        $fetchDatass = $fetchData->collect()->map(function ($item) {
+
+            $item->total_qty = (int) $item->total_qty; // Convert to integer, empty strings become 0
+            return $item;
+        });
