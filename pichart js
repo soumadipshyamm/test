@@ -63,3 +63,11 @@ var chart1 = new CanvasJS.Chart("chartContainer", {
     </script>
 </body>
 </html>
+
+// Here is a static example for demonstration purposes
+        $workStatusData = [
+            ['y' => 23, 'legendText' => 'In Progress'],
+            ['y' => 6, 'legendText' => 'Completed'],
+            ['y' => 12, 'legendText' => 'Not started'],
+            ['y' => 41, 'legendText' => 'Total Activities']
+        ];
