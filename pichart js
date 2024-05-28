@@ -27,3 +27,39 @@ var chart1 = new CanvasJS.Chart("chartContainer", {
                 }]
             });
             chart1.render();
+
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Work Status Chart</title>
+    <script src="https://canvasjs.com/assets/script/canvasjs.min.js"></script>
+</head>
+<body>
+    <div id="chartContainer" style="height: 370px; width: 100%;"></div>
+    <script>
+        // Assuming workStatusData is passed from the controller
+        var workStatusData = @json($workStatusData);
+
+        function renderWorkStatusChart(dataPoints) {
+            var chart = new CanvasJS.Chart("chartContainer", {
+                title: {
+                    text: "Work Status",
+                    fontFamily: "Roboto"
+                },
+                data: [{
+                    type: "pie",
+                    showInLegend: true,
+                    toolTipContent: "{legendText}",
+                    dataPoints: dataPoints
+                }]
+            });
+            chart.render();
+        }
+
+        // Call the function to render the chart
+        renderWorkStatusChart(workStatusData);
+    </script>
+</body>
+</html>
