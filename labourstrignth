@@ -6,3 +6,33 @@
             })
             ->groupBy('vendors_id')
             ->get();
+
+
+
+use Illuminate\Support\Facades\DB;
+
+$fetchData = LabourHistory::with(['labours', 'vendors', 'dpr'])
+    ->where('company_id', $authCompany)
+    ->whereNotNull('vendors_id')
+    ->whereHas('dpr', function ($query) use ($data) {
+        $query->where('projects_id', $data['project']);
+    })
+    ->get()
+    ->groupBy('vendors_id');
+
+// Now, we can iterate over the grouped data to list labours vendor-wise with a count.
+$vendorWiseLabourListing = [];
+
+foreach ($fetchData as $vendorId => $labourHistories) {
+    $vendor = $labourHistories->first()->vendors; // Assuming 'vendors' is the relationship name
+    $labours = $labourHistories->pluck('labours')->flatten();
+    $labourCount = $labours->count();
+    
+    $vendorWiseLabourListing[$vendorId] = [
+        'vendor' => $vendor,
+        'labours' => $labours,
+        'labour_count' => $labourCount,
+    ];
+}
+
+// Now $vendorWiseLabourListing contains the vendor-wise labour listings with labour counts.
