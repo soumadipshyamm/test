@@ -1,0 +1,8 @@
+ $fetchData = LabourHistory::with(['labours', 'vendors', 'dpr'])
+            ->where('company_id', $authCompany)
+            ->whereNotNull('vendors_id')
+            ->whereHas('dpr', function ($query) use ($data) {
+                $query->where('projects_id', $data['project']);
+            })
+            ->groupBy('vendors_id')
+            ->get();
