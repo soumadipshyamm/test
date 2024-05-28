@@ -1,0 +1,29 @@
+var chart1 = new CanvasJS.Chart("chartContainer", {
+                title: {
+                    text: "Work Status",
+                    fontFamily: "Roboto"
+                },
+                data: [{
+                    type: "pie",
+                    showInLegend: true,
+                    toolTipContent: "{legendText}",
+                    dataPoints: [{
+                            y: 23,
+                            legendText: "In Progress"
+                        },
+                        {
+                            y: 6,
+                            legendText: "Completed"
+                        },
+                        {
+                            y: 12,
+                            legendText: "Not started"
+                        },
+                        {
+                            y: 41,
+                            legendText: "Total Activities"
+                        },
+                    ]
+                }]
+            });
+            chart1.render();
