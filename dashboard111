@@ -155,3 +155,99 @@ how show blade  users->first_name,historie->name,safetie->name use in laravel
     </script>
 </body>
 </html>
+*****
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPR Data</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div id="dprContainer"></div>
+
+    <script>
+        $(document).ready(function() {
+            // Fetch DPR data via AJAX
+            $.ajax({
+                url: '/fetch-dpr',
+                method: 'GET',
+                success: function(response) {
+                    if (response.fetchDpr && response.fetchDpr.length > 0) {
+                        renderDprTable(response.fetchDpr);
+                    } else {
+                        $('#dprContainer').html('<p>No data available</p>');
+                    }
+                },
+                error: function() {
+                    $('#dprContainer').html('<p>An error has occurred while fetching data</p>');
+                }
+            });
+        });
+
+        function renderDprTable(dprData) {
+            var dprContainer = $('#dprContainer');
+            dprContainer.empty();
+
+            var table = $('<table></table>');
+            var thead = $('<thead></thead>');
+            var tbody = $('<tbody></tbody>');
+
+            // Table headers
+            thead.append(`
+                <tr>
+                    <th>DPR ID</th>
+                    <th>User's First Name</th>
+                    <th>Historie Names</th>
+                    <th>Safetie Names</th>
+                </tr>
+            `);
+
+            // Table rows
+            dprData.forEach(function(dpr) {
+                var userName = dpr.users && dpr.users.first_name ? dpr.users.first_name : 'Not Available';
+
+                var historieNames = dpr.historie && dpr.historie.length > 0 
+                    ? dpr.historie.map(function(historie) { return historie.name ? historie.name : 'No Name'; }).join(', ') 
+                    : 'No Historie Data Available';
+
+                var safetieNames = dpr.safetie && dpr.safetie.length > 0 
+                    ? dpr.safetie.map(function(safetie) { return safetie.name ? safetie.name : 'No Name'; }).join(', ') 
+                    : 'No Safetie Data Available';
+
+                tbody.append(`
+                    <tr>
+                        <td>${dpr.id}</td>
+                        <td>${userName}</td>
+                        <td>${historieNames}</td>
+                        <td>${safetieNames}</td>
+                    </tr>
+                `);
+            });
+
+            table.append(thead).append(tbody);
+            dprContainer.append(table);
+        }
+    </script>
+</body>
+</html>
