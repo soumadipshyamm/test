@@ -88,3 +88,70 @@
 
 how show blade  users->first_name,historie->name,safetie->name use in laravel
 
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPR Data</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div id="dprContainer"></div>
+
+    <script>
+        $(document).ready(function() {
+            // Example Ajax call to fetchDpr route
+            $.ajax({
+                url: '/fetch-dpr',
+                method: 'GET',
+                success: function(response) {
+                    var dprContainer = $('#dprContainer');
+
+                    // Iterate through the fetchDpr array
+                    response.fetchDpr.forEach(function(dpr) {
+                        var dprItem = $('<div class="dpr-item"></div>');
+                        dprItem.append('<h3>DPR ID: ' + dpr.id + '</h3>');
+
+                        // Users
+                        if (dpr.users && dpr.users.first_name) {
+                            dprItem.append('<p><strong>User\'s First Name:</strong> ' + dpr.users.first_name + '</p>');
+                        } else {
+                            dprItem.append('<p><strong>User\'s First Name:</strong> Not Available</p>');
+                        }
+
+                        // Historie
+                        if (dpr.historie && dpr.historie.length > 0) {
+                            var historieList = $('<ul></ul>');
+                            dpr.historie.forEach(function(historie) {
+                                historieList.append('<li><p><strong>Name:</strong> ' + historie.name + '</p></li>');
+                            });
+                            dprItem.append('<h4>Historie</h4>').append(historieList);
+                        } else {
+                            dprItem.append('<p>No Historie Data Available</p>');
+                        }
+
+                        // Safetie
+                        if (dpr.safetie && dpr.safetie.length > 0) {
+                            var safetieList = $('<ul></ul>');
+                            dpr.safetie.forEach(function(safetie) {
+                                safetieList.append('<li><p><strong>Name:</strong> ' + safetie.name + '</p></li>');
+                            });
+                            dprItem.append('<h4>Safetie</h4>').append(safetieList);
+                        } else {
+                            dprItem.append('<p>No Safetie Data Available</p>');
+                        }
+
+                        dprContainer.append(dprItem);
+                    });
+                },
+                error: function() {
+                    $('#dprContainer').html('<p>An error has occurred</p>');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
