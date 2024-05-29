@@ -71,3 +71,95 @@
     ],
 
 ***************************************
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Wise Labour Listing</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div id="vendorLabourContainer"></div>
+
+    <script>
+        $(document).ready(function() {
+            // Fetch vendor wise labour listing data via AJAX
+            $.ajax({
+                url: '/fetch-vendor-wise-labour-listing',
+                method: 'GET',
+                success: function(response) {
+                    if (response.vendorWiseLabourListing && response.vendorWiseLabourListing.length > 0) {
+                        renderVendorLabourTable(response.vendorWiseLabourListing);
+                    } else {
+                        $('#vendorLabourContainer').html('<p>No data available</p>');
+                    }
+                },
+                error: function() {
+                    $('#vendorLabourContainer').html('<p>An error has occurred while fetching data</p>');
+                }
+            });
+        });
+
+        function renderVendorLabourTable(vendorData) {
+            var vendorLabourContainer = $('#vendorLabourContainer');
+            vendorLabourContainer.empty();
+
+            var table = $('<table></table>');
+            var thead = $('<thead></thead>');
+            var tbody = $('<tbody></tbody>');
+
+            // Table headers
+            thead.append(`
+                <tr>
+                    <th>Vendor Name</th>
+                    <th>Contact Person</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Address</th>
+                    <th>Type</th>
+                    <th>Labour Count</th>
+                </tr>
+            `);
+
+            // Table rows
+            vendorData.forEach(function(vendorItem) {
+                var vendor = vendorItem.vendor;
+                var labourCount = vendorItem.labour_count;
+
+                tbody.append(`
+                    <tr>
+                        <td>${vendor.name}</td>
+                        <td>${vendor.contact_person_name}</td>
+                        <td>${vendor.phone}</td>
+                        <td>${vendor.email ? vendor.email : 'Not Available'}</td>
+                        <td>${vendor.address}</td>
+                        <td>${vendor.type}</td>
+                        <td>${labourCount}</td>
+                    </tr>
+                `);
+            });
+
+            table.append(thead).append(tbody);
+            vendorLabourContainer.append(table);
+        }
+    </script>
+</body>
+</html>
+
