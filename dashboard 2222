@@ -1,75 +1,44 @@
- "vendorWiseLabourListing": [
-        {
-            "vendor": {
-                "id": 1,
-                "uuid": "5fa52c44-d742-4a6e-a33f-05d7348c00cd",
-                "name": "Vendor",
-                "gst_no": null,
-                "city": null,
-                "state": null,
-                "country": null,
-                "address": "kolkata",
-                "type": "supplier",
-                "contact_person_name": "souma",
-                "phone": "1234567890",
-                "email": "souma@abc.com",
-                "additional_fields": "null",
-                "company_id": 2,
-                "is_active": 1,
-                "created_at": "2023-10-03T13:29:30.000000Z",
-                "updated_at": "2023-10-03T13:29:30.000000Z",
-                "deleted_at": null
-            },
-            "labour_count": 15
-        },
-        {
-            "vendor": {
-                "id": 2,
-                "uuid": "3cb2f972-761c-442e-b7dc-ee203e6993f0",
-                "name": "Raj Enterprises",
-                "gst_no": null,
-                "city": null,
-                "state": null,
-                "country": null,
-                "address": "Pune",
-                "type": "contractor",
-                "contact_person_name": "Raj",
-                "phone": "9876908761",
-                "email": "mahesh.max3il@gmail.com",
-                "additional_fields": "null",
-                "company_id": 1,
-                "is_active": 1,
-                "created_at": "2024-02-09T07:44:18.000000Z",
-                "updated_at": "2024-02-09T07:44:18.000000Z",
-                "deleted_at": null
-            },
-            "labour_count": 1
-        },
-        {
-            "vendor": {
-                "id": 3,
-                "uuid": "8dd622a6-76e5-4658-90d0-d287ac4ffc29",
-                "name": "Hiren",
-                "gst_no": null,
-                "city": null,
-                "state": null,
-                "country": null,
-                "address": "Pune",
-                "type": "contractor",
-                "contact_person_name": "Hiren",
-                "phone": "9876547890",
-                "email": null,
-                "additional_fields": "null",
-                "company_id": 1,
-                "is_active": 1,
-                "created_at": "2024-03-12T09:16:12.000000Z",
-                "updated_at": "2024-03-12T09:16:12.000000Z",
-                "deleted_at": null
-            },
-            "labour_count": 1
-        }
-    ],
+"vendorWiseLabourListing": [
+    {
+        "vendor": {
+            "id": 1,
+            "uuid": "5fa52c44-d742-4a6e-a33f-05d7348c00cd",
+            "name": "Vendor",
+            "gst_no": null,
 
+        },
+        "labour_count": 15
+    },
+    {
+        "vendor": {
+            "id": 2,
+            "uuid": "3cb2f972-761c-442e-b7dc-ee203e6993f0",
+            "name": "Raj Enterprises",
+            "gst_no": null,
+            "city": null,
+     
+        },
+        "labour_count": 1
+    },
+    {
+        "vendor": {
+            "id": 3,
+            "uuid": "8dd622a6-76e5-4658-90d0-d287ac4ffc29",
+            "name": "Hiren",
+            "gst_no": null,
+            "city": null,
+            "state": null,
+            "country": null,
+        
+        },
+        "labour_count": 1
+    }
+],
+
+<div class="single_content">
+<p class="singcon_left">Labour Contractors </p>
+<p>labour count</p>
+</div>
 ***************************************
 
 
@@ -163,11 +132,3 @@
 </body>
 </html>
 
-
-                                             <div class="single_content">
-                                                    <p class="singcon_left">
-                                                        Labour Contractors
-                                                    </p>
-                                                    <p>
-                                                    </p>
-                                                </div>
