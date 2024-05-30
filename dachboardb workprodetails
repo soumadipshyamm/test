@@ -1,0 +1,71 @@
+array:17 [ // app\Helpers\Utilities.php:1313
+  0 => array:20 [
+    "id" => 1
+    "uuid" => "c3e7566d-e8d0-4ba6-9f09-c9f4594a4221"
+    "parent_id" => null
+    "sl_no" => null
+    "project_id" => 1
+    "subproject_id" => 1
+    "type" => "heading"
+    "activities" => "heading"
+    "unit_id" => 1
+    "qty" => null
+    "rate" => null
+    "amount" => null
+    "start_date" => null
+    "end_date" => null
+    "company_id" => 2  
+    "activities_history" => array:18 [
+      0 => array:16 [
+        "id" => 1
+        "uuid" => "b55dc72d-89c5-4559-ae23-70baef018f42"
+        "activities_id" => 1
+        "qty" => "2"
+        "completion" => 4
+        "vendors_id" => 1
+        "remaining_qty" => null
+        "total_qty" => null
+        "img" => null
+        "remarkes" => "testtttt"
+        "company_id" => 2
+        "dpr_id" => 5
+        
+      ]
+      1 => array:16 [
+        "id" => 3
+        "uuid" => "08896dd3-b9b5-44d3-80cc-3d9e8b1b2d28"
+        "activities_id" => 1
+        "qty" => "2"
+        "completion" => 4
+        "vendors_id" => 1
+        "remaining_qty" => null
+        "total_qty" => null
+        "img" => null
+        "remarkes" => "testtttt"
+        "company_id" => 2
+        "dpr_id" => 5
+  
+      ]    
+    ]
+  ]
+  1 => array:20 [
+    "id" => 35
+    "uuid" => "5fdf88fb-93f2-479d-b970-a9b658f27f63"
+    "parent_id" => null
+    "sl_no" => null
+    "project_id" => 1
+    "subproject_id" => 1
+    "type" => "heading"
+    "activities" => "qwertya"
+    "unit_id" => null
+    "qty" => null
+    "rate" => null
+    "amount" => null
+    "start_date" => null
+    "end_date" => null
+    "company_id" => 2
+    "is_active" => 1   
+    "activities_history" => []
+  ]
+  
+]
