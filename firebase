@@ -1,3 +1,55 @@
+
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
+
+function getAccessToken() {
+    // Dummy function to get access token, replace with actual implementation
+    // For example, you might call Google API with client credentials to get the token
+    return 'YOUR_ACCESS_TOKEN_HERE'; // Replace with the actual access token retrieval logic
+}
+
+function addFirebase($projectId) {
+    $accessToken = getAccessToken();
+    $uri = 'https://firebase.googleapis.com/v1beta1/projects/' . $projectId . ':addFirebase';
+
+    $client = new Client();
+
+    try {
+        $response = $client->request('POST', $uri, [
+            'headers' => [
+                'Authorization' => 'Bearer ' . $accessToken,
+                'Content-Type' => 'application/json',
+            ],
+        ]);
+
+        $body = $response->getBody();
+        $content = $body->getContents();
+        $data = json_decode($content, true);
+
+        // Output the response
+        print_r($data);
+    } catch (RequestException $e) {
+        // Catch request exceptions
+        if ($e->hasResponse()) {
+            $response = $e->getResponse();
+            $statusCode = $response->getStatusCode();
+            $errorMessage = $response->getBody()->getContents();
+            echo "HTTP error! status: $statusCode, message: $errorMessage";
+        } else {
+            echo "Request error: " . $e->getMessage();
+        }
+    } catch (\Exception $e) {
+        // Catch any other exceptions
+        echo "Error: " . $e->getMessage();
+    }
+}
+
+// Usage example
+addFirebase('your-project-id');
+
+
+
+
 const fetch = require('node-fetch');
 
 async function addFirebase(projectId) {
