@@ -23,3 +23,27 @@ $accessToken = $messaging->getAccessToken(); echo "Access token: " $accessToken,
 echo "Error: " e->getMessage():
 
 <?php
+
+
+
+// Replace with the path to your downloaded service account JSON file ScredentialsFilePath = './testing-5587a-firebase-adminsdk-csoea-311bb88fb3.json';
+
+require _DIR_.'/vendor/autoload.php';
+
+$client = new \Google_Client();
+
+$client->setAuthConfig($credentialsFilePath);
+
+$client->addScope('https://www.googleapis.com/auth/firebase.messaging');
+
+try {
+
+$token = $client->fetchAccessTokenWithAssertion();
+
+echo "Access Token: " . $token ['access_token']. PHP_EOL;
+
+echo "Expires in: ". $token ['expires_in'). seconds" PHP_EOL;
+
+} catch (Exception $e) {
+
+echo "Error fetching access token: $e->getMessage(). PHP_EOL;
