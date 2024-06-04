@@ -1,0 +1,25 @@
+composer require kreait/firebase-php
+
+require_DIR_.'/vendor/autoload.php'; '/vendor/autoload.php'; // path to autoload.php
+
+use Kreait\Firebase\Factory; use Kreait\Firebase\ServiceAccount;
+
+// Replace this with the path to your service account key JSON file $serviceAccount = ServiceAccount::fromJsonFile(_DIR.'/path/to/erviceAccountkey.json');
+
+$ firebase = (new Factory)
+
+->withServiceAccount($serviceAccount)
+
+->create();
+
+$messaging = $firebase->getMessaging();
+
+// Generate an access token
+
+try {
+
+$accessToken = $messaging->getAccessToken(); echo "Access token: " $accessToken, "\n"; } catch (Exception $e) {
+
+echo "Error: " e->getMessage():
+
+<?php
