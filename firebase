@@ -1,3 +1,62 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
+
+class FirebaseController extends Controller
+{
+    // Dummy function to get access token, replace with actual implementation
+    private function getAccessToken()
+    {
+        // This function should retrieve and return a valid access token
+        // For example, it might involve calling a Google API with client credentials to get the token
+        return 'YOUR_ACCESS_TOKEN_HERE'; // Replace with the actual access token retrieval logic
+    }
+
+    public function addFirebase($projectId)
+    {
+        $accessToken = $this->getAccessToken();
+        $uri = 'https://firebase.googleapis.com/v1beta1/projects/' . $projectId . ':addFirebase';
+
+        $client = new Client();
+
+        try {
+            $response = $client->post($uri, [
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $accessToken,
+                    'Content-Type' => 'application/json',
+                ],
+            ]);
+
+            $body = $response->getBody();
+            $data = json_decode($body, true);
+
+            return response()->json($data);
+        } catch (RequestException $e) {
+            if ($e->hasResponse()) {
+                $response = $e->getResponse();
+                $body = $response->getBody();
+                $data = json_decode($body, true);
+                return response()->json([
+                    'error' => $data,
+                ], $response->getStatusCode());
+            } else {
+                return response()->json([
+                    'error' => 'Request failed: ' . $e->getMessage(),
+                ], 500);
+            }
+        }
+    }
+}
+
+
+
+
+
+
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
