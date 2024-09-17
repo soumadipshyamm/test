@@ -38,3 +38,60 @@ let fareTable = $('#fareTable').DataTable({
 
     }
 });
+
+
+###########₹#####₹₹₹₹₹$$
+
+let typeCount = {};
+
+let fareTable = $('#fareTable').DataTable({
+    responsive: true,
+    searching: false,
+    lengthChange: false,
+    "language": {
+        lengthMenu: "Counts per page_MENU_",
+        searchPlaceholder: "Search by name"
+    },
+    autoWidth: false,
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: baseUrl + 'ajax/getFares',
+        dataType: "json",
+        type: "get",
+        data: function (d) {
+            return $.extend({}, d, {
+                "type": $(".type").val() ?? '',
+                // "zone": $(".zone").val() ?? ''
+            });
+        },
+    },
+    columns: fareDataColumn,
+    dom: '<".d-flex"<".col-6" l><".col-6 text-right" f>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
+    "ordering": true,
+    "fnDrawCallback": function (oSettings) {
+        let pagination = $(oSettings.nTableWrapper).find('.dataTables_paginate,.dataTables_info,.dataTables_length');
+        oSettings._iDisplayLength > oSettings.fnRecordsDisplay() ? pagination.hide() : pagination.show();
+
+        // Add a row with colspan to display total counts
+        let totalColumns = fareTable.columns().header().length; // Get total number of columns in the table
+        let colspanRow = `<tr><td colspan="${totalColumns}" class="text-center">Summary: ${JSON.stringify(typeCount)}</td></tr>`;
+        
+        // Remove existing summary row if it exists to avoid duplication
+        $('#fareTable tbody').find('.summary-row').remove();
+
+        // Add the new summary row at the end of the table
+        $('#fareTable tbody').append(colspanRow);
+        $('#fareTable tbody tr:last').addClass('summary-row'); // Add a class to identify the row
+    },
+    "createdRow": function (row, data, dataIndex) {
+        $(row).addClass('manage-enable');
+        if (data.is_active) {
+            $(row).addClass('block-disable');
+        }
+        
+        // Count occurrences of data.type
+        let type = data.type;
+        typeCount[type] = (typeCount[type] || 0) + 1;
+    }
+});
