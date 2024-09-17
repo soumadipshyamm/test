@@ -95,3 +95,52 @@ let fareTable = $('#fareTable').DataTable({
         typeCount[type] = (typeCount[type] || 0) + 1;
     }
 });
+
+
+****************
+
+let fareTable = $('#fareTable').DataTable({
+    responsive: true,
+    searching: false,
+    lengthChange: false,
+    "language": {
+        lengthMenu: "Counts per page_MENU_",
+        searchPlaceholder: "Search by name"
+    },
+    autoWidth: false,
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: baseUrl + 'ajax/getFares',
+        dataType: "json",
+        type: "get",
+        data: function (d) {
+            return $.extend({}, d, {
+                "type": $(".type").val() ?? '',
+            });
+        },
+    },
+    columns: fareDataColumn,
+    dom: '<".d-flex"<".col-6" l><".col-6 text-right" f>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
+    "ordering": true,
+    "rowCallback": function(row, data, index) {
+        // Logic to add rowspan for duplicate 'data.type'
+        let type = data.type;
+        let rows = $(`#fareTable tbody tr:contains(${type})`);
+        
+        // Check if it's the first occurrence of this type
+        if (rows.length > 1) {
+            // Remove this cell
+            $('td:eq(0)', row).remove();
+        } else {
+            // Set rowspan based on the number of duplicate rows
+            $('td:eq(0)', row).attr('rowspan', rows.length);
+        }
+    },
+    "createdRow": function(row, data, dataIndex) {
+        $(row).addClass('manage-enable');
+        if (data.is_active) {
+            $(row).addClass('block-disable');
+        }
+    },
+});
