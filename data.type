@@ -144,3 +144,59 @@ let fareTable = $('#fareTable').DataTable({
         }
     },
 });
+₹₹₹₹₹₹₹₹₹₹₹₹₹₹₹₹
+let fareTable = $('#fareTable').DataTable({
+    responsive: true,
+    searching: false,
+    lengthChange: false,
+    "language": {
+        lengthMenu: "Counts per page_MENU_",
+        searchPlaceholder: "Search by name"
+    },
+    autoWidth: false,
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: baseUrl + 'ajax/getFares',
+        dataType: "json",
+        type: "get",
+        data: function (d) {
+            return $.extend({}, d, {
+                "type": $(".type").val() ?? '',
+            });
+        },
+    },
+    columns: [
+        { data: 'type' },  // This is the 'type' column
+        { data: 'otherColumn1' },
+        { data: 'otherColumn2' },
+        // other columns...
+    ],
+    dom: '<".d-flex"<".col-6" l><".col-6 text-right" f>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
+    "ordering": true,
+    "drawCallback": function (settings) {
+        // Create a map to store the rowspan count for each unique type
+        let api = this.api();
+        let rows = api.rows({ page: 'current' }).nodes();
+        let last = null;
+
+        // Loop through each row and check for duplicate 'type'
+        api.column(0, { page: 'current' }).data().each(function (type, i) {
+            if (last !== type) {
+                // Count how many rows have the same 'type'
+                let count = api.column(0, { page: 'current' }).data().filter(function (value) {
+                    return value === type;
+                }).length;
+
+                // Apply rowspan for the first occurrence
+                $(rows).eq(i).find('td:first').attr('rowspan', count);
+
+                // Remember the last type to compare
+                last = type;
+            } else {
+                // Remove the 'type' cell from subsequent rows
+                $(rows).eq(i).find('td:first').remove();
+            }
+        });
+    }
+});
