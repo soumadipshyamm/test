@@ -1,3 +1,108 @@
+  public function getFares(Request $request, $uuid = null)
+    {
+        if ($request->ajax()) {
+            try {
+                $filterConditions = collect([]);
+                if ($request->type) {
+                    $filterConditions = $filterConditions->merge(['category_id' => uuidtoid($request->type, 'categories')]);
+                }
+                if ($request->zone) {
+                    $filterConditions = $filterConditions->merge(['zone_id' => uuidtoid($request->zone, 'zones')]);
+                }
+                $totalData = $this->zoneService->getTotalFareData($filterConditions->toArray());
+                $totalFiltered = $totalData;
+                $limit = $request->input('length');
+                $start = $request->input('start');
+                $order = 'category_id';
+                $dir = 'desc';
+                $index = $start;
+                $nestedData = [];
+                $data = [];
+                if (empty($request->input('search.value'))) {
+                    $fares = $this->zoneService->getListofZoneFares($filterConditions->toArray(), $start, $limit, $order, $dir);
+                } else {
+                    $search = $request->input('search.value');
+                    $fares = $this->zoneService->getListofZoneFares($filterConditions->toArray(), $start, $limit, $order, $dir, $search);
+                    $totalFiltered = $this->zoneService->getTotalFareData($filterConditions->toArray(), $search);
+                }
+                if (!empty($fares)) {
+                    foreach ($fares as $fare) {
+                        $status = '';
+                        if ($fare->is_active) {
+                            $status = 'checked';
+                        }
+                        $editRoute = route('admin.fares.edit', ['fareUuid' => $fare->uuid, 'uuid' => $uuid ?? null]);
+                        $index++;
+                        $nestedData['sr'] = '<p>' . $index . '</p>';
+                        $nestedData['id'] = $index;
+                        // $nestedData['type'] = $fare->category?->name;
+                        $nestedData['type'] = $fare->category?->name;
+                        $nestedData['price'] = $fare->rate_per_km;
+                        $nestedData['time'] = 'Start:- ' . customTime($fare->start) . '<br />' . 'End:- ' . customTime($fare->end);
+                        $nestedData['fare_type'] = $fare->fare_for ? implode(',', $fare->fare_for) : '';
+                        $nestedData['status'] = '
+                            <div class="">
+                            <label class="switch">
+                            <input type="checkbox" class="changeStatus" id="switchery_inline1' . $fare->uuid . '" name="is_active"' . $status . ' data-uuid="' . $fare->uuid . '" data-table="km_fares" data-message="deactive">
+                            <span class="slider round"></span>
+                        </label>
+                         </div>';
+                        $nestedData['action'] = '<div class="dropdown btn_action">
+                                                <button class="dropdown-toggle" type="button"
+                                                    id="dropdownMenuButton1" data-toggle="dropdown"
+                                                    aria-expanded="false">
+                                                    <i class="fa-solid fa-gear"></i>
+                                                </button><ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">';
+                        $nestedData['action'] .= '<li>
+                                                    <a class="dropdown-item" href="' . $editRoute . '"><span><i
+                                                    class="fa-regular fa-pen-to-square"></i></span>Edit</a>
+                                                </li>';
+                        $nestedData['action'] .= '<li>
+                                                    <a class="dropdown-item deleteData" data-uuid="' . $fare->uuid . '" href="javascript:void(0)" data-table="km_fares"><span><i
+                                                    class="fa-regular fa-trash-can"></i></span>Delete</a>
+                                                </li>';
+                        $nestedData['action'] .= '</ul></div>';
+                        $data[] = $nestedData;
+                        $nestedData = [];
+                    }
+                }
+                $jsonData = array(
+                    "draw" => (int) $request->input('draw'),
+                    "recordsTotal" => (int) $totalData,
+                    "recordsFiltered" => (int) $totalFiltered,
+                    "data" => $data,
+                );
+                return response()->json($jsonData);
+            } catch (\Exception $e) {
+                logger($e->getMessage() . ' on ' . $e->getFile() . ' line number ' . $e->getLine());
+                return array(
+                    "draw" => (int) $request->input('draw'),
+                    "recordsTotal" => (int) 0,
+                    "recordsFiltered" => (int) 0,
+                    "data" => []
+                );
+            }
+        }
+        abort(405);
+    }
+
+
+
+
+let fareDataColumn = [
+    ...commonFirstDataColumn, ...
+    [
+        // { data: 'zone', name: 'zone', sClass: 'w-25' },
+        { data: 'type', name: 'type', sClass: 'w-25' },
+        { data: 'price', name: 'price', sClass: 'w-25' },
+        { data: 'time', name: 'time', sClass: 'w-75' },
+        { data: 'fare_type', name: 'fare_type', sClass: 'w-25' },
+    ],
+    ...commonLastDataColumn
+];
+
+
+
 let fareTable = $('#fareTable').DataTable({
     responsive: true,
     searching: false,
@@ -39,164 +144,10 @@ let fareTable = $('#fareTable').DataTable({
     }
 });
 
-
-###########₹#####₹₹₹₹₹$$
-
-let typeCount = {};
-
-let fareTable = $('#fareTable').DataTable({
-    responsive: true,
-    searching: false,
-    lengthChange: false,
-    "language": {
-        lengthMenu: "Counts per page_MENU_",
-        searchPlaceholder: "Search by name"
-    },
-    autoWidth: false,
-    processing: true,
-    serverSide: true,
-    ajax: {
-        url: baseUrl + 'ajax/getFares',
-        dataType: "json",
-        type: "get",
-        data: function (d) {
-            return $.extend({}, d, {
-                "type": $(".type").val() ?? '',
-                // "zone": $(".zone").val() ?? ''
-            });
-        },
-    },
-    columns: fareDataColumn,
-    dom: '<".d-flex"<".col-6" l><".col-6 text-right" f>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
-    "ordering": true,
-    "fnDrawCallback": function (oSettings) {
-        let pagination = $(oSettings.nTableWrapper).find('.dataTables_paginate,.dataTables_info,.dataTables_length');
-        oSettings._iDisplayLength > oSettings.fnRecordsDisplay() ? pagination.hide() : pagination.show();
-
-        // Add a row with colspan to display total counts
-        let totalColumns = fareTable.columns().header().length; // Get total number of columns in the table
-        let colspanRow = `<tr><td colspan="${totalColumns}" class="text-center">Summary: ${JSON.stringify(typeCount)}</td></tr>`;
-        
-        // Remove existing summary row if it exists to avoid duplication
-        $('#fareTable tbody').find('.summary-row').remove();
-
-        // Add the new summary row at the end of the table
-        $('#fareTable tbody').append(colspanRow);
-        $('#fareTable tbody tr:last').addClass('summary-row'); // Add a class to identify the row
-    },
-    "createdRow": function (row, data, dataIndex) {
-        $(row).addClass('manage-enable');
-        if (data.is_active) {
-            $(row).addClass('block-disable');
-        }
-        
-        // Count occurrences of data.type
-        let type = data.type;
-        typeCount[type] = (typeCount[type] || 0) + 1;
-    }
-});
-
-
-****************
-
-let fareTable = $('#fareTable').DataTable({
-    responsive: true,
-    searching: false,
-    lengthChange: false,
-    "language": {
-        lengthMenu: "Counts per page_MENU_",
-        searchPlaceholder: "Search by name"
-    },
-    autoWidth: false,
-    processing: true,
-    serverSide: true,
-    ajax: {
-        url: baseUrl + 'ajax/getFares',
-        dataType: "json",
-        type: "get",
-        data: function (d) {
-            return $.extend({}, d, {
-                "type": $(".type").val() ?? '',
-            });
-        },
-    },
-    columns: fareDataColumn,
-    dom: '<".d-flex"<".col-6" l><".col-6 text-right" f>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
-    "ordering": true,
-    "rowCallback": function(row, data, index) {
-        // Logic to add rowspan for duplicate 'data.type'
-        let type = data.type;
-        let rows = $(`#fareTable tbody tr:contains(${type})`);
-        
-        // Check if it's the first occurrence of this type
-        if (rows.length > 1) {
-            // Remove this cell
-            $('td:eq(0)', row).remove();
-        } else {
-            // Set rowspan based on the number of duplicate rows
-            $('td:eq(0)', row).attr('rowspan', rows.length);
-        }
-    },
-    "createdRow": function(row, data, dataIndex) {
-        $(row).addClass('manage-enable');
-        if (data.is_active) {
-            $(row).addClass('block-disable');
-        }
-    },
-});
-₹₹₹₹₹₹₹₹₹₹₹₹₹₹₹₹
-let fareTable = $('#fareTable').DataTable({
-    responsive: true,
-    searching: false,
-    lengthChange: false,
-    "language": {
-        lengthMenu: "Counts per page_MENU_",
-        searchPlaceholder: "Search by name"
-    },
-    autoWidth: false,
-    processing: true,
-    serverSide: true,
-    ajax: {
-        url: baseUrl + 'ajax/getFares',
-        dataType: "json",
-        type: "get",
-        data: function (d) {
-            return $.extend({}, d, {
-                "type": $(".type").val() ?? '',
-            });
-        },
-    },
-    columns: [
-        { data: 'type' },  // This is the 'type' column
-        { data: 'otherColumn1' },
-        { data: 'otherColumn2' },
-        // other columns...
-    ],
-    dom: '<".d-flex"<".col-6" l><".col-6 text-right" f>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
-    "ordering": true,
-    "drawCallback": function (settings) {
-        // Create a map to store the rowspan count for each unique type
-        let api = this.api();
-        let rows = api.rows({ page: 'current' }).nodes();
-        let last = null;
-
-        // Loop through each row and check for duplicate 'type'
-        api.column(0, { page: 'current' }).data().each(function (type, i) {
-            if (last !== type) {
-                // Count how many rows have the same 'type'
-                let count = api.column(0, { page: 'current' }).data().filter(function (value) {
-                    return value === type;
-                }).length;
-
-                // Apply rowspan for the first occurrence
-                $(rows).eq(i).find('td:first').attr('rowspan', count);
-
-                // Remember the last type to compare
-                last = type;
-            } else {
-                // Remove the 'type' cell from subsequent rows
-                $(rows).eq(i).find('td:first').remove();
-            }
-        });
-    }
-});
+*******************************************************
+*******************************************************
+*******************************************************
+*******************************************************
+*******************************************************
+*******************************************************
+*******************************************************
