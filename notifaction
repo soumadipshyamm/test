@@ -114,3 +114,282 @@ trait SendPushNotification
     // }
     // *********************************************************************************
 }
+
+
+###################################################################################
+$notificationData = (object)[
+    'title' => 'Booking Reminder',
+    'body' => 'You have a booking scheduled in 30 minutes.',
+    'data' => ['some_key' => 'some_value']
+];
+
+$fcmTokens = [
+    'token1',
+    'token2',
+    'token3', // Add as many tokens as needed
+];
+
+$response = $this->sendNotification($notificationData, $fcmTokens);
+
+function getAccessToken()
+{
+    $credentialsFilePath = config_path('firebase-adminsdk.json');
+    $client = new \Google_Client();
+    $client->setAuthConfig($credentialsFilePath);
+    $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
+    $token = $client->fetchAccessTokenWithAssertion();
+    $accessToken = $token['access_token'];
+    return $accessToken;
+}
+
+public function sendNotification($notificationData, $fcmTokens)
+{
+    $accessToken = $this->getAccessToken();
+
+    // Notification payload
+    $notification = [
+        'title' => $notificationData->title,
+        'body' => json_encode($notificationData->body),
+    ];
+    
+    $notiFicationdata = [
+        'notificationData' => "test",
+        "data" => json_encode($notificationData->data ?? $notificationData->body),
+    ];
+
+    // Prepare data structure to handle multiple FCM tokens
+    $messages = [];
+
+    // Handle multiple FCM tokens
+    if (is_array($fcmTokens)) {
+        foreach ($fcmTokens as $fcmToken) {
+            $messages[] = [
+                'token' => $fcmToken,
+                'notification' => $notification,
+                'data' => $notiFicationdata,
+            ];
+        }
+    } else {
+        // Single FCM token (fallback if non-array is passed)
+        $messages[] = [
+            'token' => $fcmTokens,
+            'notification' => $notification,
+            'data' => $notiFicationdata,
+        ];
+    }
+
+    // Prepare request data for FCM batch messaging
+    $data = [
+        'message' => $messages
+    ];
+
+    // cURL headers
+    $headers = [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $accessToken,
+    ];
+
+    // Initialize cURL for batch sending
+    $ch = curl_init('https://fcm.googleapis.com/v1/projects/orbitcab-e93d8/messages:send');
+    
+    // Set cURL options
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    // Execute cURL request
+    $response = curl_exec($ch);
+
+    // Check for errors
+    if (curl_errno($ch)) {
+        $error = curl_error($ch);
+        // Handle cURL error (e.g., log it)
+        error_log('FCM Send Error: ' . $error);
+    }
+
+    // Close cURL resource
+    curl_close($ch);
+
+    return $response;
+}
+##################################################
+
+
+
+
+To send notifications to 10,000,000 users at the same time, you need a highly scalable and efficient method because handling such a large number of requests at once can overwhelm your server and exceed Firebase Cloud Messaging (FCM) limits.
+
+### Key Strategies:
+1. **FCM Rate Limits**: FCM has a rate limit on how many messages can be sent per second. You'll need to break the requests into manageable batches and send them gradually.
+2. **Batching**: Use Firebase's **Batch API** or send messages in chunks (e.g., 1,000 tokens per batch). This prevents overwhelming FCM with too many requests at once.
+3. **Queue System**: Use a queuing system like **Redis**, **RabbitMQ**, or **AWS SQS** to process and send notifications asynchronously in batches.
+4. **Firebase Cloud Functions (Optional)**: You can offload sending notifications to Firebase Cloud Functions to handle scaling and retries automatically.
+
+### Steps to Implement Bulk Notification Sending:
+
+1. **Batch the Requests**: Break the 10,000,000 tokens into smaller chunks (e.g., 1,000 tokens per batch) and send each batch in parallel.
+2. **Use a Queue to Manage Load**: A job queue can help distribute the notification-sending tasks over time to avoid hitting API rate limits.
+3. **Optimize Error Handling**: Ensure that failed messages are retried or logged for future attempts.
+
+### Implementation: Using Laravel Queues and Batching
+
+Here's how to update your `sendNotification` function to handle 10 million users in batches using a queuing system.
+
+### Step 1: Update `sendNotification` to Send Batches
+
+```php
+public function sendNotification($notificationData, $fcmTokens)
+{
+    $accessToken = $this->getAccessToken();
+
+    // Split the FCM tokens into batches (e.g., 1,000 tokens per batch)
+    $fcmTokensChunks = array_chunk($fcmTokens, 1000);  // Adjust the batch size as needed
+
+    foreach ($fcmTokensChunks as $tokensChunk) {
+        // Prepare the payload for FCM
+        $data = [
+            'message' => [
+                'notification' => [
+                    'title' => $notificationData->title,
+                    'body'  => $notificationData->body,
+                ],
+                'data' => [
+                    'extraData' => $notificationData->data
+                ],
+                'tokens' => $tokensChunk,  // Send the batch of FCM tokens
+            ],
+        ];
+
+        // cURL headers
+        $headers = [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ];
+
+        // Initialize cURL for batch sending
+        $ch = curl_init('https://fcm.googleapis.com/v1/projects/YOUR_PROJECT_ID/messages:send');
+
+        // Set cURL options
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        // Execute cURL request
+        $response = curl_exec($ch);
+
+        // Check for errors
+        if (curl_errno($ch)) {
+            $error = curl_error($ch);
+            // Log the error (or handle retries)
+            error_log('FCM Send Error: ' . $error);
+        }
+
+        // Close cURL resource
+        curl_close($ch);
+    }
+
+    return true;
+}
+```
+
+### Step 2: Using Laravel Queues for Scalability
+
+1. **Queue Job Creation**: Create a job to handle notification sending. Laravel Queues can process these jobs in the background without overloading your server.
+   
+Create a new job class:
+
+```bash
+php artisan make:job SendBulkNotificationJob
+```
+
+2. **Job Implementation**: In `SendBulkNotificationJob`, implement the logic to send notifications in batches.
+
+```php
+namespace App\Jobs;
+
+use App\Services\YourNotificationService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+
+class SendBulkNotificationJob implements ShouldQueue
+{
+    use InteractsWithQueue, Queueable, SerializesModels;
+
+    protected $notificationData;
+    protected $fcmTokens;
+
+    public function __construct($notificationData, $fcmTokens)
+    {
+        $this->notificationData = $notificationData;
+        $this->fcmTokens = $fcmTokens;
+    }
+
+    public function handle()
+    {
+        $notificationService = new YourNotificationService();
+        $notificationService->sendNotification($this->notificationData, $this->fcmTokens);
+    }
+}
+```
+
+3. **Dispatch Jobs in Batches**: Now, when you're ready to send the notification to all 10 million users, dispatch multiple jobs to handle it.
+
+```php
+use App\Jobs\SendBulkNotificationJob;
+
+public function sendBulkNotifications($notificationData, $fcmTokens)
+{
+    // Split the FCM tokens into batches (e.g., 1,000 tokens per batch)
+    $fcmTokensChunks = array_chunk($fcmTokens, 1000);  // Adjust the batch size as needed
+
+    foreach ($fcmTokensChunks as $tokensChunk) {
+        // Dispatch each chunk as a separate job
+        SendBulkNotificationJob::dispatch($notificationData, $tokensChunk);
+    }
+}
+```
+
+### Step 3: Configuring Queues
+
+1. **Queue Driver**: Make sure your Laravel queue driver is set up. You can use **Redis** or **Database** for queue processing.
+   
+In `.env` file:
+
+```bash
+QUEUE_CONNECTION=redis  # or 'database', depending on your setup
+```
+
+2. **Queue Workers**: Start the queue workers to process the jobs.
+
+```bash
+php artisan queue:work
+```
+
+If you're using Redis for queues, you can scale workers based on the load.
+
+### Step 4: Consider Firebase’s Multicast API
+
+Firebase also offers the **Multicast API** that can send messages to multiple devices at once. However, the limitation is 500 tokens per request, so you'd still need to break the tokens into batches of 500.
+
+```php
+$data = [
+    'notification' => [
+        'title' => 'Booking Reminder',
+        'body'  => 'You have a booking scheduled in 30 minutes.',
+    ],
+    'tokens' => $fcmTokensChunk, // A batch of up to 500 tokens
+];
+```
+
+### Step 5: Use Rate-Limiting and Retry Strategies
+
+1. **Rate-Limiting**: Be aware of Firebase’s rate limits. Avoid sending too many requests too fast by spacing out jobs if necessary.
+2. **Retry Failed Requests**: Implement retry logic for failed requests due to rate limits or network issues.
+
+### Conclusion:
+
+By splitting the 10,000,000 users into manageable chunks (e.g., 1,000 tokens per request) and dispatching these chunks to a queue system, you can send notifications in parallel without overloading the system. Laravel’s queue system, combined with batch processing, is an efficient way to handle large-scale notifications. You should also monitor the Firebase Cloud Messaging rate limits and use retry mechanisms for failed deliveries.
