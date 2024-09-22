@@ -1,0 +1,116 @@
+<?php
+
+namespace App\Traits;
+
+use App\Models\Notification;
+use Exception;
+use Illuminate\Support\Facades\Auth;
+
+/**
+ * Trait FlashMessages
+ * @package App\Traits
+ */
+trait SendPushNotification
+{
+    function getAccessToken()
+    {
+        $credentialsFilePath = config_path('firebase-adminsdk.json');
+        $client = new \Google_Client();
+        $client->setAuthConfig($credentialsFilePath);
+        $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
+        $token = $client->fetchAccessTokenWithAssertion();
+        $accessToken = $token['access_token'];
+        return $accessToken;
+    }
+    public function sendNotification($notificationData, $fcmToken)
+    {
+        $accessToken = $this->getAccessToken();
+
+        // dd($notificationData, $fcmToken);
+        $notification = [
+            'title' => $notificationData->title,
+            'body' => json_encode($notificationData->body),
+        ];
+        $notiFicationdata = [
+            'notificationData' => "test",
+            "data" => json_encode($notificationData->data ?? $notificationData->body)
+        ];
+        $data = [
+            'message' => [
+                'token' => $fcmToken,
+                'notification' => $notification,
+                'data' => $notiFicationdata,
+            ]
+        ];
+        // dd($data);
+        // cURL headers
+        $headers = [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken, // Replace with your actual Firebase server key
+        ];
+        // Initialize cURL
+        $ch = curl_init('https://fcm.googleapis.com/v1/projects/orbitcab-e93d8/messages:send');
+        // Set cURL options
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        // Execute cURL request
+        $response = curl_exec($ch);
+        // Check for errors
+        if (curl_errno($ch)) {
+            $error = curl_error($ch);
+            // Handle cURL error (e.g., log it)
+            error_log('FCM Send Error: ' . $error);
+        }
+        // Close cURL resource
+        curl_close($ch);
+        return $response;
+    }
+    // *********************************************************************************
+    // public function sendNotification($notificationData, $fcmToken)
+    // {
+    //     $accessToken = $this->getAccessToken();
+    //     $url = 'https://fcm.googleapis.com/v1/projects/orbitcab-e93d8/messages:send';
+    //     $notification = [
+    //         'title' => $notificationData->title,
+    //         'body' => json_encode($notificationData->body),
+    //     ];
+    //     $notiFicationdata = [
+    //         'notificationData' => "test",
+    //         "data" => json_encode($notificationData->data ?? $notificationData->body)
+    //     ];
+    //     $data = [
+    //         'message' => [
+    //             'token' => $fcmToken,
+    //             'notification' => $notification,
+    //             'data' => $notiFicationdata,
+    //         ]
+    //     ];
+    //     // dd($data);
+    //     // cURL headers
+    //     $headers = [
+    //         'Content-Type: application/json',
+    //         'Authorization: Bearer ' . $accessToken, // Replace with your actual Firebase server key
+    //     ];
+    //     // Initialize cURL
+    //     $ch = curl_init($url);
+    //     // Set cURL options
+    //     curl_setopt($ch, CURLOPT_POST, true);
+    //     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+    //     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    //     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    //     // Execute cURL request
+    //     $response = curl_exec($ch);
+    //     // Check for errors
+    //     if (curl_errno($ch)) {
+    //         $error = curl_error($ch);
+    //         // Handle cURL error (e.g., log it)
+    //         error_log('FCM Send Error: ' . $error);
+    //     }
+    //     // Close cURL resource
+    //     curl_close($ch);
+    //     return $response;
+    // }
+    // *********************************************************************************
+}
