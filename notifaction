@@ -393,3 +393,185 @@ $data = [
 ### Conclusion:
 
 By splitting the 10,000,000 users into manageable chunks (e.g., 1,000 tokens per request) and dispatching these chunks to a queue system, you can send notifications in parallel without overloading the system. Laravel’s queue system, combined with batch processing, is an efficient way to handle large-scale notifications. You should also monitor the Firebase Cloud Messaging rate limits and use retry mechanisms for failed deliveries.
+
+
+
+
+
+############################################################################################
+To improve the speed of sending bulk notifications to a large number of users (e.g., 10 million users) **without using jobs** but within a synchronous context, you can apply several strategies to optimize performance while staying within Firebase's rate limits and avoiding server overload.
+
+Here are some key techniques to speed up the process:
+
+### 1. **Increase Concurrency Using `curl_multi_exec` for Parallel Requests**
+Instead of sending requests serially (one after another), you can send multiple HTTP requests concurrently by using `cURL`'s multi-handle (`curl_multi_exec`). This allows you to send multiple batches of notifications in parallel, significantly reducing the overall time.
+
+#### Example Code Using `curl_multi_exec`:
+
+```php
+function getAccessToken()
+{
+    $credentialsFilePath = config_path('firebase-adminsdk.json');
+    $client = new \Google_Client();
+    $client->setAuthConfig($credentialsFilePath);
+    $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
+    $token = $client->fetchAccessTokenWithAssertion();
+    $accessToken = $token['access_token'];
+    return $accessToken;
+}
+
+public function sendBulkNotifications(array $fcmTokens, array $notificationData)
+{
+    $accessToken = $this->getAccessToken();
+    $fcmTokensChunks = array_chunk($fcmTokens, 500); // Split into 500 token chunks
+
+    $multiHandle = curl_multi_init(); // Initialize cURL multi-handle
+    $curlHandles = []; // To store individual cURL handles
+
+    foreach ($fcmTokensChunks as $index => $tokensChunk) {
+        // Prepare the FCM payload
+        $data = [
+            'message' => [
+                'notification' => [
+                    'title' => $notificationData['title'],
+                    'body'  => $notificationData['body'],
+                ],
+                'data' => $notificationData['data'],
+                'tokens' => $tokensChunk, // Batch of 500 tokens
+            ],
+        ];
+
+        // Setup cURL request
+        $ch = curl_init('https://fcm.googleapis.com/v1/projects/YOUR_PROJECT_ID/messages:send');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $accessToken,
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        // Add the handle to the multi-handle
+        curl_multi_add_handle($multiHandle, $ch);
+        $curlHandles[$index] = $ch; // Store each handle for later cleanup
+    }
+
+    // Execute all cURL handles concurrently
+    $running = null;
+    do {
+        curl_multi_exec($multiHandle, $running);
+    } while ($running > 0); // Wait for all requests to complete
+
+    // Check responses and errors
+    foreach ($curlHandles as $index => $ch) {
+        $response = curl_multi_getcontent($ch);
+        if (curl_errno($ch)) {
+            error_log('FCM Send Error: ' . curl_error($ch));
+        } else {
+            Log::info("Batch $index successfully sent.");
+        }
+        // Remove and close the handle
+        curl_multi_remove_handle($multiHandle, $ch);
+        curl_close($ch);
+    }
+
+    // Close the multi-handle
+    curl_multi_close($multiHandle);
+
+    return true;
+}
+```
+
+### Key Benefits of `curl_multi_exec`:
+- **Parallel Requests**: Sends multiple HTTP requests concurrently, allowing for better utilization of network resources.
+- **Faster Processing**: Reduces the time needed to send notifications by grouping and executing multiple requests at once.
+
+### 2. **Optimize the Database Query**
+If you are fetching a large list of users (10 million) from the database, the query itself can be slow. Optimizing the database query and fetching tokens in batches will speed up the process.
+
+#### Optimize Your Query:
+- Use indexing on fields like `is_online` and `device_token` to improve query performance.
+  
+```php
+$fcmTokens = User::where('is_online', true)
+    ->whereNotNull('device_token')
+    ->limit(10000000) // Fetch only necessary records
+    ->pluck('device_token')
+    ->toArray(); // Only fetch device tokens
+```
+
+#### Fetch Data in Chunks:
+Fetching all 10 million records at once can overload memory. Instead, fetch them in chunks:
+
+```php
+$fcmTokens = [];
+User::where('is_online', true)
+    ->whereNotNull('device_token')
+    ->chunk(10000, function ($users) use (&$fcmTokens) {
+        foreach ($users as $user) {
+            $fcmTokens[] = $user->device_token;
+        }
+    });
+```
+
+### 3. **Use Persistent Connections with `Keep-Alive`**
+HTTP requests can be made faster by keeping the connection open instead of reopening it for each request. You can add a `Connection: Keep-Alive` header to keep the connection alive.
+
+#### Add Keep-Alive Header:
+```php
+$headers = [
+    'Content-Type: application/json',
+    'Authorization: Bearer ' . $accessToken,
+    'Connection: Keep-Alive',
+];
+```
+
+This avoids the overhead of establishing a new TCP connection for each batch.
+
+### 4. **Reduce Payload Size**
+To reduce the size of the payload being sent:
+- **Avoid unnecessary data** in the `data` payload.
+- **Minimize the size of the `body` and `title`** fields.
+- Only include essential information that is needed for the notification.
+
+### 5. **Increase Server Resources**
+- **Upgrade Server Hardware**: Increasing CPU and memory will help handle more concurrent requests and speed up processing. This can be especially helpful when dealing with large-scale synchronous tasks like this.
+- **Use Horizontal Scaling**: Instead of a single server, consider deploying multiple servers to send notifications concurrently (if possible). You can break the workload across servers to handle different parts of the user base.
+
+### 6. **Tune PHP Settings for Better Performance**
+Adjust PHP settings to optimize the performance:
+- **Increase `max_execution_time`**: Since you're processing a lot of requests, increase this to allow long-running scripts.
+  
+  ```ini
+  max_execution_time = 600 // (600 seconds or 10 minutes, adjust as necessary)
+  ```
+
+- **Memory Limit**: Increase the PHP memory limit to handle large payloads efficiently.
+  
+  ```ini
+  memory_limit = 512M // Adjust based on server specs
+  ```
+
+### 7. **Use a Third-Party Service for Bulk Messaging**
+If you're sending notifications to tens of millions of users regularly, consider using a third-party bulk messaging service that is optimized for scale. Services like **Amazon SNS (Simple Notification Service)** or **Twilio Notify** can handle large-scale messaging and provide built-in optimizations for bulk notifications.
+
+### 8. **Monitor and Optimize for Bottlenecks**
+Use monitoring tools to identify where the bottlenecks are. Some areas to monitor:
+- **Network latency**: How long each HTTP request takes to complete.
+- **Database query performance**: How fast the query retrieves data.
+- **CPU and memory usage**: Ensure your server isn’t bottlenecked by hardware.
+
+**Tools to Use:**
+- **New Relic**, **Datadog**, or **Blackfire** for profiling PHP code performance.
+- **Redis** or other caching mechanisms for storing tokens temporarily, which may avoid frequent database queries.
+
+### Conclusion
+
+Here’s a summary of what you can do to **improve the speed**:
+1. **Use `curl_multi_exec` to send multiple batches of notifications concurrently**, drastically reducing total time.
+2. **Fetch FCM tokens from the database in chunks** to avoid memory overload and improve query performance.
+3. **Optimize network requests with `Connection: Keep-Alive`** to reduce the overhead of re-establishing connections.
+4. **Tune your PHP and server settings** to ensure you have enough resources and time to handle long-running processes.
+5. **Consider horizontal scaling** or distributing the work across multiple servers or services like **Amazon SNS** for extremely large workloads.
+
+Implementing these changes will help significantly speed up the process of sending notifications to millions of users without using queues.
