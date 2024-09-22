@@ -1,0 +1,891 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Review;
+use GuzzleHttp\Client;
+use App\Models\Address;
+use Google\Auth\OAuth2;
+use Illuminate\Support\Str;
+use App\Models\RecentSearch;
+use App\Models\User\Booking;
+use GuzzleHttp\HandlerStack;
+use Illuminate\Http\Request;
+use App\Models\Reason\Reason;
+use App\Models\User\WalletLog;
+use Illuminate\Support\Carbon;
+use App\Services\User\UserService;
+use App\Services\Zone\ZoneService;
+use Illuminate\Support\Facades\DB;
+use App\Traits\SendPushNotification;
+use App\Notifications\AllNotification;
+use App\Http\Resources\Api\FareResouce;
+use App\Http\Controllers\BaseController;
+use App\Services\Booking\BookingService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Validator;
+use App\Http\Resources\Api\ReasonResource;
+use App\Services\Category\CategoryService;
+use App\Http\Resources\Api\AddressResource;
+use App\Http\Resources\Api\BookingResource;
+use App\Http\Resources\Api\DeliveryResource;
+use App\Http\Resources\Api\ZoneFareResource;
+use Google\Auth\Middleware\AuthTokenMiddleware;
+use App\Http\Resources\Api\RecentSearchResource;
+use App\Http\Resources\Api\WalletHistoryResource;
+use App\Models\MesageDriverRider;
+use App\Models\Site\Transaction;
+use Google\Auth\Credentials\ServiceAccountCredentials;
+
+class BookingController extends BaseController
+{
+    use SendPushNotification;
+    public function __construct(protected ZoneService $zoneService, protected UserService $userService, protected BookingService $bookingService, protected CategoryService $categoryService)
+    {
+        $this->bookingService = $bookingService;
+        $this->categoryService = $categoryService;
+        $this->userService = $userService;
+        $this->zoneService = $zoneService;
+        //$this->couponService = $couponService;
+        $this->rule = 'required|numeric';
+        $this->existRule = 'required|uuid|exists:zones,uuid';
+        $this->arrayRule = 'required|array';
+    }
+    // *****************************************************************************************************
+    public function getFareByLocation(Request $request)
+    {
+        $datas = $this->zoneService->getFareByLocation([
+            'codes' => $request->from['pincode'],
+            'lat' => $request->from['lat'],
+            'lng' => $request->from['lng']
+        ]);
+        $types = $this->categoryService->listCategories(['type' => 'car', 'is_active' => true], 'id', 'desc');
+        return $this->responseJson(true, 200, 'Data found successfully', FareResouce::collection($datas));
+    }
+    // *****************************************************************************************************
+    public function getPriceByUser(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'service_uuid' => 'required|uuid|exists:categories,uuid',
+            'from' => $this->arrayRule,
+            'from.lat' => $this->rule,
+            'from.long' => $this->rule,
+            'from.zone' => $this->existRule,
+            'to' => $this->arrayRule,
+            'to.lat' => $this->rule,
+            'to.long' => $this->rule,
+            'to.zone' => $this->existRule,
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        $role = auth()->user()->hasRole('user') ? 'user' : 'other';
+        $priceBy = 'zone';
+        if ($role == 'user') {
+            $priceBy = getSiteSetting('charge_type') ?? 'zone';
+        }
+        $fare = $this->zoneService->getZoneFareByUserType($request->all(), $role, $priceBy);
+        return $this->responseJson((bool) $fare, 200, $fare ? 'Price Found successfully' : 'Service not available', $fare ? new ZoneFareResource($fare) : (object) []);
+    }
+    // *****************************************************************************************************
+    public function createBooking(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'fare' => 'required|numeric',
+            // 'name' => 'sometimes|string',
+            // 'phone' => 'sometimes|string',
+            'category_uuid' => 'required|uuid|exists:categories,uuid',
+            'from_address' => 'required|array',
+            'to_address' => 'required|array',
+            // 'payment_mode' => 'sometimes|string',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        $bookingInfo = [];
+        $data = [
+            'user_id' => auth()->user()->id,
+            'fare' => $request->fare ?? '',
+            'name' => $request->name ?? '',
+            'phone' => $request->phone ?? '',
+            'is_guest' => $request->is_guest ?? '',
+            'booking_id' => Str::random(9),
+            'category_id' => uuidtoid($request->category_uuid, 'categories'),
+            'scheduled_at' => $request->type == 'asap' ? Carbon::now()->addHour()->format('Y-m-d H:i:s') : $request->scheduled_at,
+            'from_address' => json_encode($request->from_address),
+            'to_address' => json_encode($request->to_address),
+            'distance' => 0, // Default value before calculation
+            'duration' => '0', // Default value before calculation
+            'payment_mode' => $request->payment_mode ?? 'cash',
+            'type' => $request->type,
+            'is_reward' => $request->is_reward,
+            'total_fare'=> $request->total_fare,
+        ];
+        // dd($request->from_address,$request->to_address);
+        // Calculate distance and duration
+        $distanceData = $this->calculateDestances($request->from_address, $request->to_address);
+        // dd($distanceData1);
+        // $distanceData = $this->calculateDistanceAndDuration($request->from_address, $request->to_address);
+        if ($distanceData) {
+            $data['distance'] = $distanceData['distance'];
+            $data['duration'] = $distanceData['duration'];
+        } else {
+            throw new \Exception('Failed to calculate distance and duration.');
+        }
+        // Begin transaction
+        try {
+            DB::beginTransaction();
+            if (bookingtransactions('') == null) {
+                if (!empty($request->to_address)) {
+                    foreach ($request->to_address as $toAddress) {
+                        RecentSearch::create([
+                            'user_id' => auth()->user()->id,
+                            'address' => $toAddress['address'],
+                            'latitude' => $toAddress['lat'],
+                            'longitude' => $toAddress['long'],
+                            // Store only the 'address' field
+                        ]);
+                    }
+                }
+                // Create booking
+                $isBookingCreated = Booking::create($data);
+                $data = new BookingResource($isBookingCreated);
+                $msg = 'Booking(s) created successfully';
+                DB::commit();
+                $this->notifyDrivers($isBookingCreated); // sending push notifaction
+            } else {
+                $data = new BookingResource(bookingtransactions('')) ?? [];
+                $msg = 'Your Previews booking Payment Due';
+            }
+            // dd($data);
+            // Commit transaction
+            DB::commit();
+            // Return response
+            return $this->responseJson(true, 200, $msg, $data);
+        } catch (\Exception $e) {
+            // Rollback transaction in case of error
+            DB::rollBack();
+            return $this->responseJson(false, 500, 'Booking creation failed: ' . $e->getMessage());
+        }
+    }
+    // *****************************************************************************************************
+    private function calculateDistanceAndDuration($fromAddress, $toAddress)
+    {
+        try {
+            // Extract coordinates from from_address
+            $fromLat = $fromAddress['lat'];
+            $fromLong = $fromAddress['long'];
+            // Initialize variables for total distance and total duration
+            $totalDistance = 0;
+            $totalDuration = 0;
+            // Calculate distance and duration for each to_address
+            foreach ($toAddress as $to) {
+                $toLat = $to['lat'];
+                $toLong = $to['long'];
+                // Calculate distance using Haversine formula
+                $distance = $this->haversineDistance($fromLat, $fromLong, $toLat, $toLong);
+                // Calculate estimated duration based on average speed (example: 40 km/h)
+                $averageSpeed = 40; // in km/h
+                $distance_km = $distance / 1000;
+                $durationInHours = $distance / 1000 / $averageSpeed; // Convert distance to km
+                $durationInMinutes = round($durationInHours * 60);
+                // Accumulate total distance and duration
+                $totalDistance += $distance;
+                $totalDuration += $durationInMinutes;
+            }
+            // Return total distance and formatted duration
+            return [
+                'distance' => $totalDistance,
+                'duration' => "{$totalDuration} min", // Added unit for clarity
+            ];
+        } catch (\Exception $e) {
+            throw new \Exception('Failed to calculate distance and duration: ' . $e->getMessage());
+        }
+    }
+    // *****************************************************************************************************
+    private function haversineDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371.0; // Earth's radius in kilometers
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLon = deg2rad($lon2 - $lon1);
+        $a = sin($dLat / 2) * sin($dLat / 2) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) * sin($dLon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        $distance = $earthRadius * $c * 1000; //  Distance in meters
+        // $distance = $earthRadius * $c; // Distance in kilometers
+        // dd($distance);
+        return $distance; // Return distance in meters
+    }
+    // *****************************************************************************************************
+    private function notifyDrivers($booking)
+    {
+        // dd($booking);
+        // Example function to notify drivers about the new booking
+        $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver');
+        // dd($drivers->toArray());
+        $bookingInfo = Booking::orderBy('id', 'desc')->take(1)->get();
+        if ($drivers->isNotEmpty()) {
+            // dd($drivers->toArray());
+            foreach ($drivers as $driver) {
+                // Send notifications to drivers
+                $fcmToken = $driver->device_token;
+                $requestparamVendor = (object)[
+                    'body' => 'New Booking Have Arrived',
+                    'title' => 'Booking Created',
+                    'data' => BookingResource::collection($bookingInfo),
+                    'image' => 'https://example.com/path/to/image.jpg',
+                ];
+                // dd($requestparamVendor, $fcmToken);
+                $this->sendNotification($requestparamVendor, $fcmToken);
+                $notificationData = [
+                    'type' => 'bookingcreated',
+                    'title' => 'New Booking',
+                    'message' => 'New booking created By ' . auth()->user()->full_name,
+                ];
+                $driver->notify(new AllNotification($notificationData));
+            }
+        }
+    }
+    // *****************************************************************************************************
+    public function changeStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'incident_uuid' => 'required|uuid|exists:incidents,uuid',
+            'status' => 'required|integer',
+            'comment' => 'sometimes|nullable|string',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            $id = uuidtoid($request->incident_uuid, 'incidents');
+            $status = $request->status;
+            $incident = $this->bookingService->findIncidentById($id);
+            if ($request->status <= 1 && $incident->status > 0) {
+                return $this->responseJson(false, 200, 'Incident already serviced', (object)[]);
+            }
+            if (in_array($request->status, [0, 1])) {
+                $isDeliveryUpdated = $incident->deliveries()->where('user_id', auth()->user()->id)->update([
+                    'accepted_at' => $status ? now() : null,
+                    'rejected_at' => !$status ? now() : null,
+                ]);
+                if ($status == 1) {
+                    $incident->deliveries()->where('user_id', '!=', auth()->user()->id)->whereNull('rejected_at')->delete();
+                }
+            }
+            $isIncidentUpdated = $incident->update(['status' => $status]);
+            if ($isIncidentUpdated) {
+                $message = $status == 1 ? 'accepted the trip' : ($status == 2 ? 'is on the trip' : ($status == 3 ? 'has completed the trip' : 'has rejected the trip'));
+                $incident->histories()->create([
+                    'status' => $incident->status,
+                    'previous_status' => $incident->histories->latest()?->status ?? 0,
+                    'description' => $request->comment ?? 'Driver ' . $message
+                ]);
+                if (!$status) {
+                    $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver')->where('id', '!=', auth()->user()->id);
+                    if ($drivers) {
+                        $fcmTokens = $drivers->pluck('device_token')->toArray();
+                        auth()->user()->notify(new SendPushNotification('Booking Created', 'New Booking from ' . auth()->user()->full_name, $fcmTokens, 'all', new BookingResource($incident)));
+                    } else {
+                        $isIncidentUpdated = $incident->update(['status' => 4]);
+                        $incident->histories()->create([
+                            'status' => $incident->status,
+                            'previous_status' => $incident->histories->latest()?->status ?? 0,
+                            'description' => 'Booking rejected as no driver accepted your booking'
+                        ]);
+                    }
+                }
+                DB::commit();
+                $responseMessage = 'Driver ' . $message;
+                return $this->responseJson(true, 200, $responseMessage, (object) []);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, $e->getMessage(), []);
+        }
+    }
+    // *****************************************************************************************************
+    public function getCurrentBooking(Request $request)
+    {
+        $filtered = Booking::where('user_id', auth()->user()->id)->whereIn('status', [0, 1, 2, 3, 4, 5])->where('is_accepted', 2)->whereBetween('scheduled_at', [Carbon::now()->format('Y-m-d 00:00:00'), Carbon::now()->addHours(2)->format('Y-m-d H:i:s')])->orderBy('id', 'desc')->first();
+        if (!empty($filtered)) {
+            return $this->responseJson(true, 200, 'Booking Fetched Successfully', new BookingResource($filtered));
+        } else {
+            return $this->responseJson(true, 200, 'No Data Found !!', []);
+        }
+        //dd($filtered);
+    }
+    // *****************************************************************************************************
+    public function getReasonList(Request $request)
+    {
+        $reasons = Reason::where('type', 'customer')->get();
+        return $this->responseJson(true, 200, 'Reason Fetched Successfully', $reasons ? ReasonResource::collection($reasons) : []);
+    }
+    // *****************************************************************************************************
+    public function incidents(Request $request)
+    {
+        try {
+            $incidents = auth()->user()->deliveries->whereNotNull('accepted_at')->whereNull('rejected_at');
+            return $this->responseJson(true, 200, 'Incidents found succcessfully', DeliveryResource::collection($incidents));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went wrong', []);
+        }
+    }
+    // *****************************************************************************************************
+    public function cancelBooking(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            'status' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        // try {
+        $id = uuidtoid($request->uuid, 'bookings');
+        $bookings = Booking::where('id', $id)->first();
+        $fcmTokens = $bookings->bookingDrivers?->bookingDriverUser?->device_token;
+        //$fcmTokens = $bookings->users?->device_token;
+        //$plateNo= $bookings->users?->vehicles?->first();
+        //dd($plateNo);
+        //$verificationCode = rand(1000, 9999);
+        if ($bookings) {
+            $isBookingAccepted = $bookings->update([
+                // 'is_complete' => $request->is_complete,
+                'status' => 7,
+                'reason_id' => $request->reason_id
+                //'verification_code' => $verificationCode,
+            ]);
+            //dd($isBookingAccepted->bookingDrivers);
+        }
+        $booking = $bookings->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+            'booking_id' => $id,
+            'user_id' => auth()->user()->id,
+            'status' => $request->status
+        ]);
+        $bookinglogs = $bookings->bookingLogs()->Create([
+            'booking_id' => $id,
+            'user_id' => auth()->user()->id,
+            'status' => 7,
+            'comment' => "Ride has been cancelled by customer"
+        ]);
+        DB::commit();
+        $requestparamVendor = (object)array(
+            'body' => 'Your Ride has been canceled',
+            'title' =>  'Ride Canceled'
+        );
+        // $fcmVendor = $vendor->fcm_token;
+        $this->sendNotification($requestparamVendor, $fcmTokens);
+        return $this->responseJson(true, 200, 'Ride Canceled Successfully', []);
+    }
+    // *****************************************************************************************************
+    public function createReview(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            'user_id' => 'required',
+            'rating' => 'required|numeric',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        // try {
+        $id = uuidtoid($request->uuid, 'bookings');
+        $reviews = Review::Create([
+            'booking_id' => $id,
+            'user_id' => $request->user_id ?? '',
+            'rating' => $request->rating ?? '',
+            'comment' => $request->comment ?? '',
+            'type' => $request->type ?? '',
+            'created_by' => auth()->user()->id,
+        ]);
+        DB::commit();
+        // $requestparamVendor = (object)array(
+        //     'body' => 'Your Ride has been canceled',
+        //     'title' =>  'Ride Canceled'
+        // );
+        // // $fcmVendor = $vendor->fcm_token;
+        // $this->sendNotification($requestparamVendor, $fcmTokens);
+        return $this->responseJson(true, 200, 'Review Added Successfully', $reviews);
+    }
+    // *****************************************************************************************************
+    public function recentSearchesList(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'type' => 'required|string'
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            $address = Address::where('user_id', auth()->user()->id)->orderBy('id', 'desc')->get();
+            $recentSearch = RecentSearch::where('user_id', auth()->user()->id)->orderBy('id', 'desc')->get();
+            DB::commit();
+            if ($request->type == 'address') {
+                return $this->responseJson(true, 200, "", ['address' => AddressResource::collection($address), 'recent_searches' => []]);
+            } elseif ($request->type == 'recent_search') {
+                return $this->responseJson(true, 200, "", ['recent_searches' => RecentSearchResource::collection($recentSearch), 'address' => []]);
+            } else {
+                return $this->responseJson(true, 200, "", ['address' => AddressResource::collection($address), 'recent_searches' => RecentSearchResource::collection($recentSearch)]);
+            }
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            logger($th->getMessage() . 'on' . $th->getFile() . 'in' . $th->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // *****************************************************************************************************
+    public function saveAddress(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            //'uuid' => 'required|uuid|exists:bookings,uuid',
+            'name' => 'required|string',
+            'full_address' => 'required',
+            'latitude' => 'required',
+            'longitude' => 'required',
+            'address' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        $address = Address::Create([
+            'user_id' => auth()->user()->id,
+            'name' => $request->name ?? '',
+            'full_address' => $request->full_address ?? '',
+            'latitude' => $request->latitude ?? '',
+            'longitude' => $request->longitude ?? '',
+            'address' => json_encode($request->address),
+            // 'comment' => $request->comment ?? '',
+            // 'type' => $request->type ?? '',
+            // 'created_by' => auth()->user()->id,
+        ]);
+        DB::commit();
+        // $requestparamVendor = (object)array(
+        //     'body' => 'Your Ride has been canceled',
+        //     'title' =>  'Ride Canceled'
+        // );
+        // // $fcmVendor = $vendor->fcm_token;
+        // $this->sendNotification($requestparamVendor, $fcmTokens);
+        return $this->responseJson(true, 200, 'Address Saved Successfully', []);
+    }
+    // *****************************************************************************************************
+    public function getsaveAddress(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'type' => 'required|string|in:recent_address,save_address,all'
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        $type = $request->type;
+        switch ($type) {
+            case 'recent_address':
+                $address = ['recent_searches' => AddressResource::collection(RecentSearch::where('user_id', auth()->id())->get())];
+                $msg = "Fetch Recent Search Successfully";
+                break;
+            case 'save_address':
+                $address =  ['saved_addresses' => AddressResource::collection(Address::where('user_id', auth()->id())->get())];
+                $msg = "Save Address Recent Search Successfully";
+                break;
+            case 'all':
+                $address = [
+                    'saved_addresses' => AddressResource::collection(Address::where('user_id', auth()->id())->get()),
+                    'recent_searches' => AddressResource::collection(RecentSearch::where('user_id', auth()->id())->get())
+                ];
+                $msg = "Fetch Save Address and Recent Search Successfully";
+                break;
+            default:
+                return $this->responseJson(false, 400, 'Invalid address type');
+        }
+        if ($address) {
+            return $this->responseJson(true, 200, $msg,  $address);
+        } else {
+            return $this->responseJson(false, 404, 'Address not found');
+        }
+    }
+    // *****************************************************************************************************
+    public function walletCredit(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric',
+            // 'status' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        // try {
+        // $id = uuidtoid($request->uuid, 'bookings');
+        // $bookings = Booking::where('id', $id)->where('is_accepted', 1)->first();
+        // $fcmTokens = $bookings->bookingDrivers?->bookingDriverUser?->device_token;
+        $user = auth()->user();
+        if ($user) {
+            $walletLog = WalletLog::create([
+                'transaction_id' => Str::random(9),
+                'customer_id' => auth()->user()->id,
+                'transaction_type' => 'CREDIT',
+                'comment' => $request->comment ?? '',
+                'amount' => $request->amount ?? '',
+            ]);
+            $total_amount = $user->wallet_total_balance + $request->amount;
+            $userDetails = $user->update([
+                'wallet_total_balance' => $total_amount
+            ]);
+        }
+        //$fcmTokens = $bookings->users?->device_token;
+        //$plateNo= $bookings->users?->vehicles?->first();
+        //dd($plateNo);
+        //$verificationCode = rand(1000, 9999);
+        if ($user) {
+            DB::commit();
+            return $this->responseJson(true, 200, 'Amount Credited Successfully !!', new WalletHistoryResource($user));
+            //dd($isBookingAccepted->bookingDrivers);
+        }
+    }
+    // *****************************************************************************************************
+    public function editAddress(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:addresses,uuid',
+            // 'is_accepted' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            $id = uuidtoid($request->uuid, 'addresses');
+            $address = Address::where('id', $id)->first();
+            if ($address) {
+                $addressUpdate = $address->update([
+                    'name' => $request->name ?? '',
+                    'full_address' => $request->full_address ?? '',
+                    'latitude' => $request->latitude ?? '',
+                    'longitude' => $request->longitude ?? '',
+                    'address' => json_encode($request->address),
+                ]);
+                DB::commit();
+                return $this->responseJson(true, 200, 'Address Updated Successfully', new AddressResource($address));
+            }
+            if ($address) {
+                DB::commit();
+                return $this->responseJson(true, 200, 'Address Found Successfully', new AddressResource($address));
+            }
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            logger($th->getMessage() . 'on' . $th->getFile() . 'in' . $th->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // *****************************************************************************************************
+    public function deleteAddress(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:addresses,uuid',
+            // 'is_accepted' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        // try {
+        $id = uuidtoid($request->uuid, 'addresses');
+        $address = Address::where('id', $id)->delete();
+        DB::commit();
+        return $this->responseJson(true, 200, 'Address Deleted Successfully', []);
+    }
+    // *****************************Customer Wise Ride List*************************************************
+    public function myRide(Request $request)
+    {
+        try {
+            $filtered = Booking::where('user_id', auth()->user()->id)
+                ->whereIn('status', [0, 1, 2, 3, 4, 5])
+                ->whereIn('is_accepted', [1, 2, 3, 4, 5])
+                ->orderBy('id', 'desc')
+                ->get();
+            return $this->responseJson(true, 200, 'Booking fetch successfully',  BookingResource::collection($filtered));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went wrong', []);
+        }
+    }
+    // *****************************************************************************************************
+    public function walletHistory(Request $request)
+    {
+        try {
+            $filtered = WalletLog::where('user_id', auth()->user()->id)
+                ->orderBy('id', 'desc')
+                ->get();
+            return $this->responseJson(true, 200, 'Wallet History Fetch successfully',  WalletHistoryResource::collection($filtered));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went wrong', []);
+        }
+    }
+    // *****************************************************************************************************
+    public function walletHistoryfilter(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'from_date' => 'required|date',
+            'to_date' => 'required|date|after_or_equal:from_date',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        try {
+            $filtered = WalletLog::where('user_id', auth()->user()->id)
+                ->whereBetween('created_at', [$request->from_date, $request->to_date])
+                ->orderBy('id', 'desc')
+                ->get();
+            return $this->responseJson(true, 200, 'Wallet History Fetch successfully', WalletHistoryResource::collection($filtered));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went wrong', []);
+        }
+    }
+    // *****************************************************************************************************
+    public function bookingHistoryFilter(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'month' => 'required|integer|between:1,12',
+            'year' => 'nullable|integer|min:1900|max:' . date('Y'),
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        try {
+            // Set current year if year is null
+            $year = $request->year ?? date('Y');
+            $filtered = Booking::where('user_id', auth()->user()->id)
+                ->whereMonth('created_at', $request->month)
+                ->whereYear('created_at', $year) // Use the determined year
+                ->whereIn('status', [5, 6, 7])
+                ->orderBy('id', 'desc')
+                ->get();
+            return $this->responseJson(true, 200, 'Booking History Fetch successfully', BookingResource::collection($filtered));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went wrong', []);
+        }
+    }
+    // *****************************************************************************************************
+    public function calculateDestances($l1, $l2)
+    {
+        $l1 = [
+            [
+                $l1['lat'],
+                $l1['long']
+            ]
+        ];
+        $l2 = array_map(function ($location) {
+            return [$location['lat'], $location['long']];
+        }, $l2);
+        $sedfgh = array_merge($l1, $l2);
+        $points = $sedfgh;
+        // $points1 = [
+        //     [22.5726, 88.3639], // Point 1
+        //     [28.7041, 77.1025], // Point 2
+        //     [19.0760, 72.8777]  // Point 3
+        // ];
+        // dd($points, $points1);
+        $totalDistance = 0;
+        $totalDuration = 0;
+        $distance = calculateTotalDistance($points);
+        $averageSpeed = 40; // in km/h
+        $distance_km = $distance / 1000;
+        $durationInHours = $distance / 1000 / $averageSpeed; // Convert distance to km
+        $durationInMinutes = round($durationInHours * 60);
+        // Accumulate total distance and duration
+        $totalDistance += $distance;
+        $totalDuration += $durationInMinutes;
+        return [
+            'distance' => $totalDistance,
+            'duration' => "{$totalDuration} min", // Added unit for clarity
+        ];
+        // return $totalDistance;
+        // dd($totalDistance);
+    }
+    // *****************************************************************************************************
+}
+ // public function createBooking(Request $request)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'fare' => 'required|numeric',
+    //         'category_uuid' => 'required|uuid|exists:categories,uuid',
+    //         'from_address' => 'required|array',
+    //         'to_address' => 'required|array',
+    //     ]);
+    //     if ($validator->fails()) {
+    //         return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    //     }
+    //     $data = [
+    //         'user_id' => auth()->user()->id,
+    //         'fare' => $request->fare ?? 10.00,
+    //         'name' => $request->name ?? '',
+    //         'phone' => $request->phone ?? '',
+    //         'is_guest' => $request->is_guest ?? false,
+    //         'booking_id' => Str::random(9),
+    //         'category_id' => uuidtoid($request->category_uuid, 'categories'),
+    //         'scheduled_at' => $request->type === 'asap' ? Carbon::now()->addHour()->format('Y-m-d H:i:s') : $request->scheduled_at,
+    //         'from_address' => json_encode($request->from_address),
+    //         'to_address' => json_encode($request->to_address),
+    //         // 'distance' => 0,
+    //         // 'duration' => '0',
+    //         'payment_mode' => $request->payment_mode ?? 'cash',
+    //         'type' => $request->type
+    //     ];
+    //     // Calculate distance and duration
+    //     $distanceData = $this->calculateDistanceAndDuration($request->from_address, $request->to_address);
+    //     if ($distanceData) {
+    //         $data['distance'] = $distanceData['distance'];
+    //         $data['duration'] = $distanceData['duration'];
+    //     } else {
+    //         throw new \Exception('Failed to calculate distance and duration.');
+    //     }
+    //     // Begin transaction
+    //     try {
+    //         DB::beginTransaction();
+    //         // if (bookingtransactions('') === null) {
+    //         foreach ($request->to_address as $toAddress) {
+    //             RecentSearch::create([
+    //                 'user_id' => auth()->user()->id,
+    //                 'address' => $toAddress['address'],
+    //                 'latitude' => $toAddress['lat'],
+    //                 'longitude' => $toAddress['long'],
+    //             ]);
+    //         }
+    //         // Create booking
+    //         $isBookingCreated = Booking::create($data);
+    //         $this->notifyDrivers($isBookingCreated);
+    //         $msg = 'Booking(s) created successfully';
+    //         $data = new BookingResource($isBookingCreated);
+    //         // } else {
+    //         //     $data = new BookingResource(bookingtransactions('')) ?? [];
+    //         //     $msg = 'Your Previous booking Payment Due';
+    //         // }
+    //         DB::commit();
+    //         return $this->responseJson(true, 200, $msg, $data);
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         return $this->responseJson(false, 500, 'Booking creation failed: ' . $e->getMessage());
+    //     }
+    // }
+     // *****************************************************************************************************
+    // public function addMessageDeiverCustomer(Request $request)
+    // {
+    //     // dd($request->all());
+    //     $messageData = [
+    //         'room_id' => $request->room_id,
+    //         'user_id' => $request->user_id,
+    //         'driver_id' => $request->driver_id,
+    //         'booking_id' => $request->booking_id,
+    //         'message' => $request->message,
+    //         'status' => 0,
+    //     ];
+    //     $existingRoom = MesageDriverRider::where([
+    //         'room_id' => $request->room_id,
+    //         'booking_id' => $request->booking_id
+    //     ])->first();
+    //     if ($existingRoom) {
+    //         // Update existing message
+    //         $existingMessages = json_decode($existingRoom->message, true);
+    //         $existingMessages[] = $messageData;
+    //         $existingRoom->update([
+    //             'message' => json_encode($existingMessages),
+    //             'status' => 0,
+    //         ]);
+    //     } else {
+    //         // dd(json_encode([$messageData]));
+    //         // Create new message
+    //         MesageDriverRider::create([
+    //             'room_id' => $request->room_id,
+    //             'user_id' => $request->user_id,
+    //             'driver_id' => $request->driver_id,
+    //             'booking_id' => $request->booking_id,
+    //             'message' => json_encode([$messageData]),
+    //         ]);
+    //     }
+    //     return response()->json(['message' => 'Message stored successfully']);
+    // }
+ // *****************************************************************************************************
+    // public static function nearestStand($driver, $radius = 4000)
+    // // public static function nearestStand($latitude, $longitude, $radius = 4000)
+    // {
+    //     $stands =  Stand::selectRaw("id, stand_name, address, longitude, latitude,
+    //                      ( 6371000 * acos( cos( radians(?) ) *
+    //                        cos( radians( latitude ) )
+    //                        * cos( radians( longitude ) - radians(?)
+    //                        ) + sin( radians(?) ) *
+    //                        sin( radians( latitude ) ) )
+    //                      ) AS distance", [$latitude, $longitude, $latitude])
+    //         ->where('status', '=', 1)
+    //         ->having("distance", "<", $radius)
+    //         ->orderBy("distance", 'asc')
+    //         ->offset(0)
+    //         ->limit(20);
+    //     return $stands;
+    // }
+   // *****************************************************************************************************
+//    public function getFareByLocation(Request $request)
+//    {
+       // $validator = Validator::make($request->all(), [
+       //     'from' => $this->arrayRule,
+       //     'from.lat' => $this->rule,
+       //     'from.lng' => $this->rule,
+       //     'from.pincode' => $this->rule,
+       //     'to' => $this->arrayRule,
+       //     'to.lat' => $this->rule,
+       //     'to.lng' => $this->rule,
+       // ]);
+       // if ($validator->fails()) {
+       //     return $this->responseJson(false, 422, $validator->errors()->first(), "");
+       // }
+       // dd($request->all());
+    //    $datas = $this->zoneService->getFareByLocation([
+    //        'codes' => $request->from['pincode'],
+    //        'lat' => $request->from['lat'],
+    //        'lng' => $request->from['lng']
+    //    ]);
+    //    $types = $this->categoryService->listCategories(['type' => 'car', 'is_active' => true], 'id', 'desc');
+       // $destinationEta= getEta(['lat'=>$request->from['lat'],'lng'=>$request->from['lng']],$request->to);
+       // if($datas){
+       //     foreach ($datas as $key => $value) {
+       //         $currentLocation= $value->vehicles->first()?->user?->currentLocation;
+       //         $pickupEta= $currentLocation->locationEta(['lat'=>$request->from['lat'],'lng'=>$request->from['lng']]);
+       //         $data= $pickupEta;
+       //         $value->pickup_eta= $data;
+       //         $value->category_name= $value?->category?->name;
+       //         $value->lat= $currentLocation?->lat;
+       //         $value->lng= $currentLocation?->lng;
+       //         $value->destination_eta= $destinationEta;
+       //         $value->time_to_reach_rider=$pickupEta['eta'].' away';
+       //  $value->distance_to_reach_rider=$pickupEta['distance'].' from your location';
+       //         if(str_contains($destinationEta['distance'],'km')){
+       //             $price= round($value->rate_per_km*(floatval($destinationEta['distance'])));
+       //         }else{
+       //             $price= round($value->rate_per_km*(floatval($destinationEta['distance'])/1000));
+       //         }
+       //         $value->estimated_price= $price;
+       //     }
+       // }else{
+       //     $datas= $this->categoryService->listCategories(['type'=>'car','is_active'=>true]);
+       //     foreach ($datas as $catKey => $catValue) {
+       //         $currentLocation= $catValue->vehicles->first()?->user?->currentLocation;
+       //         $pickupEta= $currentLocation->locationEta(['lat'=>$request->from['lat'],'lng'=>$request->from['lng']]);
+       //         $catValue->category_name= $catValue?->name;
+       //         $catValue->lat= $currentLocation->lat;
+       //         $catValue->lng= $currentLocation->lng;
+       //         $catValue->time_to_reach_rider = $pickupEta['eta'].' away';
+       //         $catValue->distance_to_reach_rider=$pickupEta['distance'].' from your location';
+       //         $rate = getSiteSetting('km_price') ?? 0;
+       //         $catValue->estimated_price= round($rate*(floatval($destinationEta['distance'])));
+       //     }
+       // }
+    //    return $this->responseJson(true, 200, 'Data found successfully', FareResouce::collection($datas));
+//    }
