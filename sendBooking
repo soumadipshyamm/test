@@ -206,3 +206,139 @@ class SendBooking extends Command
     //     // }
     // }
 // }
+
+
+######################################################
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\User\Booking;
+use App\Models\User\User;
+use App\Services\User\UserService;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+use App\Traits\SendPushNotification;
+
+class SendBooking extends Command
+{
+    use SendPushNotification;
+
+    public function __construct(protected UserService $userService)
+    {
+        parent::__construct();
+        $this->userService = $userService;
+    }
+
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'app:send-booking';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Send a notification for scheduled bookings 30 minutes prior to the scheduled time.';
+
+    /**
+     * Execute the console command.
+     */
+    public function handle()
+    {
+        $currentTimestamp = Carbon::now(); // Get the current timestamp
+
+        // Retrieve scheduled bookings that are still active
+        $bookingInfo = Booking::where('status', 1)
+            ->where('type', 'scheduled')
+            ->get();
+
+        Log::info("Found " . count($bookingInfo) . " scheduled bookings to process.");
+
+        foreach ($bookingInfo as $booking) {
+            $scheduledTime = Carbon::parse($booking->scheduled_at);
+            $thirtyMinutesBefore = $scheduledTime->copy()->subMinutes(30);
+
+            // Check if the booking is within 30 minutes of the scheduled time
+            if ($thirtyMinutesBefore <= $currentTimestamp && $scheduledTime > $currentTimestamp) {
+                
+                // Find nearest online drivers within 10 km
+                $nearbyDrivers = $this->getNearbyDrivers($booking->pickup_latitude, $booking->pickup_longitude, 10);
+
+                foreach ($nearbyDrivers as $driver) {
+                    if ($driver->is_online) {
+                        $fcmToken = $driver->device_token;
+                        $notificationData = [
+                            'type'  => 'bookingreminder',
+                            'title' => 'Booking Reminder',
+                            'body'  => 'You have a booking scheduled in 30 minutes nearby.',
+                            'image' => 'https://example.com/path/to/image.jpg',
+                        ];
+
+                        // Send the push notification
+                        $this->sendNotification($notificationData, $fcmToken);
+
+                        // Log successful notification
+                        Log::info("Notification sent to online driver (ID: {$driver->id}) for booking (ID: {$booking->id}).");
+                    } else {
+                        Log::info("Driver (ID: {$driver->id}) is not online, skipping notification.");
+                    }
+                }
+            } else {
+                Log::info("Booking ID {$booking->id} is not within the 30-minute window or already passed.");
+            }
+        }
+    }
+
+    /**
+     * Get nearby drivers within a specific distance.
+     *
+     * @param float $lat Booking latitude
+     * @param float $lng Booking longitude
+     * @param int $distance Distance in kilometers
+     * @return \Illuminate\Support\Collection List of nearby drivers
+     */
+    private function getNearbyDrivers($lat, $lng, $distance)
+    {
+        $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver');
+        
+        return $drivers->filter(function ($driver) use ($lat, $lng, $distance) {
+            $driverDistance = $this->calculateDistance($lat, $lng, $driver->latitude, $driver->longitude);
+            return $driverDistance <= $distance;
+        });
+    }
+
+    /**
+     * Calculate the distance between two latitude/longitude points using the Haversine formula.
+     *
+     * @param float $lat1 Latitude of point 1
+     * @param float $lon1 Longitude of point 1
+     * @param float $lat2 Latitude of point 2
+     * @param float $lon2 Longitude of point 2
+     * @return float Distance in kilometers
+     */
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        $earthRadius = 6371; // Earth's radius in kilometers
+
+        // Convert degrees to radians
+        $lat1 = deg2rad($lat1);
+        $lon1 = deg2rad($lon1);
+        $lat2 = deg2rad($lat2);
+        $lon2 = deg2rad($lon2);
+
+        // Haversine formula
+        $dlat = $lat2 - $lat1;
+        $dlon = $lon2 - $lon1;
+        $a = sin($dlat / 2) * sin($dlat / 2) + cos($lat1) * cos($lat2) * sin($dlon / 2) * sin($dlon / 2);
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+        // Calculate the distance
+        return $earthRadius * $c;
+    }
+}
+
