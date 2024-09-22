@@ -1,0 +1,208 @@
+
+<?php
+
+namespace App\Console\Commands;
+
+use App\Http\Resources\Api\BookingResource;
+use App\Models\User\Booking;
+use App\Models\User\User;
+use App\Services\User\UserService;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+// use
+use App\Traits\SendPushNotification;
+
+class SendBooking extends Command
+{
+    use SendPushNotification;
+
+    public function __construct(protected UserService $userService)
+    {
+        parent::__construct();
+        $this->userService = $userService;
+    }
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'app:send-booking';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Command description';
+
+    /**
+     * Execute the console command.
+     */
+
+
+    public function handle()
+    {
+        $currentTimestamp = Carbon::now(); // Get the current timestamp
+
+        // $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver');
+        $bookingInfo = Booking::where('status', 1)->where('type', 'scheduled')->get();
+
+        Log::info($bookingInfo);
+
+        foreach ($bookingInfo as $booking) {
+            $scheduledTime = Carbon::parse($booking->scheduled_at);
+            $thirtyMinutesBefore = $scheduledTime->subMinutes(30);
+            if ($thirtyMinutesBefore <= $currentTimestamp) {
+                $driver = User::find($booking->driver_id);
+                if ($driver) {
+                    $fcmToken = $driver->device_token;
+                    $notificationData = [
+                        'type' => 'bookingreminder',
+                        'title' => 'Booking Reminder',
+                        'body' => 'You have a booking scheduled in 30 minutes.',
+                        'image' => 'https://example.com/path/to/image.jpg',
+                    ];
+                    $this->sendNotification($notificationData, $fcmToken);
+                    Log::info("Notification sent to driver {$driver->id} for booking {$booking->id}");
+                } else {
+                    Log::error("Driver {$booking->driver_id} not found.");
+                }
+            }
+        }
+        // if ($drivers->isNotEmpty()) {
+        //     foreach ($bookingInfo as $driver) {
+        //         // Check if scheduled_at is set
+
+        //         // Log::info($driver);
+        //         if (!$driver->scheduled_at) {
+        //             Log::error("Driver {$driver->id} --{$driver->name}has no scheduled_at set.");
+        //             continue; // Skip this driver
+        //         }
+        //     }
+        // } else {
+        //     Log::info("No online drivers found.");
+        // }
+    }
+}
+
+    // public function handle()
+    // {
+    //     $currentTimestamp = Carbon::now(); // Get the current timestamp
+    //     // $companies = Booking::where('status', 1)
+    //     //     ->where('type', 'asap')
+    //     //     ->first();
+
+    //     // if (!$companies) {
+    //     //     Log::info("No companies found.");
+    //     //     return; // Exit if no companies are found
+    //     // }
+
+    //     // $subtractedTimestamp = $companies->scheduled_at->subMinutes(30); // Subtract 30 minutes
+
+
+    //     $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver');
+    //     // $bookingInfo = Booking::orderBy('id', 'desc')->take(2)->get();
+    //     $bookingInfo = Booking::where('status', 1)->where('type', 'asap')->get();
+    //     if ($drivers->isNotEmpty()) {
+    //         foreach ($drivers as $driver) {
+    //             $subtractedTimestamp = $driver->scheduled_at->subMinutes(30);
+    //             // Send notifications to drivers
+    //             if ($subtractedTimestamp >=  $currentTimestamp) {
+    //                 $fcmToken = $driver->device_token;
+    //                 $requestparamVendor = (object)[
+    //                     'body' => BookingResource::collection($bookingInfo),
+    //                     'title' => 'Booking Created',
+    //                     'image' => 'https://example.com/path/to/image.jpg',
+    //                 ];
+    //                 $this->sendNotification($requestparamVendor, $fcmToken);
+    //             }
+    //             // $notificationData = [
+    //             //     'type' => 'bookingcreated',
+    //             //     'title' => 'New Booking',
+    //             //     'message' => 'New booking created By ' . auth()->user()->full_name,
+    //             // ];
+    //             // $driver->notify(new AllNotification($notificationData));
+    //             // }
+
+    //             // $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver');
+
+    //             // $requestparamVendor = (object)[
+    //             //     'body' => new BookingResource($companies),
+    //             //     'title' => 'Booking Created',
+    //             //     'image' => '',
+    //             // ];
+
+    //             // foreach ($drivers as $driver) {
+    //             //     $fcmToken = $driver->device_token;
+
+    //             //     if ($subtractedTimestamp >= $currentTimestamp) {
+    //             //         Log::info("Sending notification to online driver: {$fcmToken}");
+    //             //     } else {
+    //             //         Log::info("Driver {$fcmToken} is offline, no notification sent.");
+    //             //     }
+    //             //     $this->sendNotification($requestparamVendor, $fcmToken);
+    //             // }
+    //         }
+    //     }
+    // }
+// }
+    // public function handle()
+    // {
+    //     $currentTimestamp = Carbon::now(); // Get the current timestamp
+
+    //     $companies = Booking::where('status', 1)
+    //         ->where('type', 'asap')
+    //         ->first();
+    //     $subtractedTimestamp = $companies->scheduled_at->subMinutes(30); // Subtract 30 minutes
+
+    //     $drivers = User::where(['is_online' => true, 'is_active' => true])
+    //         ->whereHas('roles', function ($r) {
+    //             $r->where('slug', 'driver');
+    //         })
+    //         ->get();
+
+    //     $requestparamVendor = (object)[
+    //         'body' => new BookingResource($companies),
+    //         // 'body' => BookingResource::collection($companies),
+    //         'title' => 'Booking Created',
+    //         'image' => '',
+    //     ];
+    //     // foreach ($drivers as $key => $vals) {
+    //     //     $fcmToken = $vals->device_token;
+
+    //     //     if ($subtractedTimestamp >=  $currentTimestamp) {
+    //     //         Log::info("true {$subtractedTimestamp}///{$companies->scheduled_at}//{$currentTimestamp}//{$fcmToken}");
+    //     //         $this->sendNotification($requestparamVendor, $fcmToken);
+    //     //     } else {
+    //     //         Log::info("false {$subtractedTimestamp}///{$companies->scheduled_at}//{$currentTimestamp}///{$fcmToken}");
+    //     //         $this->sendNotification($requestparamVendor, $fcmToken);
+    //     //     }
+    //     // }
+    //     // $user = auth()->user();
+    //     // if (!$user->hasRole('driver'))
+    //     // $userService = new UserService();
+    //     // // // // // $userService->store();
+    //     $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver');
+
+    //     // $fcmToken = $drivers->device_token;
+    //     // $requestparamVendor = (object)[
+    //     //     'body' => 'BookingResource::collection($companies)',
+    //     //     'title' => 'Booking Created',
+    //     //     'image' => '',
+    //     // ];
+    //     // Log::info("true {$subtractedTimestamp}///{$companies->scheduled_at}//{$currentTimestamp}//{$drivers}");
+
+    //     // if ($subtractedTimestamp >=  $currentTimestamp) {
+    //     Log::info("true {$drivers}");
+    //     //     // $this->sendNotification($requestparamVendor, $fcmToken);
+    //     // } else {
+    //     //     Log::info("false {$subtractedTimestamp}///{$companies->scheduled_at}//{$currentTimestamp}///{$fcmToken}");
+    //     //     // $this->sendNotification($requestparamVendor, $fcmToken);
+    //     // }
+
+    //     // foreach ($companies as $company) {
+    //     //     $company->update(['status' => 0]); // Set status to expired (0)
+    //     // }
+    // }
+// }
