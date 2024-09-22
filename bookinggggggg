@@ -888,4 +888,93 @@ class BookingController extends BaseController
        //     }
        // }
     //    return $this->responseJson(true, 200, 'Data found successfully', FareResouce::collection($datas));
-//    }
+//    }|
+|
+|
+##################################################################################################
+private function notifyDrivers($booking)
+{
+    try {
+        // Assuming the booking has location data (latitude, longitude)
+        $bookingLatitude = $booking->pickup_latitude;
+        $bookingLongitude = $booking->pickup_longitude;
+        
+        // Fetch online and active drivers
+        $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver');
+
+        // Define the maximum distance in kilometers (e.g., 10 km)
+        $maxDistance = 10;
+
+        if ($drivers->isNotEmpty()) {
+            foreach ($drivers as $driver) {
+                // Assuming drivers have location data (latitude, longitude)
+                $driverLatitude = $driver->latitude;
+                $driverLongitude = $driver->longitude;
+
+                // Calculate the distance between booking location and driver location
+                $distance = $this->calculateDistance($bookingLatitude, $bookingLongitude, $driverLatitude, $driverLongitude);
+
+                // Check if the driver is within the maximum distance
+                if ($distance <= $maxDistance) {
+                    $fcmToken = $driver->device_token;
+
+                    // Notification data for FCM
+                    $requestparamVendor = (object)[
+                        'body' => 'A new nearby booking has arrived',
+                        'title' => 'New Booking Created',
+                        'data' => new BookingResource($booking),  // Directly use $booking
+                        'image' => 'https://example.com/path/to/image.jpg',
+                    ];
+
+                    // Send FCM notification
+                    $this->sendNotification($requestparamVendor, $fcmToken);
+
+                    // Notification data for the app
+                    $notificationData = [
+                        'type' => 'bookingcreated',
+                        'title' => 'New Nearby Booking',
+                        'message' => 'A new booking has been created by ' . auth()->user()->full_name . ' near your location',
+                    ];
+
+                    // Notify the driver
+                    $driver->notify(new AllNotification($notificationData));
+                }
+            }
+        }
+    } catch (\Exception $e) {
+        // Log or handle the exception
+        Log::error('Error notifying drivers: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Calculate the distance between two latitude/longitude points using the Haversine formula
+ *
+ * @param float $lat1 Latitude of point 1
+ * @param float $lon1 Longitude of point 1
+ * @param float $lat2 Latitude of point 2
+ * @param float $lon2 Longitude of point 2
+ * @return float Distance in kilometers
+ */
+private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+{
+    $earthRadius = 6371; // Earth's radius in kilometers
+
+    // Convert degrees to radians
+    $lat1 = deg2rad($lat1);
+    $lon1 = deg2rad($lon1);
+    $lat2 = deg2rad($lat2);
+    $lon2 = deg2rad($lon2);
+
+    // Haversine formula
+    $dlat = $lat2 - $lat1;
+    $dlon = $lon2 - $lon1;
+    $a = sin($dlat / 2) * sin($dlat / 2) + cos($lat1) * cos($lat2) * sin($dlon / 2) * sin($dlon / 2);
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+
+    // Calculate the distance
+    $distance = $earthRadius * $c;
+
+    return $distance;
+}
+
