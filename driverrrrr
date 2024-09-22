@@ -1,0 +1,1219 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use Exception;
+use App\Models\Review;
+use App\Traits\UploadAble;
+use Illuminate\Support\Str;
+use App\Models\DriverReview;
+use App\Models\User\Booking;
+use Illuminate\Http\Request;
+use Kreait\Firebase\Factory;
+use App\Models\Reason\Reason;
+use Illuminate\Support\Carbon;
+use App\Models\WalletTransaction;
+use App\Services\User\UserService;
+use Illuminate\Support\Facades\DB;
+use Kreait\Firebase\ServiceAccount;
+use App\Traits\SendPushNotification;
+use App\Notifications\AllNotification;
+use Illuminate\Support\Facades\Storage;
+use App\Http\Controllers\BaseController;
+use App\Http\Resources\Api\UserResource;
+use Illuminate\Support\Facades\Validator;
+use App\Http\Resources\Api\AcountResource;
+use App\Http\Resources\Api\ReasonResource;
+use App\Http\Resources\Api\BookingResource;
+use App\Http\Resources\Api\VehicleResource;
+use Kreait\Firebase\Messaging\CloudMessage;
+use Kreait\Firebase\Messaging\Notification;
+use App\Http\Resources\Api\DeliveryResource;
+use App\Http\Resources\Api\DocumentResource;
+use App\Http\Resources\Api\VehicleNewResource;
+use App\Http\Resources\Api\BookingdriverResource;
+use App\Http\Resources\Api\WalletTransactionResource as ApiWalletTransactionResource;
+use App\Http\Resources\WalletTransactionResource;
+use App\Models\Site\Transaction;
+use App\Models\User\BookingLog;
+use App\Models\User\User;
+use App\Models\User\Vehicle;
+use App\Models\User\WalletLog;
+use Illuminate\Support\Facades\Log;
+
+class DriverController extends BaseController
+{
+    // private $messaging;
+    use UploadAble;
+    use SendPushNotification;
+    public function __construct(protected UserService $userService)
+    {
+        $this->userService = $userService;
+        // $firebaseConfig = [
+        //     'credential' =>  config_path('firebase-adminsdk.json') // Use environment variable
+        // ];
+        // $factory = (new Factory)->withServiceAccount($firebaseConfig);
+        // $this->messaging = $factory->createMessaging();
+    }
+    // ****************************************************************************************
+    public function profile(Request $request)
+    {
+        return $this->responseJson(true, 200, 'Profile Data Found successfully', new UserResource(auth()->user()));
+    }
+    // ****************************************************************************************
+    public function updateProfile(Request $request)
+    {
+        $user = auth()->user();
+        $validator = Validator::make($request->all(), [
+            // 'first_name' => 'required|string|min:3',
+            // 'last_name' => 'required|string|min:3',
+        ]);
+        $request->merge(['role' => auth()->user()->roles->first()->slug, 'first_name' => $request->has('first_name') ? $request->first_name : auth()->user()->first_name]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            $isUserUpdated = $this->userService->updateUser($request->except('email'), $user->id);
+            if ($isUserUpdated) {
+                DB::commit();
+                $data = ['type' => 'profileUpdated', 'title' => 'Profile', 'message' => 'Your Profile has been updated'];
+                auth()->user()->notify(new AllNotification($data));
+                return $this->responseJson(true, 200, 'Profile Updated successfully', new UserResource(auth()->user()->fresh()));
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ***********************************************************************************************************
+    public function updateVehicles(Request $request)
+    {
+        $user = auth()->user();
+        $vehicleId = $request->vehicle_id; // Assuming you pass the vehicle ID in the request
+        $validator = Validator::make($request->all(), [
+            'plate_no' => 'required|string|unique:vehicles,plate_no,' . $vehicleId,
+            'name' => 'required|string',
+            'seating_capacity' => 'required|numeric',
+            'color' => 'required|string',
+            'milage' => 'required|numeric',
+            'category_id' => 'required|numeric',
+        ], [], [
+            'plate_no' => 'Plate No',
+            'seating_capacity' => 'Seating Capacity',
+            'color' => 'Color',
+            'milage' => 'Milage',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            auth()->user()->vehicles()->updateOrCreate(
+                ['id' => $vehicleId],
+                [
+                    'plate_no' => $request->plate_no,
+                    'name' => $request->name,
+                    'seating_capacity' => $request->seating_capacity,
+                    'color' => $request->color,
+                    'milage' => $request->milage,
+                    'category_id' => $request->category_id
+                ]
+            );
+            DB::commit();
+            return $this->responseJson(true, 200, 'Vehicles added successfully', ['vehicles' => VehicleNewResource::collection(auth()->user()->vehicles)]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function getVehicles(Request $request)
+    {
+        return $this->responseJson(true, 200, 'Vehicles found successfully', ['vehicles' => VehicleNewResource::collection(auth()->user()->vehicles), 'user' => new UserResource(auth()->user())]);
+    }
+    // ****************************************************************************************
+    public function listUserVehicles(Request $request)
+    {
+        try {
+            $user = auth()->user();
+            $vehicles = $user->vehicles()->orderBy('id', 'desc')->get();
+            if ($vehicles->isEmpty()) {
+                return $this->responseJson(false, 404, 'No Vehicle added', []);
+            }
+            return $this->responseJson(true, 200, 'Vehicles listed successfully', VehicleNewResource::collection($vehicles));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function editVehicle(Request $request)
+    {
+        try {
+            $vehicle = auth()->user()->vehicles()->where('id', $request->vehicle_id)->firstOrFail();
+            return $this->responseJson(true, 200, 'Vehicle updated successfully',  VehicleNewResource::make($vehicle));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function updateLicenceAndCity(Request $request)
+    {
+        try {
+            $validatedData = $request->validate([
+                'license_no' => 'required|string|unique:profiles,license_no,' . auth()->user()->profile->id,
+                'city' => 'sometimes|nullable|numeric|exists:cities,id',
+            ]);
+            $user = auth()->user();
+            $user->profile()->update([
+                'license_no' => $request->license_no,
+                'city_id' => $request->city,
+            ]);
+            // dd($user);
+            return $this->responseJson(true, 200, 'Licence and City updated successfully', ['user' => new UserResource($user)]);
+        } catch (\Exception $e) {
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function setPrimaryVehicle(Request $request)
+    {
+        // Validate the vehicle_id
+        $validatedData = $request->validate([
+            'vehicle_id' => 'required|integer|exists:vehicles,id',
+        ]);
+        DB::beginTransaction();
+        try {
+            $vehicle = auth()->user()->vehicles()->where('is_primary', 1)->first(); // Get user's primary vehicle
+            if ($vehicle) {
+                $vehicle->update(['is_primary' => 0]); // Update current primary vehicle
+            }
+            $newPrimaryVehicle = auth()->user()->vehicles()->where('id', $request->vehicle_id)->where('is_primary', 0)->first();
+            if ($newPrimaryVehicle) {
+                $newPrimaryVehicle->update(['is_primary' => 1]); // Set new vehicle as primary
+            }
+            $vehicles = auth()->user()->vehicles()->orderby('id', 'desc')->get();
+            if ($vehicles->isEmpty()) {
+                return $this->responseJson(false, 404, 'No vehicles found for the user', []);
+            }
+            DB::commit();
+            return $this->responseJson(true, 200, 'Vehicle set as primary successfully', VehicleNewResource::collection($vehicles));
+            // return $this->responseJson(true, 200, 'Vehicle set as primary successfully',  new VehicleNewResource($newPrimaryVehicle));
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function tripHistory(Request $request)
+    {
+        try {
+            $filtered = Booking::where('driver_id', auth()->user()->id)
+                ->where('is_complete', 1)
+                //->whereIn('status', [0, 1, 2, 3, 4, 5])
+                //->whereIn('is_accepted', [1, 2, 3, 4, 5])
+                ->orderBy('id', 'desc')
+                ->get();
+            return $this->responseJson(true, 200, 'Booking fetch successfully',  BookingResource::collection($filtered));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went wrong', []);
+        }
+    }
+    // ****************************************************************************************
+    public function tripHistoryDetails(Request $request)
+    {
+        try {
+            $filtered = Booking::where('driver_id', auth()->user()->id)
+                ->where('id', $request->booking_id)
+                // ->where('is_complete', 1)
+                // ->orderBy('id', 'desc')
+                ->first();
+            if ($filtered) {
+                return $this->responseJson(true, 200, 'Booking fetch successfully',  new BookingResource($filtered));
+            } else {
+                return $this->responseJson(true, 200, 'Booking fetch successfully',  []);
+            }
+        } catch (\Exception $e) {
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went wrong', []);
+        }
+    }
+    // ****************************************************************************************
+    public function getDeliveries(Request $request)
+    {
+        $deliveries = auth()->user()->deliveries;
+        return $this->responseJson(true, 200, $deliveries->isNotEmpty() ? 'Deliveries found successfully' : "No Deliveries yet", DeliveryResource::collection($deliveries));
+    }
+    // ****************************************************************************************
+    public function getCurrentDelivery(Request $request)
+    {
+        $deliveries = auth()->user()->deliveries();
+        $filtered = $deliveries->where('is_completed', false)->whereNotNull('accepted_at')->whereBetween('accepted_at', [Carbon::now()->format('Y-m-d 00:00:00'), Carbon::now()->addHours(2)->format('Y-m-d H:i:s')])->get();
+        return $this->responseJson(true, 200, $filtered->isNotEmpty() ? 'Booking Found Successfully' : 'No Booking Found', $filtered->isNotEmpty() ? new BookingResource($filtered->first()->incident) : (object) []);
+    }
+    // ****************************************************************************************
+    public function changeStatus(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'is_online' => 'required|boolean',
+            'latitude' => 'required',
+            'longitude' => 'required'
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            if (auth()->user()->hasRole('driver')) {
+                $isUseronlineStatusChagned = auth()->user()->update([
+                    'is_online' => $request->is_online,
+                    'latitude' => $request->latitude,
+                    'longitude' => $request->longitude,
+                ]);
+                if ($isUseronlineStatusChagned) {
+                    DB::commit();
+                    return $this->responseJson(true, 200, 'Status Changed Successfully', (object) []);
+                }
+            } else {
+                return $this->responseJson(false, 200, 'Sorry you are not allowed to change the status', (object) []);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function updateCurrentloc(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'latitude' => 'required',
+            'longitude' => 'required'
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        //     dd($request->all());
+        //    DB::beginTransaction();
+        //    try {
+        //        if (auth()->user()->hasRole('driver')) {
+        DB::beginTransaction();
+        try {
+            if (auth()->user()->hasRole('driver') && auth()->user()->is_online == 1) {
+                $isUseronlineStatusChagned = auth()->user()->update([
+                    'latitude' => $request->latitude,
+                    'longitude' => $request->longitude,
+                ]);
+                if ($isUseronlineStatusChagned) {
+                    DB::commit();
+                    return $this->responseJson(true, 200, 'Update Current Location Successfully', (object) []);
+                }
+            } else {
+                return $this->responseJson(false, 200, 'Sorry you are not allowed to change the status', (object) []);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function cancelBooking(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            // 'uuid' => 'required|id|exists:bookings,id',
+            'status' => 'required',
+            'reason_id' => 'required',
+            // 'description' => 'sometimes|required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        $id = uuidtoid($request->uuid, 'bookings');
+        $bookings = Booking::where('id', $id)->first();
+        $fcmTokens = $bookings->users?->device_token;
+        if ($bookings) {
+            $isBookingAccepted = $bookings->update([
+                'status' => 6,
+                'reason_id' => $request->reason_id,
+                'description' => $request->description
+            ]);
+        }
+        $bookings->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+            'booking_id' => $id,
+            'user_id' => auth()->user()->id,
+            'status' => 6 // is_cancle:2
+        ]);
+        $bookinglogs = BookingLog::create([
+            'booking_id' => $id,
+            'user_id' => auth()->user()->id,
+            'status' => 6,
+            'comment' => "Ride has been cancelled by driver"
+        ]);
+        DB::commit();
+        $requestparamVendor = (object)array(
+            'body' => 'Your cancel this ride',
+            'title' =>  'Ride Canceled'
+        );
+        // $fcmVendor = $vendor->fcm_token;
+        $this->sendNotification($requestparamVendor, $fcmTokens);
+        return $this->responseJson(true, 200, 'Ride Canceled Successfully', new BookingResource($bookings));
+    }
+    // ****************************************************************************************
+    public function acceptOrRejectBooking(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            'is_accepted' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        $id = uuidtoid($request->uuid, 'bookings');
+        $bookings = Booking::where('id', $id)->first();
+        if (!$bookings) {
+            return $this->responseJson(false, 404, 'Booking not found', []);
+        }
+        // Check if the booking is already accepted
+        if ($bookings->driver_id != null && $request->is_accepted == 2 && in_array($bookings->status, [1, 2])) {
+            return $this->responseJson(false, 403, 'Already Accepted', []);
+        }
+        // dd($bookings->driver_id == null  && $bookings->status == 7 && $bookings->is_accepted == 1);
+        // Check if the booking is canceled by the customer
+        if ($bookings->driver_id == null && $bookings->is_accepted == 1 && $bookings->status == 7) {
+            return $this->responseJson(false, 403, 'This Booking Is Canceled By Customer', []);
+        }
+        $fcmTokens = $bookings->users?->device_token;
+        $verificationCode = rand(1000, 9999);
+        DB::beginTransaction();
+        try {
+            if ($request->is_accepted == 2) {
+                $bookings->update([
+                    'is_accepted' => $request->is_accepted,
+                    'page_no' => 1,
+                    'verification_code' => $verificationCode,
+                    'driver_id' => auth()->user()->id,
+                ]);
+            }
+            $bookings->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+                'booking_id' => $id,
+                'user_id' => auth()->user()->id,
+                'status' => $request->is_accepted // is_accepted: 2, cancel ride: 3 for driver end
+            ]);
+            BookingLog::create([
+                'booking_id' => $bookings->id,
+                'user_id' => auth()->user()->id,
+                'status' => 3, // on the way to ride
+                'comment' => "Your cab is on the way"
+            ]);
+            $plate_no = $bookings->bookingDriverUser?->vehicles?->first()?->plate_no ?? 'WB000988';
+            if ($bookings->is_accepted == 2) {
+                DB::commit();
+                $requestparamVendor = (object)[
+                    'body' => 'Your Vehicle No: ' . $plate_no,
+                    'title' => 'Your cab is on the way',
+                    'image' => asset('app-assets/images/Group.png'),
+                ];
+                $this->sendNotification($requestparamVendor, $fcmTokens);
+                $data = [
+                    'type' => 'bookingaccepted',
+                    'title' => 'Booking Accepted',
+                    'message' => 'Booking accepted by ' . auth()->user()->full_name,
+                ];
+                $bookings->users->notify(new AllNotification($data));
+                return $this->responseJson(true, 200, 'Booking Accepted Successfully', new BookingResource($bookings));
+            } else {
+                DB::commit();
+                $data = [
+                    'type' => 'bookingrejected',
+                    'title' => 'Booking Rejected',
+                    'message' => 'Booking rejected by ' . auth()->user()->full_name,
+                ];
+                $bookings->users->notify(new AllNotification($data));
+                return $this->responseJson(true, 200, 'Booking Rejected Successfully', new BookingResource($bookings));
+            }
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            logger($th->getMessage() . 'on' . $th->getFile() . 'in' . $th->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function ongoingTrip(Request $request)
+    {
+        if ($request->isMethod('post')) {
+            $filtered = Booking::where('driver_id', auth()->user()->id)->whereIn('status', [2, 3, 4, 5])->where('is_complete', 0)->where('is_accepted', 2)->whereBetween('scheduled_at', [Carbon::now()->format('Y-m-d 00:00:00'), Carbon::now()->addHours(2)->format('Y-m-d H:i:s')])->orderBy('id', 'desc')->first();
+        } else {
+            $filtered = Booking::where('driver_id', auth()->user()->id)->whereIn('status', [4, 5])->where('is_complete', 0)->where('is_accepted', 2)->whereBetween('scheduled_at', [Carbon::now()->format('Y-m-d 00:00:00'), Carbon::now()->addHours(2)->format('Y-m-d H:i:s')])->orderBy('id', 'desc')->first();
+        }
+        if (!empty($filtered)) {
+            return $this->responseJson(true, 200, 'Booking Fetched Successfully', new BookingResource($filtered));
+        } else {
+            return $this->responseJson(false, 200, 'No Trip Details Found', '');
+        }
+    }
+    // ****************************************************************************************
+    public function startTripBooking(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            'otp' => 'required|numeric'
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        $id = uuidtoid($request->uuid, 'bookings');
+        $bookings = Booking::where('id', $id)->where('verification_code', $request->otp)->first();
+        if (!$bookings) {
+            return $this->responseJson(false, 400, "Please Provide Valid Otp !!", "");
+        }
+        DB::beginTransaction();
+        try {
+            $bookings->update([
+                'status' => 4,
+                'page_no' => 4
+            ]);
+            $this->createpaymentmode($bookings);   // create a transaction for payment  mode
+            BookingLog::create([
+                'booking_id' => $id,
+                'user_id' => auth()->user()->id,
+                'status' => 4,
+                'comment' => "Your Trip has been started please enjoy your trip :)"
+            ]);
+            $data = [
+                'type' => 'trip start',
+                'title' => 'Trip Started',
+                'message' => 'Your Trip has been started please enjoy your trip :)',
+            ];
+            // dd($bookings->driver->vehicles->first()->plate_no, $bookings->users->id);
+            $plate_no = $bookings->driver->vehicles->first()->plate_no;
+            $bookings->users->notify(new AllNotification($data));
+            $BookingResource = new BookingResource($bookings);
+            $fcmTokens = $bookings->users?->device_token;
+            $requestparamVendor = (object)[
+                'body' => "Trip Started, Your Vehicle No: " . $plate_no,
+                'data' => $BookingResource,
+                'title' => "Trip Started",
+                'message' => 'Your Trip has been started please enjoy your trip :)',
+            ];
+            // dd( $requestparamVendor);
+            $this->sendNotification($requestparamVendor, $fcmTokens);
+            DB::commit(); // Commit transaction
+            return $this->responseJson(true, 200, "Otp Validated Successfully, Now the trip has been started", $BookingResource);
+        } catch (\Exception $e) {
+            DB::rollBack(); // Rollback transaction on error
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function tripReached(Request $request)
+    {
+        // dd($request->all());
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            $id = uuidtoid($request->uuid, 'bookings');
+            $booking = Booking::find($id);
+            if (!$booking) {
+                return $this->responseJson(false, 404, 'Booking not found', "");
+            }
+            $fcmTokens = $booking->user?->device_token;
+            $updateData = Booking::where('id', $booking->id)->update([
+                // 'is_complete' => 0,
+                'status' => $request->status ?? 3,
+            ]);
+            // dd($id, $booking);
+            BookingLog::create([
+                'booking_id' => $booking->id ?? null,
+                'user_id' => auth()->user()->id,
+                'lat' => $request->lat,
+                'long' => $request->long,
+                'status' => $request->status,
+                'comment' => "Your Ride has been Reached"
+            ]);
+            $booking->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+                'booking_id' => $id,
+                'user_id' => auth()->user()->id,
+                'status' =>  $request->status // tripe rich:3
+            ]);
+            if ($updateData) {
+                // Call the new method to handle wallet update and logging
+                $this->updateWalletAndLogBooking($booking, $request);
+                DB::commit();
+                $notificationData = (object)[
+                    'body' => 'Your Ride has been completed',
+                    'title' => 'Ride Completed'
+                ];
+                $this->sendNotification($notificationData, $fcmTokens);
+                return $this->responseJson(true, 200, 'Ride Completed Successfully', new BookingResource($booking));
+            } else {
+                DB::rollBack();
+                return $this->responseJson(false, 500, 'Failed to update booking', "");
+            }
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            logger($th->getMessage() . ' on ' . $th->getFile() . ' in ' . $th->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function tripComplited(Request $request)
+    {
+        // dd($request->all());
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            'is_complete' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            $id = uuidtoid($request->uuid, 'bookings');
+            $booking = Booking::find($id);
+        // dd($booking);
+
+            if ($booking->payment_mode == 'cash') {
+                $booking->bookingtransactions->update([
+                    "status" => 2,
+                    "json_response" => "cash paid"
+                ]);
+            }
+        // dd($booking);
+
+            if (!$booking) {
+                return $this->responseJson(false, 404, 'Booking not found', "");
+            }
+            $fcmTokens = $booking->users?->device_token;
+            $updateData = [
+                'is_complete' => $request->is_complete ?? 1,
+                'status' => 5,
+                'page_no' => 0
+            ];
+            $booking->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+                'booking_id' => $id,
+                'user_id' => auth()->user()->id,
+                'status' => 5 // is_cancle:2
+            ]);
+            $this->platfromcharge($booking); // plate from charges and driver amount
+            if ($booking->update($updateData)) {
+                addRewardPrice(auth()->user()->id);
+                BookingLog::create([
+                    'booking_id' => $id,
+                    'user_id' => auth()->user()->id,
+                    'status' => 5,
+                    'comment' => "Your Ride has been completed"
+                ]);
+                DB::commit();
+                $notificationData = (object)[
+                    'body' => 'Your Ride has been completed',
+                    'title' => 'Ride Completed',
+                    'data' => []
+                ];
+                $this->sendNotification($notificationData, $fcmTokens);
+                $data = [
+                    'type' => 'tripcompleted',
+                    'title' => 'Trip Cpmpletion',
+                    'message' => 'Your Trip has been completed',
+                ];
+                // $booking->users->notify(new AllNotification($data));
+                return $this->responseJson(true, 200, 'Ride Completed Successfully', new BookingResource($booking));
+            } else {
+                DB::rollBack();
+                return $this->responseJson(false, 500, 'Failed to update booking', "");
+            }
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            logger($th->getMessage() . ' on ' . $th->getFile() . ' in ' . $th->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    private function updateWalletAndLogBooking($booking, $request)
+    {
+        if ($booking->payment_mode == 'wallet') {
+            $updateAmount = Transaction::where('booking_id', $booking->id)->first();
+            $updateAmount->update([
+                "status" => 1
+            ]);
+            $userWalletMoney = User::where('id', $booking->user_id)->first();
+            $current_amount = $userWalletMoney?->wallet_total_balance;
+            $userWalletMoney->wallet_total_balance -= $booking->fare;
+            $userWalletMoney->save();
+            Log::info($userWalletMoney);
+            WalletLog::create([
+                'driver_id' => auth()->user()->id,
+                'amount' => $booking?->fare ?? null,
+                'transaction_type' => "Dedited",
+                'transaction_id' => $updateAmount->id ?? null,
+                'current_amount' => $current_amount ?? 0.0,
+                'user_id' => $userWalletMoney->id,
+                'remark' => 'Recharge of ' . ($booking?->fare) . ' is successful',
+            ]);
+        }
+        // dd($booking);
+        BookingLog::create([
+            'booking_id' => $booking->id ?? null,
+            'user_id' => auth()->user()->id,
+            'lat' => $request->lat,
+            'long' => $request->long,
+            'status' => $request->status,
+            'comment' => "Your Ride has been completed"
+        ]);
+        $insertArray = $request->only(['lat', 'long', 'to_address']);
+        $insertArray['booking'] = $booking;
+        // addBookingLocation((object)$insertArray);
+    }
+    // ****************************************************************************************
+    public function bankAccount(Request $request)
+    {
+        $account = auth()->user()->account;
+        if ($request->method() == 'POST') {
+            $validator = Validator::make($request->all(), [
+                'ifsc_code' => 'required|string',
+                'bank_name' => 'required|string',
+                'branch_name' => 'required|string',
+                'account_no' => 'required|string|unique:bank_accounts,account_no,' . auth()->user()->id . ',user_id',
+            ], [], [
+                'ifsc_code' => 'IFSC Code',
+                'bank_name' => 'Bank Name',
+                'branch_name' => 'Branch Name',
+                'account_no' => 'Account Number'
+            ]);
+            if ($validator->fails()) {
+                return $this->responseJson(false, 422, $validator->errors()->first(), "");
+            }
+            DB::beginTransaction();
+            try {
+                if (auth()->user()->hasRole('driver')) {
+                    $isUserAccountCreatedOrUpdated = auth()->user()->account()->updateOrCreate([], $request->all());
+                    if ($isUserAccountCreatedOrUpdated) {
+                        DB::commit();
+                        $data = ['type' => 'bankDetailsAdded', 'title' => 'Bank Details', 'message' => 'You have added your bank details'];
+                        auth()->user()->notify(new AllNotification($data));
+                        $message = 'Account details saved successfully';
+                    }
+                } else {
+                    return $this->responseJson(false, 200, 'Sorry you are not allowed add or update acount', (object) []);
+                }
+            } catch (\Exception $e) {
+                DB::rollBack();
+                logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+                return $this->responseJson(false, 500, 'Something Went Wrong');
+            }
+        }
+        return $this->responseJson(true, 200, $message ?? 'Account Data Found successfully', (object) new AcountResource($isUserAccountCreatedOrUpdated ?? ($account ?? [])) ?? (object) []);
+    }
+    // ****************************************************************************************
+    public function getWallet(Request $request)
+    {
+        try {
+            $filtered = WalletTransaction::where('driver_id', auth()->user()->id)
+                ->orderBy('id', 'desc')
+                ->get();
+            return $this->responseJson(true, 200, 'Transaction Fetched Successfully',  WalletTransactionResource::collection($filtered));
+        } catch (\Exception $e) {
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went wrong', []);
+        }
+    }
+    // ****************************************************************************************
+    public function uploadDocuments(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'vehicle_documents' => 'sometimes|array',
+            'vehicle_documents.*' => 'file|mimes:jpg,png,jpeg,pdf',
+            'noc_document' => 'file|mimes:jpg,png,jpeg,pdf',
+            'rc_document_front' => 'file|mimes:jpg,png,jpeg,pdf',
+            'rc_document_back' => 'file|mimes:jpg,png,jpeg,pdf',
+            'aadhar_document_front' => 'file|mimes:jpg,png,jpeg,pdf',
+            'aadhar_document_back' => 'file|mimes:jpg,png,jpeg,pdf',
+            'licence_document_front' => 'file|mimes:jpg,png,jpeg,pdf',
+            'licence_document_back' => 'file|mimes:jpg,png,jpeg,pdf',
+            'pan_card' => 'file|mimes:jpg,png,jpeg,pdf',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            if (auth()->user()->hasRole('driver')) {
+                if ($request->has('vehicle_documents')) {
+                    auth()->user()->documents()->where('document_type', 'vehicle')->delete();
+                    foreach ($request->vehicle_documents as $document) {
+                        $fileName = uniqid() . '.' . $document->getClientOriginalExtension();
+                        $isFileUploaded = $this->uploadOne($document, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                        if ($isFileUploaded) {
+                            auth()->user()->documents()->create([
+                                'user_id' => auth()->user()->id,
+                                'title' => $document->getClientOriginalName() ?? 'vehicle',
+                                'document_type' => 'vehicle',
+                                'file' => $fileName,
+                                'status' => false,
+                            ]);
+                        }
+                    }
+                }
+                if ($request->has('licence_document_front')) {
+                    auth()->user()->documents()->where('document_type', 'licence_front')->forceDelete();
+                    $fileName = uniqid() . '.' . $request->licence_document_front->getClientOriginalExtension();
+                    $isFileUploaded = $this->uploadOne($request->licence_document_front, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                    if ($isFileUploaded) {
+                        auth()->user()->documents()->create([
+                            'user_id' => auth()->user()->id,
+                            'document_type' => 'licence_front',
+                            'title' => $request->licence_document_front->getClientOriginalName() ?? 'License Front Image',
+                            'file' => $fileName,
+                            'status' => false,
+                        ]);
+                    }
+                }
+                if ($request->has('licence_document_back')) {
+                    auth()->user()->documents()->where('document_type', 'licence_back')->forceDelete();
+                    $fileName = uniqid() . '.' . $request->licence_document_back->getClientOriginalExtension();
+                    $isFileUploaded = $this->uploadOne($request->licence_document_back, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                    if ($isFileUploaded) {
+                        auth()->user()->documents()->create([
+                            'user_id' => auth()->user()->id,
+                            'document_type' => 'licence_back',
+                            'title' => $request->licence_document_back->getClientOriginalName() ?? 'License Back Image',
+                            'file' => $fileName,
+                            'status' => false,
+                        ]);
+                    }
+                }
+                if ($request->has('aadhar_document_front')) {
+                    auth()->user()->documents()->where('document_type', 'aadhar_front_image')->forceDelete();
+                    $fileName = uniqid() . '.' . $request->aadhar_document_front->getClientOriginalExtension();
+                    $isFileUploaded = $this->uploadOne($request->aadhar_document_front, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                    if ($isFileUploaded) {
+                        auth()->user()->documents()->create([
+                            'user_id' => auth()->user()->id,
+                            'title' => $request->aadhar_document_front->getClientOriginalName() ?? 'Aadhar Front image',
+                            'document_type' => 'aadhar_front_image',
+                            'file' => $fileName,
+                            'status' => false,
+                        ]);
+                    }
+                }
+                if ($request->has('aadhar_document_back')) {
+                    auth()->user()->documents()->where('document_type', 'aadhar_back_image')->forceDelete();
+                    $fileName = uniqid() . '.' . $request->aadhar_document_back->getClientOriginalExtension();
+                    $isFileUploaded = $this->uploadOne($request->aadhar_document_back, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                    if ($isFileUploaded) {
+                        auth()->user()->documents()->create([
+                            'user_id' => auth()->user()->id,
+                            'title' => $request->aadhar_document_back->getClientOriginalName() ?? 'Aadhar Back image',
+                            'document_type' => 'aadhar_back_image',
+                            'file' => $fileName,
+                            'status' => false,
+                        ]);
+                    }
+                }
+                if ($request->has('rc_document_front')) {
+                    auth()->user()->documents()->where('document_type', 'rc_front')->forceDelete();
+                    $fileName = uniqid() . '.' . $request->rc_document_front->getClientOriginalExtension();
+                    $isFileUploaded = $this->uploadOne($request->rc_document_front, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                    if ($isFileUploaded) {
+                        auth()->user()->documents()->create([
+                            'user_id' => auth()->user()->id,
+                            'title' => $request->rc_document_front->getClientOriginalName() ?? 'Rc image',
+                            'document_type' => 'rc_front',
+                            'file' => $fileName,
+                            'status' => false,
+                        ]);
+                    }
+                }
+                if ($request->has('rc_document_back')) {
+                    auth()->user()->documents()->where('document_type', 'rc_back')->forceDelete();
+                    $fileName = uniqid() . '.' . $request->rc_document_back->getClientOriginalExtension();
+                    $isFileUploaded = $this->uploadOne($request->rc_document_back, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                    if ($isFileUploaded) {
+                        auth()->user()->documents()->create([
+                            'user_id' => auth()->user()->id,
+                            'title' => $request->rc_document_front->getClientOriginalName() ?? 'Rc image',
+                            'document_type' => 'rc_back',
+                            'file' => $fileName,
+                            'status' => false,
+                        ]);
+                    }
+                }
+                if ($request->has('noc_document')) {
+                    auth()->user()->documents()->where('document_type', 'noc')->forceDelete();
+                    $fileName = uniqid() . '.' . $request->noc_document->getClientOriginalExtension();
+                    $isFileUploaded = $this->uploadOne($request->noc_document, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                    if ($isFileUploaded) {
+                        auth()->user()->documents()->create([
+                            'user_id' => auth()->user()->id,
+                            'document_type' => 'noc',
+                            'title' => $request->noc_document->getClientOriginalName() ?? 'noc',
+                            'file' => $fileName,
+                            'status' => false,
+                        ]);
+                    }
+                }
+                if ($request->has('pan_card')) {
+                    auth()->user()->documents()->where('document_type', 'pan_card')->forceDelete();
+                    $fileName = uniqid() . '.' . $request->pan_card->getClientOriginalExtension();
+                    $isFileUploaded = $this->uploadOne($request->pan_card, config('constants.SITE_DOCUMENT_UPLOAD_PATH'), $fileName, 'public');
+                    if ($isFileUploaded) {
+                        auth()->user()->documents()->create([
+                            'user_id' => auth()->user()->id,
+                            'document_type' => 'pan_card',
+                            'title' => $request->pan_card->getClientOriginalName() ?? 'Pan Card',
+                            'file' => $fileName,
+                            'status' => false,
+                        ]);
+                    }
+                }
+                if ($isFileUploaded) {
+                    DB::commit();
+                    $data = ['type' => 'documentUploaded', 'title' => 'Document', 'message' => 'You have uploaded the documets'];
+                    auth()->user()->notify(new AllNotification($data));
+                    return $this->responseJson(true, 200, 'Documents uploaded successfully', (object) []);
+                }
+            } else {
+                return $this->responseJson(false, 200, 'Sorry you are not allowed add or update acount', (object) []);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function getDocuments(Request $request)
+    {
+        try {
+            $documents = auth()->user()->documents;
+            if ($documents->isNotEmpty()) {
+                $filteredAadharDocuments = $documents->filter(function ($value, $key) {
+                    return $value->document_type == 'aadhar_front_image' || $value->document_type == 'aadhar_back_image';
+                })->sortByDesc('document_type');
+                $filteredLicenceDocuments = $documents->filter(function ($value, $key) {
+                    return $value->document_type == 'licence_front' || $value->document_type == 'licence_back';
+                })->sortByDesc('document_type');
+                $filteredRcDocuments = $documents->filter(function ($value, $key) {
+                    return $value->document_type == 'rc_front' || $value->document_type == 'rc_back';
+                })->sortByDesc('document_type');
+                $filteredPanDocument = $documents->filter(function ($value, $key) {
+                    return $value->document_type == 'pan_card';
+                })->sortByDesc('document_type');
+                $filteredNocDocument = $documents->filter(function ($value, $key) {
+                    return $value->document_type == 'noc';
+                });
+            }
+            return $this->responseJson(
+                true,
+                200,
+                $documents->isNotEmpty() ? 'Documents found successfully' : 'No Documents found',
+                [
+                    'first_name' => auth()->user()->first_name,
+                    'is_general' => (bool) (auth()->user()->first_name && auth()->user()->last_name && auth()->user()->mobile_number),
+                    'is_picture_uploaded' => (bool) (!str_contains(auth()->user()->profile_picture, 'avatar-img') && !str_contains(auth()->user()->profile_picture, 'blank-picture')),
+                    'profile_picture' => (!str_contains(auth()->user()->profile_picture, 'avatar-img') && !str_contains(auth()->user()->profile_picture, 'blank-picture')) ? auth()->user()->profile_picture : '',
+                    'is_licence_submitted' => (bool) (auth()->user()->submitted_licence > 1),
+                    'is_rc_submitted' => (bool) (auth()->user()->submitted_rc > 1),
+                    'is_aadhar_submitted' => (bool) (auth()->user()->submitted_aadhar > 1),
+                    'is_pan_submitted' => (bool) (auth()->user()->submitted_pan),
+                    'is_noc_submitted' => (bool) (auth()->user()->submitted_noc),
+                    'all_documents_submitted' => (bool) (auth()->user()->submitted_licence > 1 && auth()->user()->submitted_rc > 1 && auth()->user()->submitted_aadhar > 1 && auth()->user()->submitted_pan) ?? false,
+                    'all_documents_approved' => (bool) (auth()->user()->approved_pan && auth()->user()->approved_aadhar && auth()->user()->approved_rc && auth()->user()->approved_licence) ?? false,
+                    'is_pan_approved' => (bool) (auth()->user()->approved_pan),
+                    'is_noc_approved' => (bool) (auth()->user()->approved_noc),
+                    'is_licence_approved' => (bool) (auth()->user()->approved_licence > 1),
+                    'is_aadhar_approved' => (bool) (auth()->user()->approved_aadhar > 1),
+                    'is_rc_approved' => (bool) (auth()->user()->approved_rc > 1),
+                    'is_pan_rejected' => (bool) (auth()->user()->rejected_pan),
+                    'is_noc_rejected' => (bool) (auth()->user()->rejected_noc),
+                    'is_licence_rejected' => (bool) (auth()->user()->rejected_licence),
+                    'is_aadhar_rejected' => (bool) (auth()->user()->rejected_aadhar),
+                    'is_rc_rejected' => (bool) (auth()->user()->rejected_rc),
+                    'aadhar_documents' => isset($filteredAadharDocuments) && $filteredAadharDocuments->isNotEmpty() ? DocumentResource::collection($filteredAadharDocuments) : [],
+                    'licence_documents' => isset($filteredLicenceDocuments) && $filteredLicenceDocuments->isNotEmpty() ? DocumentResource::collection($filteredLicenceDocuments) : [],
+                    'rc_documents' => isset($filteredRcDocuments) && $filteredRcDocuments->isNotEmpty() ? DocumentResource::collection($filteredRcDocuments) : [],
+                    'pan_document' => isset($filteredPanDocument) && $filteredPanDocument->isNotEmpty() ? new DocumentResource($filteredPanDocument->first()) : (object) [],
+                    'noc_document' => isset($filteredNocDocument) && $filteredNocDocument->isNotEmpty() ? new DocumentResource($filteredNocDocument->first()) : (object) [],
+                ]
+            );
+        } catch (Exception $e) {
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function createReview(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            'user_id' => 'required',
+            'rating' => 'required|numeric',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        // try {
+        $id = uuidtoid($request->uuid, 'bookings');
+        $reviews = DriverReview::Create([
+            'booking_id' => $id,
+            'user_id' => $request->user_id ?? '',
+            'rating' => $request->rating ?? '',
+            'comment' => $request->comment ?? '',
+            'created_by' => auth()->user()->id,
+        ]);
+        DB::commit();
+        return $this->responseJson(true, 200, 'Review Added Successfully', []);
+    }
+    // ****************************************************************************************
+    public function deleteVehicle(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:vehicles,uuid',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            $id = uuidtoid($request->uuid, 'vehicles');
+            $isVehicleDeleted = auth()->user()->vehicles()->find($id)->delete();
+            if ($isVehicleDeleted) {
+                DB::commit();
+                $data = ['type' => 'deleteVehicle', 'title' => 'Vehicle', 'message' => 'You have deleted a vehicle'];
+                auth()->user()->notify(new AllNotification($data));
+                return $this->responseJson(true, 200, 'Vehicle deleted successfully', ['vehicles' => VehicleNewResource::collection(auth()->user()->vehicles), 'user' => new UserResource(auth()->user())]);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
+    // ****************************************************************************************
+    public function testPush(Request $request)
+    {
+        $requestparamVendor = (object)array(
+            'body' => 'Your Ride has been canceled',
+            'title' =>  'Ride Canceled',
+            'image' => ''
+        );
+        $this->sendNotification($requestparamVendor, $request->deviceToken);
+        return $this->responseJson(true, 200, 'data', [$requestparamVendor, $request->deviceToken]);
+    }
+    // ****************************************************************************************
+    public function getCurrentBooking(Request $request)
+    {
+        $filtered = Booking::whereIn('status', [0, 1])->where('is_accepted', 1)->whereBetween('scheduled_at', [Carbon::now()->format('Y-m-d 00:00:00'), Carbon::now()->addHours(2)->format('Y-m-d H:i:s')])->orderBy('id', 'desc')->get();
+        if (!empty($filtered)) {
+            return $this->responseJson(true, 200, 'Booking Fetched Successfully',  BookingResource::collection($filtered));
+        } else {
+            return $this->responseJson(true, 200, 'No Data Found !!', []);
+        }
+    }
+    // ****************************************************************************************
+    public function bookinglist(Request $request)
+    {
+        $filtered = Booking::where(['driver_id' => null, 'is_accepted' => 1])->whereIn('status', [0, 1])->where('created_at', '>=', Carbon::now()->subMinutes(10)->format('Y-m-d H:i:s'))->orderBy('id', 'desc')->get();
+        if (!empty($filtered)) {
+            return $this->responseJson(true, 200, 'Booking Fetched Successfully',  BookingResource::collection($filtered));
+        } else {
+            return $this->responseJson(true, 200, 'No Data Found !!', []);
+        }
+    }
+    // ****************************************************************************************
+    public function previewdata()
+    {
+        $fetchPreviewData = drivercurrentbooking();
+        if ($fetchPreviewData) {
+            return $this->responseJson(true, 200, "Preview Data fetch Successfully", new BookingResource($fetchPreviewData));
+        } else {
+            return $this->responseJson(true, 200, "No Data Found", []);
+        }
+    }
+    // ****************************************************************************************
+    public function pagenoupdate(Request $request)
+    {
+        $id = uuidtoid($request->booking_id, 'bookings');
+        $updatepagecount = Booking::where('id', $id)->update([
+            'page_no' => $request->page_no,
+            'btn_no' => $request->btn_no //for multiple location reach for driver app
+        ]);
+        return $this->responseJson(true, 200, 'Page No Updated', $updatepagecount);
+    }
+    // ****************************************************************************************
+    public function withdrawRequest(Request $request)
+    {
+        // Validate request data
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:0.01', // Minimum withdrawal amount (adjust as needed)
+        ]);
+        // Check for validation errors
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), []);
+        }
+        if (auth()->user()->wallet_total_balance < $request->amount) {
+            return $this->responseJson(false, 422, 'Insufficient balance', []);
+        }
+        if (auth()->user()->wallet_total_balance < 1500) {
+            return $this->responseJson(false, 422, 'Your balance is less than 1500', []);
+        }
+        // Begin database transaction
+        DB::beginTransaction();
+        try {
+            // Create a new wallet transaction record
+            $withdrawal = WalletTransaction::create([
+                'transaction_id' => Str::random(9),
+                'amount' => auth()->user()->wallet_total_balance ?? 0.00,
+                'request_amount' => $request->amount,
+                'type' => 'driver',
+                'driver_id' => auth()->user()->id,
+                'transaction_type' => 'WITHDRAWN',
+                'comment' => 'Amount Withdrawn',
+                'status' => 0
+            ]);
+            DB::commit();
+            // Return success response
+            return $this->responseJson(true, 200, 'Amount withdrawn successfully', new ApiWalletTransactionResource($withdrawal));
+        } catch (\Exception $e) {
+            // Rollback transaction in case of exception
+            DB::rollback();
+            return $this->responseJson(false, 500, 'Failed to process withdrawal. Please try again.', []);
+        }
+    }
+    // ****************************************************************************************
+    public function getReasonList(Request $request)
+    {
+        $reasons = Reason::where('type', 'driver')->get();
+        return $this->responseJson(true, 200, 'Reason Fetched Successfully', ReasonResource::collection($reasons));
+    }
+    // ****************************************************************************************
+}
+// 0:pending,1:Booked,2:on the way to rider,3:Reached Rider Location,4:Ride Started,5:Ride Completed,6:Ride Cancelled by driver,7:Ride Cancelled by rider
+ // DB::beginTransaction();
+    // try {
+    //     $id = uuidtoid($request->uuid, 'bookings');
+    //     $bookings = Booking::where('id', $id)->first();
+    //     // dd($bookings);
+    //     // dd();
+    //     if ($bookings->driver_id != null && $request->is_accepted == 2 && in_array($bookings->status, [2, 1])) {
+    //         return $this->responseJson(false, 403, 'Already Accepted', []);
+    //     } elseif ($bookings->driver_id == null && $request->is_accepted == 1 && $bookings->status == 7) {
+    //         return $this->responseJson(false, 403, 'This Booking Is Cancel By Customer', []);
+    //     } else {
+    //         $fcmTokens = $bookings->users?->device_token;
+    //         // dd($bookings);
+    //         $verificationCode = rand(1000, 9999);
+    //         if ($bookings) {
+    //             if ($request->is_accepted == 2) {
+    //                 $isBookingAccepted = $bookings->update([
+    //                     'is_accepted' => $request->is_accepted,
+    //                     'page_no' => 1,
+    //                     'verification_code' => $verificationCode,
+    //                     'driver_id' => auth()->user()->id,
+    //                 ]);
+    //             }
+    //         }
+    //         $bookings->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+    //             'booking_id' => $id,
+    //             'user_id' => auth()->user()->id,
+    //             'status' => $request->is_accepted // is_accepted:2 ,cancle ride :3 for driver end
+    //         ]);
+    //         $bookinglogs = BookingLog::create([
+    //             'booking_id' => $bookings->id,
+    //             'user_id' => auth()->user()->id,
+    //             'status' => 3, // on the way to ride
+    //             'comment' => "Your cab is on the way"
+    //         ]);
+    //         $plate_no = $bookings->bookingDriverUser?->vehicles?->first()?->plate_no;
+    //         $vechile_no = !empty($plate_no) ? $plate_no : 'WB000988';
+    //         if ($bookings->is_accepted == 2) {
+    //             DB::commit();
+    //             $requestparamVendor = (object)array(
+    //                 'body' => 'Your Vechile No :' . $vechile_no,
+    //                 'title' =>  'Your cab is on the way',
+    //                 'image' => asset('app-assets/images/Group.png'),
+    //             );
+    //             $this->sendNotification($requestparamVendor, $fcmTokens);
+    //             $data = [
+    //                 'type' => 'bookingaccepted',
+    //                 'title' => 'Booking Acception',
+    //                 'message' => 'Booking accepted by ' . auth()->user()->full_name,
+    //             ];
+    //             $bookings->users->notify(new AllNotification($data));
+    //             return $this->responseJson(true, 200, 'Booking Accept Successfully', new BookingResource($bookings));
+    //         } else {
+    //             DB::commit();
+    //             $data = [
+    //                 'type' => 'bookingrejected',
+    //                 'title' => 'Booking Rejection',
+    //                 'message' => 'Booking rejected by ' . auth()->user()->full_name,
+    //             ];
+    //             $bookings->users->notify(new AllNotification($data));
+    //             return $this->responseJson(true, 200, 'Booking Reject Successfully', new BookingResource($bookings));
+    //         }
+    //     }
+    // } catch (\Throwable $th) {
+    //     DB::rollBack();
+    //     logger($th->getMessage() . 'on' . $th->getFile() . 'in' . $th->getLine());
+    //     return $this->responseJson(false, 500, 'Something Went Wrong');
+    // }
+    // }
+     // $deviceToken = 'f6Y9qWM9RAekylEp_jVecG:APA91bE6zN6IMW96DoKWTTWP2Xl702FURdTfczxsDc0gPhcC8RJ4iVLNFPT3hqIKObP5bk96s_qelV-deD-1AKgmj4AyZgsoXpd4wsaMz1Rf_sIsFdx4Au1wdcT0fbEZ4BfMr_YISUqX';
+     // public function updateVehicles(Request $request)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'license_no' => 'required|string|unique:profiles,license_no,' . auth()->user()->profile->id,
+    //         'city' => 'sometimes|nullable|numeric|exists:cities,id',
+    //         'vehicles' => 'required|array',
+    //         'vehicles.*.plate_no' => 'required|string',
+    //         'vehicles.*.name' => 'required|string',
+    //         // 'vehicles.*.category_id' => 'required|string',
+    //         'vehicles.*.seating_capacity' => 'required|numeric',
+    //         'vehicles.*.color' => 'required|string',
+    //         'vehicles.*.milage' => 'required|numeric',
+    //     ]);
+    //     if ($validator->fails()) {
+    //         return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    //     }
+    //     DB::beginTransaction();
+    //     try {
+    //         $isUserProfileUpdated = auth()->user()->profile()->update([
+    //             'license_no' => $request->license_no,
+    //             'city_id' => $request->city,
+    //         ]);
+    //         if ($isUserProfileUpdated) {
+    //             foreach ($request->vehicles as $vehicle) {
+    //                 auth()->user()->vehicles()->updateOrCreate(['plate_no' => $vehicle['plate_no']], [
+    //                     'name' => $vehicle['name'],
+    //                     'plate_no' => $vehicle['plate_no'],
+    //                     'category_id' => $vehicle['category']['id'] ?? '',
+    //                     'seating_capacity' => $vehicle['seating_capacity'],
+    //                     'color' => $vehicle['color'],
+    //                     'milage' => $vehicle['milage'],
+    //                 ]);
+    //             }
+    //             DB::commit();
+    //             return $this->responseJson(true, 200, 'Profile and Vehicles updated successfully', ['user' => new UserResource(auth()->user()->fresh()), 'vehicles' => VehicleNewResource::collection(auth()->user()->vehicles)]);
+    //         }
+    //     } catch (\Exception $e) {
+    //         DB::rollBack();
+    //         logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+    //         return $this->responseJson(false, 500, 'Something Went Wrong');
+    //     }
+    // }
