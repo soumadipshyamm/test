@@ -1,0 +1,41 @@
+    <script>
+        function initMap() {
+            var directionsService = new google.maps.DirectionsService();
+            var directionsRenderer = new google.maps.DirectionsRenderer();
+            var map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 3,
+                center: { lat: 22.2734719, lng: 70.7512559 }
+            });
+            directionsRenderer.setMap(map);
+            calculateAndDisplayRoute(directionsService, directionsRenderer, map);
+        }
+
+        function calculateAndDisplayRoute(directionsService, directionsRenderer, map) {
+            var start = "02, DH Block(Newtown), Action Area I, Newtown, Kolkata, Chakpachuria, West Bengal 700156, India"; // Replace with actual pickup location
+            var end = "Bally, Howrah, West Bengal, India"; // Replace with actual drop location
+            directionsService.route({
+                origin: start,
+                destination: end,
+                travelMode: 'DRIVING'
+            }, function(response, status) {
+                if (status === 'OK') {
+                    var pickupMarker = new google.maps.Marker({
+                        position: response.routes[0].legs[0].start_location,
+                        map: map,
+                        icon: 'http://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                        title: 'Pickup Location'
+                    });
+                    var destinationMarker = new google.maps.Marker({
+                        position: response.routes[0].legs[0].end_location,
+                        map: map,
+                        icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+                        title: 'Drop Location'
+                    });
+                    directionsRenderer.setDirections(response);
+                } else {
+                    window.alert('Directions request failed due to ' + status);
+                }
+            });
+        }
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA2mtyhq14pKHoTX0JMCqyTd1oxVrnr3fE&callback=initMap" async defer></script>
