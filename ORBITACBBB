@@ -20,6 +20,593 @@ public function bookinglist(Request $request)
 
 
 *******************************************************************************************************************************************
+public function bookinglist(Request $request)
+{
+    $latitude = $request->input('latitude');
+    $longitude = $request->input('longitude');
+    $radius = $request->input('radius', 10); // Default 10km
+
+    // Fetch bookings filtered by conditions
+    $filtered = Booking::whereNull('driver_id')
+        ->where('is_accepted', 1)
+        ->whereIn('status', [0, 1])
+        ->where('created_at', '>=', Carbon::now()->subMinutes(2))
+        ->orderByDesc('id')
+        ->get();
+
+    if ($filtered->isNotEmpty()) {
+        // Fetch nearby drivers within the radius and with approved documents
+        $nearbyDrivers = User::role('driver') // Check for drivers using the role check
+            ->where('is_online', true) // Only fetch drivers who are online
+            ->whereHas('documents', function($query) {
+                // Check for specific documents and ensure they are approved
+                $query->whereIn('document_type', [
+                    'vehicle_documents', 
+                    'noc_document', 
+                    'rc_document_front', 
+                    'rc_document_back', 
+                    'aadhar_document_front', 
+                    'aadhar_document_back', 
+                    'licence_document_front', 
+                    'licence_document_back', 
+                    'pan_card'
+                ])->where('status', 'approved');
+            })
+            ->selectRaw("id, name, latitude, longitude, ( 6371 * acos( cos( radians(?) ) * cos( radians( latitude ) ) * cos( radians( longitude ) - radians(?) ) + sin( radians(?) ) * sin( radians( latitude ) ) ) ) AS distance", [$latitude, $longitude, $latitude])
+            ->having("distance", "<", $radius) // Check within the given radius
+            ->orderBy("distance")
+            ->get();
+
+        if ($nearbyDrivers->isNotEmpty()) {
+            return $this->responseJson(true, 200, 'Booking and Nearby Drivers Fetched Successfully', [
+                'bookings' => BookingResource::collection($filtered),
+                'nearby_drivers' => $nearbyDrivers
+            ]);
+        } else {
+            return $this->responseJson(false, 200, 'No Nearby Drivers Found !!', [
+                'bookings' => BookingResource::collection($filtered),
+                'nearby_drivers' => []
+            ]);
+        }
+    }
+
+    return $this->responseJson(false, 200, 'No Bookings Found !!', []);
+}
+
+*******************************************************************************************************************************************
+public function tripReached(Request $request)
+{
+    // Validate request
+    $validator = Validator::make($request->all(), [
+        'uuid' => 'required|exists:bookings,uuid',
+        'lat' => 'required|numeric',
+        'long' => 'required|numeric',
+        'status' => 'sometimes|in:3,4', // Assuming status 3 and 4 are relevant
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    DB::beginTransaction();
+    try {
+        // Get the booking ID from UUID
+        $id = uuidtoid($request->uuid, 'bookings');
+        $booking = Booking::find($id);
+
+        if (!$booking) {
+            return $this->responseJson(false, 404, 'Booking not found', "");
+        }
+
+        // Update the booking status
+        $status = $request->status ?? 3; // Default to 3 if status is not provided
+        $booking->update(['status' => $status]);
+
+        // Log the booking status update
+        $this->logBookingStatus($booking, $request);
+
+        // Update or create a record in the bookingDrivers table
+        $booking->bookingDrivers()->updateOrCreate(
+            ['booking_id' => $booking->id],
+            ['user_id' => auth()->user()->id, 'status' => $status]
+        );
+
+        // Commit transaction
+        DB::commit();
+
+        // Send notification if FCM tokens are available
+        if (!empty($booking->user?->device_token)) {
+            $notificationData = (object)[
+                'body' => 'Your Ride has been completed',
+                'title' => 'Ride Completed'
+            ];
+            $this->sendNotification($notificationData, $booking->user->device_token);
+        }
+
+        // Return success response
+        return $this->responseJson(true, 200, 'Ride Completed Successfully', new BookingResource($booking));
+
+    } catch (\Throwable $th) {
+        DB::rollBack();
+        // Log the error for debugging purposes
+        logger($th->getMessage() . ' on ' . $th->getFile() . ' in ' . $th->getLine());
+        return $this->responseJson(false, 500, 'Something Went Wrong');
+    }
+}
+
+private function logBookingStatus($booking, $request)
+{
+    // Create a log entry for the booking status
+    BookingLog::create([
+        'booking_id' => $booking->id,
+        'user_id' => auth()->user()->id,
+        'lat' => $request->lat,
+        'long' => $request->long,
+        'status' => $request->status,
+        'comment' => "Your Ride has been Reached"
+    ]);
+}
+
+private function updateWalletAndLogBooking($booking, $request)
+{
+    // Placeholder for the wallet update logic
+    // Perform any wallet updates or additional logging here
+}
+
+*******************************************************************************************************************************************
+public function acceptOrRejectBooking(Request $request)
+{
+    // Validate request inputs
+    $validator = Validator::make($request->all(), [
+        'uuid' => 'required|uuid|exists:bookings,uuid',
+        'is_accepted' => 'required|in:2,3', // 2 for accepted, 3 for rejected
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    // Get booking by UUID
+    $id = uuidtoid($request->uuid, 'bookings');
+    $booking = Booking::find($id);
+
+    if (!$booking) {
+        return $this->responseJson(false, 404, 'Booking not found', []);
+    }
+
+    // Check if booking is already accepted
+    if ($booking->driver_id && $request->is_accepted == 2 && in_array($booking->status, [1, 2, 3])) {
+        return $this->responseJson(false, 403, 'Already Accepted', []);
+    }
+
+    // Check if the booking was canceled by the customer
+    if (!$booking->driver_id && $booking->is_accepted == 1 && $booking->status == 7) {
+        return $this->responseJson(false, 403, 'This Booking Is Canceled By Customer', []);
+    }
+
+    $fcmTokens = $booking->users?->device_token;
+    $verificationCode = rand(1000, 9999);
+
+    DB::beginTransaction();
+
+    try {
+        if ($request->is_accepted == 2) {
+            // Accept the booking
+            $booking->update([
+                'is_accepted' => 2,
+                'page_no' => 1,
+                'verification_code' => $verificationCode,
+                'driver_id' => auth()->user()->id,
+            ]);
+        }
+
+        // Update or create booking driver status
+        $booking->bookingDrivers()->updateOrCreate(
+            ['booking_id' => $id],
+            ['user_id' => auth()->user()->id, 'status' => $request->is_accepted]
+        );
+
+        // Log booking status change
+        $this->logBookingStatus($booking, 'Your cab is on the way');
+
+        if ($request->is_accepted == 2) {
+            // If accepted, notify the user
+            $plateNo = $booking?->driver?->vehicles?->first()->plate_no ?? '';
+            DB::commit();
+
+            // Send notification and notify user
+            $this->sendBookingNotification($fcmTokens, $plateNo, 'Your cab is on the way');
+            $this->notifyUser($booking, 'bookingaccepted', 'Booking Accepted', 'Booking accepted by ' . auth()->user()->full_name);
+
+            return $this->responseJson(true, 200, 'Booking Accepted Successfully', new BookingResource($booking));
+        } else {
+            // If rejected, rollback transaction
+            DB::commit();
+
+            // Notify user of rejection
+            $this->notifyUser($booking, 'bookingrejected', 'Booking Rejected', 'Booking rejected by ' . auth()->user()->full_name);
+
+            return $this->responseJson(true, 200, 'Booking Rejected Successfully', new BookingResource($booking));
+        }
+    } catch (\Throwable $th) {
+        DB::rollBack();
+        logger($th->getMessage() . ' on ' . $th->getFile() . ' in ' . $th->getLine());
+        return $this->responseJson(false, 500, 'Something Went Wrong');
+    }
+}
+
+private function logBookingStatus($booking, $comment)
+{
+    // Log booking status
+    BookingLog::create([
+        'booking_id' => $booking->id,
+        'user_id' => auth()->user()->id,
+        'status' => 3, // Status for 'on the way'
+        'comment' => $comment,
+    ]);
+}
+
+private function sendBookingNotification($fcmTokens, $plateNo, $message)
+{
+    if (!empty($fcmTokens)) {
+        $requestparamVendor = (object)[
+            'body' => 'Your Vehicle No: ' . $plateNo,
+            'title' => $message,
+            'image' => asset('app-assets/images/Group.png'),
+            'data' => 'Your Vehicle No: ' . $plateNo,
+        ];
+
+        $this->sendNotification($requestparamVendor, $fcmTokens);
+    }
+}
+
+private function notifyUser($booking, $type, $title, $message)
+{
+    // Notify the user about the booking status
+    $data = [
+        'type' => $type,
+        'title' => $title,
+        'message' => $message,
+    ];
+
+    $booking->users->notify(new AllNotification($data));
+}
+
+*******************************************************************************************************************************************
+public function cancelBooking(Request $request)
+{
+    // Validate the request
+    $validator = Validator::make($request->all(), [
+        'uuid' => 'required|uuid|exists:bookings,uuid',
+        'status' => 'required|integer',
+        'reason_id' => 'required|integer',
+        // 'description' => 'sometimes|required',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    DB::beginTransaction();
+    try {
+        // Convert UUID to ID
+        $id = uuidToId($request->uuid, 'bookings');
+        $booking = Booking::findOrFail($id);
+
+        // Update the booking status
+        $booking->update([
+            'status' => 1, // Assuming 1 means cancelled
+            'is_accepted' => 1,
+            'is_driver' => null
+        ]);
+
+        // Log the cancellation for drivers
+        $booking->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+            'user_id' => auth()->user()->id,
+            'status' => 6 // Assuming 6 means cancelled
+        ]);
+
+        // Log the cancellation in BookingLog
+        BookingLog::create([
+            'booking_id' => $id,
+            'user_id' => auth()->user()->id,
+            'status' => 6,
+            'comment' => "Ride has been cancelled by driver"
+        ]);
+
+        // Commit the transaction
+        DB::commit();
+
+        // Prepare and send notification to the user
+        $fcmTokens = $booking->users?->device_token;
+        $requestParamVendor = [
+            'body' => 'Your ride has been cancelled',
+            'title' => 'Ride Canceled',
+            'data' => 'Your ride has been cancelled',
+        ];
+        
+        // Send notification to the user
+        $this->sendNotification((object)$requestParamVendor, $fcmTokens);
+
+        // Resend booking notification to nearby drivers
+        $this->resendBookingNotificationToDrivers($booking, auth()->user()->id);
+
+        return $this->responseJson(true, 200, 'Ride cancelled successfully', new BookingResource($booking));
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+        return $this->responseJson(false, 500, 'Something went wrong');
+    }
+}
+
+private function resendBookingNotificationToDrivers($booking, $cancelingDriverId)
+{
+    // Find all nearby online drivers whose documents are verified and approved
+    $nearbyDrivers = Driver::where('status', 'online') // Assuming 'online' indicates the driver is available
+        ->where('document_verified', 1) // Assuming this flag indicates document verification
+        ->where('id', '!=', $cancelingDriverId) // Exclude the driver who cancelled the booking
+        ->get();
+
+    // Prepare the notification data
+    $requestParamDrivers = [
+        'body' => 'A booking has been cancelled. Please check for new opportunities.',
+        'title' => 'Booking Cancelled',
+        'data' => [
+            'booking_id' => $booking->id,
+            'message' => 'A booking has been cancelled. Please check for new opportunities.',
+        ],
+    ];
+
+    // Send notifications to eligible drivers
+    foreach ($nearbyDrivers as $driver) {
+        if ($driver->device_token) {
+            $this->sendNotification((object)$requestParamDrivers, $driver->device_token);
+        }
+    }
+}
+
+*******************************************************************************************************************************************
+        $fcmtokens = User::role($role)->pluck('fcmtoken')->toArray();
+
+*******************************************************************************************************************************************
+****************************************Booking****************************************************************************
+*******************************************************************************************************************************************
+public function createBooking(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'fare' => 'required|numeric',
+        'category_uuid' => 'required|uuid|exists:categories,uuid',
+        'from_address' => 'required|array',
+        'to_address' => 'required|array',
+        'type' => 'required|string|in:asap,scheduled',
+        'payment_mode' => 'sometimes|string|in:cash,card',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    $categoryId = uuidtoid($request->category_uuid, 'categories');
+    $scheduledAt = $request->type == 'asap' ? Carbon::now()->addHour()->format('Y-m-d H:i:s') : $request->scheduled_at;
+
+    $data = [
+        'user_id' => auth()->user()->id,
+        'fare' => $request->fare,
+        'name' => $request->name ?? auth()->user()->name,
+        'phone' => $request->phone ?? auth()->user()->phone,
+        'is_guest' => $request->is_guest ?? false,
+        'booking_id' => Str::random(9),
+        'category_id' => $categoryId,
+        'scheduled_at' => $scheduledAt,
+        'from_address' => json_encode($request->from_address),
+        'to_address' => json_encode($request->to_address),
+        'distance' => 0,  // Default before calculation
+        'duration' => '0', // Default before calculation
+        'payment_mode' => $request->payment_mode ?? 'cash',
+        'type' => $request->type,
+        'is_reward' => $request->is_reward,
+        'total_fare' => $request->total_fare,
+    ];
+
+    // Calculate distance and duration
+    $distanceData = $this->calculateDistances($request->from_address, $request->to_address);
+    if ($distanceData) {
+        $data['distance'] = $distanceData['distance'];
+        $data['duration'] = $distanceData['duration'];
+    } else {
+        return $this->responseJson(false, 500, 'Failed to calculate distance and duration');
+    }
+
+    DB::beginTransaction();
+
+    try {
+        // Store to_address into RecentSearch
+        if (!empty($request->to_address)) {
+            foreach ($request->to_address as $toAddress) {
+                RecentSearch::create([
+                    'user_id' => auth()->user()->id,
+                    'address' => $toAddress['address'],
+                    'latitude' => $toAddress['lat'],
+                    'longitude' => $toAddress['long'],
+                ]);
+            }
+        }
+
+        // Create booking
+        $booking = Booking::create($data);
+        BookingLog::create([
+            'booking_id' => $booking->id,
+            'user_id' => $booking->user_id,
+            'status' => 1,
+            'comment' => 'Booking created successfully'
+        ]);
+
+        DB::commit();
+
+        // Notify nearby drivers
+        $this->notifyDrivers($booking);
+
+        return $this->responseJson(true, 200, 'Booking created successfully', new BookingResource($booking));
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return $this->responseJson(false, 500, 'Booking creation failed: ' . $e->getMessage());
+    }
+}
+############################################################################
+private function notifyDrivers($booking)
+{
+    $fromAddress = json_decode($booking->from_address, true);
+    $latitude = $fromAddress['lat'];
+    $longitude = $fromAddress['long'];
+    $searchRadius = getSiteSetting('search_radius') ?? 10;
+    
+    // Get nearby drivers based on their proximity
+    $nearbyDrivers = $this->getNearbyDrivers($latitude, $longitude, $searchRadius);
+
+    foreach ($nearbyDrivers as $driver) {
+        // Check if all required documents are verified
+        if ($this->areDriverDocumentsVerified($driver) &&
+            $driver->vehicles->first()->category->slug == $booking->bookingCategory->slug &&
+            $driver->is_online && !$this->checkDriverOngoingRide($driver->id)) {
+
+            $fcmToken = $driver->device_token;
+
+            $notificationData = (object)[
+                'body' => 'New Booking Has Arrived',
+                'title' => 'Booking Created',
+                'data' => new BookingResource($booking),
+                'image' => asset('app-assets/images/booking.png'), // Replace with actual image URL
+            ];
+
+            // Send notification to the driver
+            $this->sendNotification($notificationData, $fcmToken);
+
+            // Notify the driver
+            $driver->notify(new AllNotification([
+                'type' => 'bookingcreated',
+                'title' => 'New Booking',
+                'message' => 'New booking created by ' . auth()->user()->full_name,
+            ]));
+        }
+    }
+}
+
+private function areDriverDocumentsVerified($driver)
+{
+    // Assuming the driver has a 'documents' relationship that returns required document types
+    $requiredDocuments = [
+        'vehicle_documents', 'noc_document', 'rc_document_front', 'rc_document_back', 
+        'aadhar_document_front', 'aadhar_document_back', 'licence_document_front', 
+        'licence_document_back', 'pan_card'
+    ];
+
+    // Loop through required documents and check if they are approved
+    foreach ($requiredDocuments as $documentType) {
+        $document = $driver->documents()->where('document_type', $documentType)->first();
+        if (!$document || $document->status !== 'approved') {
+            return false; // If any document is not approved, return false
+        }
+    }
+
+    return true; // All documents are approved
+}
+##########################################################################
+public function notifyDrivers($booking)
+{
+    $fromAddress = json_decode($booking->from_address, true);
+    $latitude = $fromAddress['lat'];
+    $longitude = $fromAddress['long'];
+    $searchRadius = getSiteSetting('search_radius') ?? 10;
+
+    // Get nearby drivers based on their proximity
+    $nearbyDrivers = $this->getNearbyDrivers($latitude, $longitude, $searchRadius);
+
+    foreach ($nearbyDrivers as $driver) {
+        // Check if all required documents are verified
+        if ($this->areDriverDocumentsVerified($driver) &&
+            $driver->vehicles->first()->category->slug == $booking->bookingCategory->slug &&
+            $driver->is_online && !$this->checkDriverOngoingRide($driver->id)) {
+
+            $fcmToken = $driver->device_token;
+
+            $notificationData = (object)[
+                'body' => 'New Booking Has Arrived',
+                'title' => 'Booking Created',
+                'data' => new BookingResource($booking),
+                'image' => asset('app-assets/images/booking.png'), // Replace with actual image URL
+            ];
+
+            // Send notification to the driver
+            $this->sendNotification($notificationData, $fcmToken);
+
+            // Notify the driver
+            $driver->notify(new AllNotification([
+                'type' => 'bookingcreated',
+                'title' => 'New Booking',
+                'message' => 'New booking created by ' . auth()->user()->full_name,
+            ]));
+        }
+    }
+}
+
+private function areDriverDocumentsVerified($driver)
+{
+    // Define required document types
+    $requiredDocuments = [
+        'vehicle_documents', 'noc_document', 'rc_document_front', 'rc_document_back', 
+        'aadhar_document_front', 'aadhar_document_back', 'licence_document_front', 
+        'licence_document_back', 'pan_card'
+    ];
+
+    // Loop through required documents and check if they are approved
+    foreach ($requiredDocuments as $documentType) {
+        $document = $driver->documents()->where('document_type', $documentType)->first();
+        if (!$document || $document->status !== 'approved') {
+            return false; // If any document is not approved, return false
+        }
+    }
+
+    return true; // All documents are approved
+}
+
+private function getNearbyDrivers($lat, $lng, int $distance)
+{
+    // Assuming userService is injected or accessible to get drivers by role
+    $drivers = $this->userService->findUserByRole(['is_online' => true, 'is_active' => true], 'driver');
+
+    // Filter drivers by proximity
+    return $drivers->filter(function ($driver) use ($lat, $lng, $distance) {
+        $driverDistance = calculateDistance($lat, $lng, $driver->latitude, $driver->longitude);
+        return $driverDistance <= (int) $distance;
+    });
+}
+
+private function checkDriverOngoingRide($driverId)
+{
+    // Assuming there is a logic to check if the driver has an ongoing ride
+    return Booking::where('driver_id', $driverId)
+                  ->whereIn('status', [1, 2, 3]) // Assuming 1, 2, 3 are ongoing ride statuses
+                  ->exists();
+}
+
+private function sendNotification($notificationData, $fcmToken)
+{
+    // Send FCM notification to the driver with the provided data
+    // This function will handle sending the notification
+    // Implementation can vary based on how you handle notifications (Firebase or other services)
+    // Example:
+    FCMService::send($fcmToken, [
+        'title' => $notificationData->title,
+        'body' => $notificationData->body,
+        'image' => $notificationData->image,
+        'data' => $notificationData->data,
+    ]);
+}
+
+*******************************************************************************************************************************************
+*******************************************************************************************************************************************
+*******************************************************************************************************************************************
 
 Booking
 *******************************************************************************************************************************************
