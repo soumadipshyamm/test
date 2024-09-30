@@ -229,3 +229,92 @@ public function driverLogin(Request $request)
             return $this->responseJson(false, 500, "Something Went Wrong");
         }
     }
+
+
+############**₹₹##₹₹₹₹₹₹₹₹₹
+
+public function login(Request $request)
+{
+    // Validate request data
+    $validator = Validator::make($request->all(), [
+        'mobile_number'  => 'required|digits:10',
+        'email'          => 'sometimes|email',
+        'device_id'      => 'required',
+        'device_type'    => 'required|in:android,ios',
+        'type'           => 'required|string|in:registration,login',
+        'first_name'     => 'required_if:type,registration|string|nullable',
+        'referral_code'  => 'sometimes|nullable|exists:users,referral_code',
+        'device_token'   => 'required' // Ensuring device_token is present
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    DB::beginTransaction();
+    try {
+        $mobileNumber = $request->mobile_number;
+        $deviceToken = $request->device_token;
+        $isUserExists = $this->userService->findUserBy(['mobile_number' => $mobileNumber]);
+
+        if ($request->type === 'login') {
+            if (!$isUserExists) {
+                return $this->responseJson(false, 422, "Incorrect Mobile Number", (object)[]);
+            }
+
+            if (!$isUserExists->hasRole('rider')) {
+                return $this->responseJson(false, 422, "Wrong Credentials", (object)[]);
+            }
+
+            // Generate OTP and update device details for existing user
+            $verificationCode = rand(1000, 9999);
+            $isUserExists->update([
+                'verification_code' => $verificationCode,
+                'device_id'         => $request->device_id,
+                'device_type'       => $request->device_type,
+                'device_token'      => $deviceToken
+            ]);
+
+            // Log out from other devices and delete old tokens
+            Auth::logoutOtherDevices($request->password);
+            $isUserExists->tokens()->delete();
+
+            DB::commit();
+            return $this->responseJson(true, 200, 'Otp sent successfully', ['otp' => $verificationCode]);
+        }
+
+        if ($request->type === 'registration') {
+            if ($isUserExists) {
+                return $this->responseJson(false, 422, "Mobile Number or Email already exists", (object)[]);
+            }
+
+            // Validate and process referral code
+            $referralUser = User::where('referral_code', $request->referral_code)->first();
+            if ($referralUser && $referralUser->roles->first()->slug != 'rider') {
+                return $this->responseJson(false, 422, "Invalid Rider Referral Code", "");
+            }
+
+            // Generate verification code and create new user
+            $verificationCode = rand(1000, 9999);
+            $newUserData = array_merge($request->all(), [
+                'role'             => 'rider',
+                'verification_code' => $verificationCode,
+                'device_token'      => $deviceToken,
+                'referral_code'     => randomString(12),
+                'language_id'       => 1,
+                'referral_user_id'  => $referralUser?->id ?? null
+            ]);
+
+            $newUser = $this->userService->createUser($newUserData);
+
+            if ($newUser) {
+                DB::commit();
+                return $this->responseJson(true, 200, 'Otp sent successfully', ['otp' => $verificationCode]);
+            }
+        }
+    } catch (\Exception $e) {
+        DB::rollBack();
+        logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+        return $this->responseJson(false, 500, "Something Went Wrong");
+    }
+}
