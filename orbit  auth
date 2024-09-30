@@ -65,6 +65,103 @@
         return $this->responseJson(true, 200, 'Driver Details Found', new UserResource($user));
     }
 
+
+############₹#₹₹
+
+public function driverLogin(Request $request)
+{
+    // Validation
+    $validator = Validator::make($request->all(), [
+        'mobile_number' => [
+            'required_without:email',
+            Rule::exists('users', 'mobile_number')->whereNull('deleted_at')
+        ],
+        'email' => [
+            'required_without:mobile_number',
+            Rule::exists('users', 'email')->whereNull('deleted_at')
+        ],
+        'password' => 'required',
+        'device_id' => 'required',
+        'device_token' => 'required',
+        'device_type' => 'required|in:android,ios',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), (object)[]);
+    }
+
+    // Set credentials for login
+    $credentials = [
+        'password' => $request->password
+    ];
+
+    if ($request->email) {
+        $credentials['email'] = $request->email;
+    } else {
+        $credentials['mobile_number'] = $request->mobile_number;
+    }
+
+    // Attempt login
+    if (!auth()->attempt($credentials)) {
+        return $this->responseJson(false, 200, 'Incorrect Details. Please try again', (object)[]);
+    }
+
+    // Get authenticated user
+    $user = auth()->user();
+
+    // Check if user is a driver
+    if (!$user->hasRole('driver')) {
+        auth()->logout();
+        return $this->responseJson(false, 200, 'Sorry, you are not a driver', (object)[]);
+    }
+
+    // Check if user is approved
+    if (!$user->is_approve) {
+        auth()->logout();
+        return $this->responseJson(false, 200, 'Please wait for your account approval', (object)[]);
+    }
+
+    // Check if user is active
+    if (!$user->is_active) {
+        auth()->logout();
+        return $this->responseJson(false, 200, 'Account deactivated. Please contact admin', (object)[]);
+    }
+
+    // Check if user is blocked
+    if ($user->is_blocked) {
+        auth()->logout();
+        return $this->responseJson(false, 200, 'Your account has been blocked. Please contact admin', (object)[]);
+    }
+
+    // Log out other devices (single device login)
+    Auth::logoutOtherDevices($request->password);
+
+    // Revoke previous tokens to ensure single session login
+    $user->tokens()->delete();
+
+    // Update device details and login metadata
+    $user->update([
+        'device_id' => $request->device_id,
+        'device_token' => $request->device_token,
+        'device_type' => $request->device_type,
+        'last_login_at' => now(),
+        'last_login_ip' => $request->ip(),
+    ]);
+
+    // Generate a new token for the current session
+    $token = $user->createToken('access-token')->accessToken;
+
+    // Save the token to the user record
+    $user->remember_token = $token;
+    $user->save();
+
+    // Return success response with user details and token
+    return $this->responseJson(true, 200, 'Driver Details Found', [
+        'user' => new UserResource($user),
+        'token' => $token
+    ]);
+}
+
 *****************************************************************************************************************
   public function login(Request $request)
     {
