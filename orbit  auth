@@ -318,3 +318,25 @@ public function login(Request $request)
         return $this->responseJson(false, 500, "Something Went Wrong");
     }
 }
+
+
+saaaaassssdddddd
+
+
+function calculateDrivingDuration($distance, $averageSpeed) {
+    // Calculate time in hours
+    $timeInHours = $distance / $averageSpeed;
+
+    // Convert hours to minutes
+    $timeInMinutes = $timeInHours * 60;
+
+    return $timeInMinutes;
+}
+
+// Example usage
+$distance = 100; // distance in km
+$averageSpeed = 60; // average speed in km/h for driving
+
+$duration = calculateDrivingDuration($distance, $averageSpeed);
+echo "Duration: " . round($duration) . " minutes"; // Round to nearest minute
+
