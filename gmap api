@@ -5,4 +5,133 @@ https://maps.googleapis.com/maps/api/distancematrix/json
 
 
 How To Find Distance Between Two Location Using Latitude and Longitude
+########*########₹$'::
 
+To calculate the distance between three latitude/longitude pairs using Laravel and the Google Distance Matrix API, you can make an HTTP request to the Google API and process the result in Laravel.
+
+### Step-by-Step Guide:
+
+1. **Get Google API Key**
+   Make sure you have a valid Google API key with Distance Matrix API enabled. If you don’t have one, [follow these steps to get your API key](https://developers.google.com/maps/documentation/distance-matrix/get-api-key).
+
+2. **Install Guzzle (HTTP client for Laravel)**  
+   If not already installed, use Guzzle to make the API request. You can install it via Composer:
+   ```bash
+   composer require guzzlehttp/guzzle
+   ```
+
+3. **Write the Code in a Controller or Service**
+
+   In your Laravel controller or service, make a request to the Google Distance Matrix API with the three latitude and longitude coordinates:
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use GuzzleHttp\Client;
+
+class DistanceController extends Controller
+{
+    public function calculateDistance()
+    {
+        $origins = '22.5807352,88.4818782'; // First point (origin)
+        $destinations = [
+            '22.5703741,88.3149259', // Second point (destination)
+            '23.5505199,90.0253127'  // Third point (destination)
+        ];
+
+        // Google API Key
+        $apiKey = 'YOUR_GOOGLE_API_KEY';
+
+        // Build the destination string
+        $destinationsString = implode('|', $destinations);
+
+        // Create the Google Distance Matrix API URL
+        $url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins={$origins}&destinations={$destinationsString}&key={$apiKey}";
+
+        // Create a Guzzle client
+        $client = new Client();
+
+        // Make the request to the Google Distance Matrix API
+        $response = $client->request('GET', $url);
+
+        // Parse the JSON response
+        $data = json_decode($response->getBody(), true);
+
+        // Extract the distances and times
+        if ($data['status'] === 'OK') {
+            foreach ($data['rows'][0]['elements'] as $index => $element) {
+                if ($element['status'] === 'OK') {
+                    $distance = $element['distance']['text']; // e.g., "12.4 km"
+                    $duration = $element['duration']['text']; // e.g., "18 mins"
+                    echo "Distance to point " . ($index + 1) . ": $distance, Duration: $duration<br>";
+                } else {
+                    echo "Error for point " . ($index + 1) . ": " . $element['status'] . "<br>";
+                }
+            }
+        } else {
+            echo "Error: " . $data['status'];
+        }
+    }
+}
+```
+
+### Explanation:
+- **$origins**: The starting point (latitude, longitude).
+- **$destinations**: An array containing multiple destination latitude/longitude pairs.
+- **$apiKey**: Your Google API key.
+- **$client**: Guzzle HTTP client used to make the request.
+- **$data**: The response from the Google Distance Matrix API, which contains distances and durations between the origin and each destination.
+- **$destinationsString**: The destination coordinates are joined by `|` (pipe) as required by the API.
+
+### API Response Example:
+```json
+{
+   "destination_addresses": [
+      "Kolkata, West Bengal, India",
+      "Howrah, West Bengal, India"
+   ],
+   "origin_addresses": [
+      "Bidhannagar, West Bengal, India"
+   ],
+   "rows": [
+      {
+         "elements": [
+            {
+               "distance": {
+                  "text": "12.4 km",
+                  "value": 12397
+               },
+               "duration": {
+                  "text": "23 mins",
+                  "value": 1394
+               },
+               "status": "OK"
+            },
+            {
+               "distance": {
+                  "text": "20.3 km",
+                  "value": 20345
+               },
+               "duration": {
+                  "text": "40 mins",
+                  "value": 2400
+               },
+               "status": "OK"
+            }
+         ]
+      }
+   ],
+   "status": "OK"
+}
+```
+
+### Key Points:
+- **Distance**: The `text` field gives the distance in human-readable form (e.g., "12.4 km"), and the `value` field gives it in meters.
+- **Duration**: The `text` field gives the time in a readable format (e.g., "23 mins"), and the `value` field gives it in seconds.
+
+### Notes:
+- The API returns data in meters for distance and seconds for duration.
+- The API can calculate distances based on real-world road data, which is useful for travel calculations.
