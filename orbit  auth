@@ -1,0 +1,134 @@
+ public function driverLogin(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'mobile_number' => [
+                'required_without:email',
+                Rule::exists('users', 'mobile_number')->whereNull('deleted_at')
+            ],
+            'email' => [
+                'required_without:mobile_number',
+                Rule::exists('users', 'mobile_number')->whereNull('deleted_at')
+            ],
+            'password' => 'required',
+            'device_id' => 'required',
+            'device_token' => 'required',
+            'device_type' => 'required|in:android,ios',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        $credentialArray = [
+            'password' => $request->password,
+        ];
+        $isPhoneExist = $this->userService->findUserBy(["mobile_number" => $request->mobile_number]);
+        if (!$isPhoneExist->hasRole('driver')) {
+            return $this->responseJson(false, 200, 'Sorry you are not a driver', (object)[]);
+        }
+        if ($request->email) {
+            $credentialArray = array_merge($request->only('email'), $credentialArray);
+        } else {
+            $credentialArray = array_merge($request->only('mobile_number'), $credentialArray);
+        }
+        if (!auth()->attempt($credentialArray)) {
+            return $this->responseJson(false, 200, 'Incorrect Details. Please try again', []);
+        }
+        $user = auth()->user();
+        $user->remember_token = null;
+        $user->save();
+        if (!$user->hasRole('driver')) {
+            auth()->logout();
+            return $this->responseJson(false, 200, 'Sorry you are not a driver', (object)[]);
+        }
+        if (!$user->is_approve) {
+            auth()->logout();
+            return $this->responseJson(false, 200, 'Please wait for your account approval', (object)[]);
+        }
+        if (!$user->is_active) {
+            auth()->logout();
+            return $this->responseJson(false, 200, 'Account deactivated. Please Contact Admin', (object)[]);
+        }
+        if ($user->is_blocked) {
+            auth()->logout();
+            return $this->responseJson(false, 200, 'Your account has been blocked. Please contact admin', (object)[]);
+        }
+        // Log out other devices
+        Auth::logoutOtherDevices($request->password);
+        auth()->user()->update([
+            'device_id' => $request->device_id,
+            'device_token' => $request->device_token,
+            'device_type' => $request->device_type,
+            'last_login_at' => now(),
+            'last_login_ip' => $request->ip()
+        ]);
+        $user->remember_token = $user->createToken('access-token')->accessToken;
+        $user->save();
+        return $this->responseJson(true, 200, 'Driver Details Found', new UserResource($user));
+    }
+
+*****************************************************************************************************************
+  public function login(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'mobile_number' => 'required|digits:10',
+            'email' => 'sometimes|email',
+            'device_id' => 'required',
+            'device_type' => 'required|in:android,ios',
+            'type' => 'required|string|in:registration,login',
+            'first_name' => 'required_if:type,registration|string|nullable',
+            'referral_code' => 'sometimes|exists:users,referral_code|nullable'
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        DB::beginTransaction();
+        try {
+            $device_token = $request->device_token;
+            $isPhoneExist = $this->userService->findUserBy(["mobile_number" => $request->mobile_number]);
+            if ($isPhoneExist == null && $request->type == 'login') {
+                return $this->responseJson(false, 422, "Incorrect Mobile Number ", (object)[]);
+            }
+            if ($request->type == 'login' && !$isPhoneExist->hasRole('rider')) {
+                return $this->responseJson(false, 422, "Wrong Credentials", (object)[]);
+            }
+            if (!$isPhoneExist && $request->email) {
+                $isPhoneExist = $this->userService->findUserBy(["email" => $request->email]);
+            }
+            if ($request->type == 'registration' && $isPhoneExist) {
+                return $this->responseJson(false, 422, "Mobile Number or Email already exist", (object)[]);
+            }
+            $verificationCode = rand(1000, 9999);
+            if ($isPhoneExist) {
+                $isUserCreatedOrUpdated = $isPhoneExist->update(['verification_code' => $verificationCode]);
+                Auth::logoutOtherDevices($request->password);
+                $isPhoneExist->update([
+                    'device_id' => $request->device_id,
+                    'device_type' => $request->device_type,
+                    'device_token' => $device_token
+                ]);
+            } else {
+                $referralUserId = User::where('referral_code', $request->referral_code)->first();
+
+                if ($referralUserId != null && $referralUserId->roles->first()->slug != 'rider') {
+                    return $this->responseJson(false, 422, "Invalid Rider Referral Code", "");
+                }
+                $request->merge([
+                    'role' => 'rider',
+                    'verification_code' => $verificationCode,
+                    'device_token' => $device_token,
+                    'referral_code' => randomString(12),
+                    'language_id' => 1,
+                    'referral_user_id' => $referralUserId?->id ?? null
+                ]);
+                // dd($request->all());
+                $isUserCreatedOrUpdated = $this->userService->createUser($request->all());
+            }
+            if ($isUserCreatedOrUpdated) {
+                DB::commit();
+                return $this->responseJson(true, 200, 'Otp sent successfully', ['otp' => $verificationCode]);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            return $this->responseJson(false, 500, "Something Went Wrong");
+        }
+    }
