@@ -605,6 +605,44 @@ private function sendNotification($notificationData, $fcmToken)
 }
 
 *******************************************************************************************************************************************
+
+  public function findDrivers(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'lat' => ['required', 'regex:/^[-]?(([0-8]?[0-9])\.(\d+))|(90(\.0+)?)$/'],
+            'lng' => ['required', 'regex:/^[-]?((((1[0-7][0-9])|([0-9]?[0-9]))\.(\d+))|180(\.0+)?)$/'],
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+
+        try {
+            $latitude = $request->lat;
+            $longitude = $request->lng;
+            $distance = getSiteSetting('search_radius') ?? 100;
+            $locations = Location::selectRaw(
+                '*,(6371 * acos(cos(radians(?)) * cos(radians(lat)) * cos(radians(lng) - radians(?)) + sin(radians(?)) * sin(radians(lat)))) AS distance',
+                [$latitude, $longitude, $latitude]
+            )
+                ->having('distance', '<=', $distance)
+                ->where(function ($q) {
+                    $q->where('created_at', '>=', now()->subMinutes(5))
+                        ->orWhere('updated_at', '>=', now()->subMinutes(5));
+                })
+                ->whereHas('user', function ($qu) {
+                    $qu->where('is_online', true);
+                    /* ->whereHas('deliveries',function ($qur) {
+                    $qur->whereNull('accepted_at')
+                    ->where('is_completed','!=',false);
+                }); */
+                })
+                ->orderBy('distance')->get();
+            return $this->responseJson(true, 200, $locations->isNotEmpty() ? 'Drivers available in your area' : 'No driver available in your area', $locations ? DriverLocationResource::collection($locations) : []);
+        } catch (\Throwable $e) {
+            logger($e->getMessage() . 'on' . $e->getFile() . 'in' . $e->getLine());
+            return $this->responseJson(false, 500, 'Something Went Wrong');
+        }
+    }
 *******************************************************************************************************************************************
 *******************************************************************************************************************************************
 
