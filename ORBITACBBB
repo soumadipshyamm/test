@@ -1,5 +1,5 @@
 driver
-*******************************************************************************************************************************************
+***********************************************************************************************************n********************************
 public function bookinglist(Request $request)
 {
     // Fetch bookings filtered by conditions
@@ -712,7 +712,84 @@ public function findDrivers(Request $request)
 }
 
 
-*******************************************************************************************************************************************
+****************************************************************
+public function findDrivers(Request $request)
+{
+    // Validate the input for latitude and longitude
+    $validator = Validator::make($request->all(), [
+        'lat' => ['required', 'regex:/^[-]?(([0-8]?[0-9])\.(\d+))|(90(\.0+)?)$/'],
+        'lng' => ['required', 'regex:/^[-]?((((1[0-7][0-9])|([0-9]?[0-9]))\.(\d+))|180(\.0+)?)$/'],
+    ]);
+    
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    try {
+        $latitude = $request->lat;
+        $longitude = $request->lng;
+        $distanceRadius = getSiteSetting('search_radius') ?? 100; // Default radius if not set
+        $apiKey = config('services.google_maps.api_key'); // Your Google Maps API key
+
+        // Get nearby drivers within the specified radius and online status
+        $locations = Location::whereHas('user', function ($query) {
+            $query->where('is_online', true);
+        })
+        ->where(function ($query) {
+            $query->where('created_at', '>=', now()->subMinutes(5))
+                  ->orWhere('updated_at', '>=', now()->subMinutes(5));
+        })
+        ->get();
+
+        $availableDrivers = collect();
+
+        // Loop through all drivers to calculate the distance using Google Maps API
+        foreach ($locations as $location) {
+            $driverLat = $location->lat;
+            $driverLng = $location->lng;
+
+            // Make API call to Google Maps Distance Matrix API
+            $distanceData = $this->getDrivingDistanceFromGoogle($latitude, $longitude, $driverLat, $driverLng, $apiKey);
+
+            if ($distanceData['status'] === 'OK' && $distanceData['distance'] <= $distanceRadius) {
+                $availableDrivers->push($location);
+            }
+        }
+
+        return $this->responseJson(true, 200, $availableDrivers->isNotEmpty() ? 'Drivers available in your area' : 'No driver available in your area', DriverLocationResource::collection($availableDrivers));
+
+    } catch (\Throwable $e) {
+        logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+        return $this->responseJson(false, 500, 'Something Went Wrong');
+    }
+}
+
+/**
+ * Helper method to call Google Maps Distance Matrix API for driving distance.
+ */
+private function getDrivingDistanceFromGoogle($originLat, $originLng, $destLat, $destLng, $apiKey)
+{
+    $url = "https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins={$originLat},{$originLng}&destinations={$destLat},{$destLng}&key={$apiKey}";
+
+    $response = file_get_contents($url);
+    $data = json_decode($response, true);
+
+    if ($data['status'] === 'OK') {
+        $element = $data['rows'][0]['elements'][0];
+
+        return [
+            'status' => $element['status'],
+            'distance' => $element['distance']['value'] / 1000, // Distance in kilometers
+        ];
+    }
+
+    return ['status' => 'ERROR', 'distance' => null];
+}
+
+
+
+
+***************************************************************************
 
 Booking
 *******************************************************************************************************************************************
