@@ -644,6 +644,74 @@ private function sendNotification($notificationData, $fcmToken)
         }
     }
 *******************************************************************************************************************************************
+public function findDrivers(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'lat' => ['required', 'regex:/^[-]?(([0-8]?[0-9])\.(\d+))|(90(\.0+)?)$/'],
+        'lng' => ['required', 'regex:/^[-]?((((1[0-7][0-9])|([0-9]?[0-9]))\.(\d+))|180(\.0+)?)$/'],
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    try {
+        $latitude = $request->lat;
+        $longitude = $request->lng;
+        $distance = getSiteSetting('search_radius') ?? 100;
+
+        // Google Maps Distance Matrix API
+        $apiKey = config('services.google_maps.api_key'); // Add your API Key to your env file and config/services.php
+        $googleMapsUrl = "https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins={$latitude},{$longitude}&destinations=";
+
+        // Fetching all available driver locations
+        $locations = Location::whereHas('user', function ($q) {
+                $q->where('is_online', true);
+            })
+            ->where(function ($q) {
+                $q->where('created_at', '>=', now()->subMinutes(5))
+                    ->orWhere('updated_at', '>=', now()->subMinutes(5));
+            })
+            ->get();
+
+        if ($locations->isEmpty()) {
+            return $this->responseJson(true, 200, 'No driver available in your area', []);
+        }
+
+        // Preparing Google API destinations parameter
+        $destinations = $locations->map(function ($location) {
+            return "{$location->lat},{$location->lng}";
+        })->implode('|');
+
+        // Make a request to Google Maps Distance Matrix API
+        $googleMapsUrl .= $destinations . "&key={$apiKey}";
+        $response = Http::get($googleMapsUrl);
+        $data = $response->json();
+
+        if (isset($data['rows'][0]['elements'])) {
+            $distances = $data['rows'][0]['elements'];
+
+            // Filter locations based on the distance
+            $filteredLocations = [];
+            foreach ($locations as $index => $location) {
+                $distanceToDriver = $distances[$index]['distance']['value'] / 1000; // Convert meters to kilometers
+
+                if ($distanceToDriver <= $distance) {
+                    $filteredLocations[] = $location;
+                }
+            }
+
+            return $this->responseJson(true, 200, !empty($filteredLocations) ? 'Drivers available in your area' : 'No driver available in your area', DriverLocationResource::collection(collect($filteredLocations)));
+        }
+
+        return $this->responseJson(false, 500, 'Failed to fetch data from Google Maps');
+    } catch (\Throwable $e) {
+        logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+        return $this->responseJson(false, 500, 'Something Went Wrong');
+    }
+}
+
+
 *******************************************************************************************************************************************
 
 Booking
