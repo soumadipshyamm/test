@@ -793,5 +793,42 @@ private function getDrivingDistanceFromGoogle($originLat, $originLng, $destLat, 
 
 Booking
 *******************************************************************************************************************************************
+
+
+
+
+let WithdrawlMoneyRequestTable = $('#withdrawlMoneyRequestTable').DataTable({
+    responsive: true,
+    searching: false,
+    lengthChange: false,
+    "language": {
+        lengthMenu: "Counts per page_MENU_",
+        searchPlaceholder: "Search by name"
+    },
+    autoWidth: false,
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: baseUrl + 'ajax/getWithdrawlMoneyRequest',
+        dataType: "json",
+        type: "get",
+    },
+    columns: withdrawlMoneyRequest,
+    dom: '<".d-flex"<".col-6" l><".col-6 text-right" f>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
+    "ordering": true,
+    buttons: [
+        'copy', 'csv', 'excel', 'pdf', 'print'
+    ],
+    "fnDrawCallback": function (oSettings) {
+        let pagination = $(oSettings.nTableWrapper).find('.dataTables_paginate,.dataTables_info,.dataTables_length');
+        oSettings._iDisplayLength > oSettings.fnRecordsDisplay() ? pagination.hide() : pagination.show();
+    },
+    "createdRow": function (row, data, dataIndex) {
+        $(row).addClass('manage-enable');
+        if (data.is_active) {
+            $(row).addClass('block-disable');
+        }
+    }
+});
 *******************************************************************************************************************************************
 *******************************************************************************************************************************************
