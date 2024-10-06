@@ -867,4 +867,26 @@ let WithdrawlMoneyRequestTable = $('#withdrawlMoneyRequestTable').DataTable({
 });
 
 *******************************************************************************************************************************************
+
+<div class="card-content collapse show">
+                            <div class="card-body">
+                                <table class="table table-striped table-bordered withdrawlMoneyRequestTable"
+                                    id="withdrawlMoneyRequestTable">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ __('Sr. No.') }}</th>
+                                            <th>{{ __('Driver') }}</th>
+                                            <th>{{ __('Transaction Type') }}</th>
+                                            <th>{{ __('Comment') }}</th>
+                                            <th>{{ __('Amount') }}</th>
+                                            <th>{{ __('Request Amount') }}</th>
+                                            <th>{{ __('Date') }}</th>
+                                            <th>{{ __('STATUS') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
 *******************************************************************************************************************************************
