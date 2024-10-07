@@ -1099,7 +1099,30 @@ $(document).ready(function () {
     });
 });
 
-*********************************************************************************************
+**********************************************
+
+// Store the active tab in localStorage
+$(document).ready(function () {
+    // When a tab is clicked, store its ID in localStorage
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+        var activeTab = $(e.target).attr('href');
+        localStorage.setItem('activeTab', activeTab);
+    });
+
+    // On page load, check if there is a saved active tab and show it
+    var activeTab = localStorage.getItem('activeTab');
+    if (activeTab) {
+        $('a[href="' + activeTab + '"]').tab('show');
+    }
+});
+
+
+// Clear localStorage on logout or page unload
+$(window).on('unload', function () {
+    localStorage.removeItem('activeTab');
+});
+
+***********************************************
 *******************************************************************************************************************************************
 *******************************************************************************************************************************************
 *******************************************************************************************************************************************
