@@ -1,5 +1,34 @@
 
-***********************************************************************************************************n********************************
+*********************************************************************************************
+protected static function generateUniqueNumber($length)
+{
+    // Get the current year in 'yy' format (e.g., 24 for 2024)
+    $year = date('y');
+    
+    // Initialize the employee ID
+    $number = str_pad(mt_rand(1, pow(10, $length) - 1), $length, '0', STR_PAD_LEFT);
+
+    // Full employee ID in format 'EMP-2400001'
+    $employeeId = 'EMP-' . $year . $number;
+
+    // Log for debugging (optional)
+    info("Generated Employee ID: $employeeId");
+
+    // Check if the generated number is unique in the database
+    while (static::where('employee_id', $employeeId)->exists()) {
+        // If not unique, regenerate the employee ID
+        $number = str_pad(mt_rand(1, pow(10, $length) - 1), $length, '0', STR_PAD_LEFT);
+        $employeeId = 'EMP-' . $year . $number;
+        
+        // Log for debugging (optional)
+        info("Regenerated Employee ID: $employeeId");
+    }
+
+    // Return the unique employee ID
+    return $employeeId;
+}
+
+**************n********************************
             $model->employee_id  = static::generateUniqueNumber(6);
 
  protected static function generateUniqueNumber($length)
