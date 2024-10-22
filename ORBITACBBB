@@ -4,6 +4,64 @@
 
 
 *********************************************************************************************
+let cancelledBookingTable = $('#cancelledBookingTable').DataTable({
+    responsive: true,
+    searching: false,
+    lengthChange: true,
+    "language": {
+        lengthMenu: "Counts per page_MENU_",
+        searchPlaceholder: "Search by name"
+    },
+    autoWidth: false,
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: baseUrl + 'ajax/getCancelledBookings',
+        dataType: "json",
+        type: "get",
+        data: function (d) {
+            return $.extend({}, d, {
+                'daterange': $(".daterange").val(),
+            });
+        },
+    },
+    columns: cancelledBookingDataColumn,
+    dom: '<".d-flex"<".col-10" l><".col-2 text-right" Bf>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
+    buttons: [
+        {
+            extend: 'excelHtml5',
+            text: 'Export Excel',
+            exportOptions: {
+                modifier: {
+                    page: 'all' // Export all data, not just the current page
+                }
+            }
+        },
+        {
+            extend: 'pdfHtml5',
+            text: 'Export PDF'
+        },
+        {
+            extend: 'print',
+            text: 'Print'
+        }
+    ],
+    "ordering": true,
+    "scrollX": "400px", // Set the height for the scrollable area
+    "scrollCollapse": true,
+    "fnDrawCallback": function (oSettings) {
+        let pagination = $(oSettings.nTableWrapper).find('.dataTables_paginate,.dataTables_info,.dataTables_length');
+        oSettings._iDisplayLength > oSettings.fnRecordsDisplay() ? pagination.hide() : pagination.show();
+    },
+    "createdRow": function (row, data, dataIndex) {
+        $(row).addClass('manage-enable');
+        if (data.is_active) {
+            $(row).addClass('block-disable');
+        }
+    }
+});
+
+*********************************************************************************************
 let vehiclesReportsTable = $('#vehiclesReportsTable').DataTable({
     responsive: true,
     searching: false,
