@@ -3,7 +3,105 @@
 
 
 
-*********************************************************************************************
+**********************************************
+
+let cancelledBookingTable = $('#cancelledBookingTable').DataTable({
+    responsive: true,
+    searching: false,
+    lengthChange: true,
+    "language": {
+        lengthMenu: "Counts per page _MENU_",
+        searchPlaceholder: "Search by name"
+    },
+    autoWidth: false,
+    processing: true,
+    serverSide: true,
+    ajax: {
+        url: baseUrl + 'ajax/getCancelledBookings',
+        dataType: "json",
+        type: "get",
+        data: function (d) {
+            return $.extend({}, d, {
+                'daterange': $(".daterange").val(),
+            });
+        },
+    },
+    columns: cancelledBookingDataColumn,
+    dom: '<".d-flex"<".col-10" l><".col-2 text-right" Bf>>t<".d-flex"<".col-6" i><".col-6 text-right"p>>',
+    buttons: [
+        {
+            extend: 'excelHtml5',
+            text: 'Export Excel',
+            exportOptions: {
+                modifier: {
+                    page: 'all' // Export all data, not just the current page
+                }
+            },
+            action: function (e, dt, button, config) {
+                // To fetch all data for export
+                $.ajax({
+                    url: baseUrl + 'ajax/getCancelledBookings',
+                    data: dt.ajax.params(), // Send the current filter data
+                    success: function (json) {
+                        let exportData = json.data;
+                        let newDataTable = $.extend(true, [], dt.buttons.exportData());
+                        newDataTable.body = exportData; // Assign full data to be exported
+                        $.fn.dataTable.ext.buttons.excelHtml5.action.call(this, e, dt, button, $.extend({}, config, {
+                            exportOptions: {
+                                columns: ':visible',
+                                rows: ':visible'
+                            },
+                            data: newDataTable
+                        }));
+                    }
+                });
+            }
+        },
+        {
+            extend: 'pdfHtml5',
+            text: 'Export PDF',
+            exportOptions: {
+                modifier: {
+                    page: 'all' // Export all data, not just the current page
+                }
+            },
+            action: function (e, dt, button, config) {
+                // Fetch all data for export
+                $.ajax({
+                    url: baseUrl + 'ajax/getCancelledBookings',
+                    data: dt.ajax.params(),
+                    success: function (json) {
+                        let exportData = json.data;
+                        let newDataTable = $.extend(true, [], dt.buttons.exportData());
+                        newDataTable.body = exportData;
+                        $.fn.dataTable.ext.buttons.pdfHtml5.action.call(this, e, dt, button, $.extend({}, config, {
+                            data: newDataTable
+                        }));
+                    }
+                });
+            }
+        },
+        {
+            extend: 'print',
+            text: 'Print'
+        }
+    ],
+    "ordering": true,
+    "scrollX": "400px",
+    "scrollCollapse": true,
+    "fnDrawCallback": function (oSettings) {
+        let pagination = $(oSettings.nTableWrapper).find('.dataTables_paginate,.dataTables_info,.dataTables_length');
+        oSettings._iDisplayLength > oSettings.fnRecordsDisplay() ? pagination.hide() : pagination.show();
+    },
+    "createdRow": function (row, data, dataIndex) {
+        $(row).addClass('manage-enable');
+        if (data.is_active) {
+            $(row).addClass('block-disable');
+        }
+    }
+});
+
+***********************************************
 let cancelledBookingTable = $('#cancelledBookingTable').DataTable({
     responsive: true,
     searching: false,
