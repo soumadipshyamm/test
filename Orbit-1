@@ -7,4 +7,40 @@
 ***************************************************************************************
 ***************************************************************************************
 ***************************************************************************************
+{
+
+  "error": {
+
+    "code": 403,
+
+    "message": "Request had insufficient authentication scopes.",
+
+    "status": "PERMISSION_DENIED",
+
+    "details": [
+
+      {
+
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+
+        "reason": "ACCESS_TOKEN_SCOPE_INSUFFICIENT",
+
+        "domain": "googleapis.com",
+
+        "metadata": {
+
+          "method": "google.firestore.v1.Firestore.GetOrListDocuments",
+
+          "service": "firestore.googleapis.com"
+
+        }
+
+      }
+
+    ]
+
+  }
+
+}
+
 ***************************************************************************************
