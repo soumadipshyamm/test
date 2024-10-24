@@ -6,7 +6,76 @@
 ***************************************************************************************
 ***************************************************************************************
 ***************************************************************************************
-***************************************************************************************
+**********************************************
+
+<?php
+
+use Google_Client;
+
+class FirestoreService {
+
+    // Function to get access token
+    public function getAccessToken()
+    {
+        // Path to your Firebase credentials JSON file
+        $credentialsFilePath = config_path('firebase-adminsdk.json');
+        
+        // Create a new Google client
+        $client = new Google_Client();
+        
+        // Load the credentials from the Firebase JSON file
+        $client->setAuthConfig($credentialsFilePath);
+        
+        // Add Firestore and Firebase Messaging scopes
+        $client->addScope('https://www.googleapis.com/auth/datastore'); // Firestore scope
+        $client->addScope('https://www.googleapis.com/auth/firebase.messaging'); // FCM scope
+        
+        // Fetch the access token
+        $token = $client->fetchAccessTokenWithAssertion();
+        
+        // Return the access token
+        return $token['access_token'];
+    }
+
+    // Function to get data from Firestore
+    public function getData()
+    {
+        // Firestore URL for the specific collection or document
+        $url = 'https://firestore.googleapis.com/v1/projects/orbitcab-e93d8/databases/(default)/documents/liveTracking';
+        
+        // Get the access token by calling the getAccessToken() method
+        $token = $this->getAccessToken(); 
+
+        // Initialize a cURL session
+        $ch = curl_init();
+        
+        // Set the URL for the cURL request
+        curl_setopt($ch, CURLOPT_URL, $url);
+        
+        // Return the transfer as a string instead of outputting it directly
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        
+        // Set the HTTP headers, including the access token for authorization
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token,
+        ]);
+        
+        // Execute the cURL request and get the response
+        $response = curl_exec($ch);
+        
+        // Close the cURL session
+        curl_close($ch);
+
+        // Decode the JSON response into an associative array
+        $data = json_decode($response, true);
+
+        // Return the data
+        return $data;
+    }
+}
+
+*****************************************
 function getAccessToken()
     {
         $credentialsFilePath = config_path('firebase-adminsdk.json');
