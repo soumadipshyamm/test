@@ -7,6 +7,39 @@
 ***************************************************************************************
 ***************************************************************************************
 ***************************************************************************************
+function getAccessToken()
+    {
+        $credentialsFilePath = config_path('firebase-adminsdk.json');
+        $client = new \Google_Client();
+        $client->setAuthConfig($credentialsFilePath);
+        $client->addScope('https://www.googleapis.com/auth/firebase.messaging');
+        $token = $client->fetchAccessTokenWithAssertion();
+        $accessToken = $token['access_token'];
+        return $accessToken;
+    }
+
+    public function getData()
+    {
+        $url = 'https://firestore.googleapis.com/v1/projects/orbitcab-e93d8/databases/(default)/documents/liveTracking';
+        $token = $this->getAccessToken(); // Obtain this from your Firebase Authentication
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $token,
+        ]);
+        $response = curl_exec($ch);
+        dd($response);
+        curl_close($ch);
+
+        $data = json_decode($response, true);
+
+        return $data;
+    }
+
+this code  
 {
 
   "error": {
@@ -42,5 +75,5 @@
   }
 
 }
-
+how to solved this issue
 ***************************************************************************************
