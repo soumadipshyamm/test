@@ -4,30 +4,31 @@
 ************************************************************************************************************
 $authCompany = Auth::guard('company-api')->user()->company_id;
 
-$query = Activities::with(['units', 'project', 'subproject', 'parent', 'children.activitiesHistory'])
+$query = Activities::with(['units', 'project', 'subproject', 'parent', 'children.children.activitiesHistory'])
     ->where('company_id', $authCompany)
     ->where('project_id', $request->project_id)
     ->orderBy('id', 'asc');
 
-// Check if `subproject_id` exists in the request and add it to the query conditionally
+// Conditionally add `subproject_id` if it exists in the request
 if ($request->filled('subproject_id')) {
     $query->where('subproject_id', $request->subproject_id);
 }
 
-$activities = $query->get();
+$fetchActivities = $query->get();
 
-if ($activities->isNotEmpty()) {
-    // Flatten activities with their children
-    $allActivities = $activities->flatMap(function ($activity) {
-        return $activity->children->isNotEmpty() 
-            ? collect([$activity])->merge($activity->children) 
-            : collect([$activity]);
+if ($fetchActivities->isNotEmpty()) {
+    // Flatten activities and their children recursively
+    $allActivities = $fetchActivities->flatMap(function ($activity) {
+        return collect([$activity])->merge($activity->children->flatMap(function ($childActivity) {
+            return collect([$childActivity])->merge($childActivity->children);
+        }));
     });
 
     return $this->responseJson(true, 200, 'Fetch Activities List Successfully', ActiviteiesResources::collection($allActivities));
 }
 
 return $this->responseJson(false, 404, 'No Activities Found');
+
 
 ************************************************************************************************************
 ************************************************************************************************************
