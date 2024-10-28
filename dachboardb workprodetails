@@ -1,4 +1,19 @@
+ <script>
+function updateActivitiesType() {
 
+                var projectId = $('#project').val();
+                var subproject = $('#subproject').val();
+                var type = $('.activiesType').val();
+
+                if (type === 'activites') {
+                    $(".activites").show();
+                    $(".activites").html(activiteFieldHtml(projectId, subproject));
+                }
+                if (type === 'heading') {
+                    $(".activites").show();
+                    $(".activites").html(generateTypeNameFieldHtml());
+                }
+            }
             function activiteFieldHtml(projectId, subproject) {
                 alert(projectId + '/' + subproject);
 
@@ -13,3 +28,5 @@
                         </div>
                     </div>
                 </div>
+
+ </script>
