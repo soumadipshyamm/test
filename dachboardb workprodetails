@@ -1,3 +1,18 @@
+fetchChildActivities(projectId, subproject);
+}
+
+// Function to fetch child activities
+function fetchChildActivities(projectId, subproject) {
+    $.get(`${baseUrl}company/activities/childActivities/${projectId}/${subproject}`, function(data) {
+        const $headingSelect = $('#heading');
+        $headingSelect.empty().append('<option value="">----Select Heading/Sub-Heading----</option>');
+
+        $.each(data, function(_, activity) {
+            $headingSelect.append(`<option value="${activity.id}">${activity.name}</option>`);
+        });
+    });
+
+
 <script>
         $(document).ready(function() {
             var i = 1;
