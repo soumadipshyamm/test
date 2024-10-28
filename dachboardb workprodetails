@@ -1,5 +1,42 @@
- <script>
-function updateActivitiesType() {
+<script>
+        $(document).ready(function() {
+            var i = 1;
+
+            $('#project').change(function() {
+                var projectId = $(this).val();
+                $.get(baseUrl + 'company/activities/subprojects/' + projectId, function(data) {
+                    $('#subproject').empty();
+                    $.each(data, function(key, value) {
+                        $.each(value.sub_project, function(subkey, subvalue) {
+                            $('#subproject').append('<option value="' + subvalue
+                                .id + '">' + subvalue.name + '</option>');
+                        });
+                    });
+
+                    updateActivitiesType();
+                    $(".activites").hide();
+                    $(".activiesType").val("");
+                    // alert("project")
+
+                });
+            });
+
+            $('#subproject').on('change', function() {
+                updateActivitiesType();
+                $(".activites").hide();
+                $(".activiesType").val("");
+                // alert("subproject")
+            });
+
+            var data = $('.additional_fields').val();
+            $('.activiesType').on('change', function(e) {
+                e.preventDefault();
+                updateActivitiesType();
+                // alert("kjhgtfre")
+                // $(".activiesType").val("");
+            });
+
+            function updateActivitiesType() {
 
                 var projectId = $('#project').val();
                 var subproject = $('#subproject').val();
@@ -14,8 +51,52 @@ function updateActivitiesType() {
                     $(".activites").html(generateTypeNameFieldHtml());
                 }
             }
+
+            function generateTypeNameFieldHtml() {
+                return `<div class="form-row">
+                    <div class="col-md-6">
+                        <div class="position-relative form-group">
+                            <label for="activities" class="">Activities</label>
+                            <input name="activities" id="activities" class="form-control"
+                                value="{{ old('activities', !empty($data) ? $data->activities : '') }}"
+                                placeholder=" Enter Activities">
+                            @if ($errors->has('activities'))
+                            <div class="error">{{ $errors->first('activities') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            function selectHeadingFieldHtml() {
+                return `<hr> <div class="form-row">
+                    <div class="col-md-4">
+                        <div class="position-relative form-group">
+                            <label for="activities" class="">Heading</label>
+                            <select class="form-control" value="{{ old('heading') }}" name="heading" id="heading">
+                                <option value="">----Select Heading/Sub-Heading----</option>
+                                {{ getHeading('') }}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="position-relative form-group">
+                            <label for="activities" class="">Activities</label>
+                            <input name="activities" id="activities" class="form-control"
+                                value="{{ old('activities', !empty($data) ? $data->activities : '') }}"
+                                placeholder=" Enter Activities">
+                            @if ($errors->has('activities'))
+                            <div class="error">{{ $errors->first('activities') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>`;
+            }
+
             function activiteFieldHtml(projectId, subproject) {
-                alert(projectId + '/' + subproject);
+                // alert(projectId + '/' + subproject);
+
+                // console.log(asdfgh);
 
                 return `<hr> <div class="form-row">
                     <div class="col-md-4">
@@ -23,10 +104,93 @@ function updateActivitiesType() {
                             <label for="activities" class="">Heading</label>
                             <select class="form-control" value="{{ old('heading') }}" name="heading" id="heading">
                                 <option value="">----Select Heading/Sub-Heading----</option>
-                                {{ getchildActivites(${projectId}, ${subproject}) }}
+                                {{ getchildActivites(`projectId`, `subproject`) }}
                             </select>
                         </div>
                     </div>
                 </div>
-
- </script>
+                <hr>
+                <div class="form-row">
+                    <div class="col-md-6">
+                        <div class="position-relative form-group">
+                            <label for="activities" class="">Activities</label>
+                            <input name="activities" id="activities" class="form-control"
+                                value="{{ old('activities', !empty($data) ? $data->activities : '') }}"
+                                placeholder=" Enter Activities">
+                            @if ($errors->has('activities'))
+                            <div class="error">{{ $errors->first('activities') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="position-relative form-group">
+                            <label for="unit_id" class="">Unit Type</label>
+                            <select class="form-control" value="{{ old('unit_id') }}" name="unit_id" id="unit_id">
+                                <option value="">----Select Unit----</option>
+                                {{ getUnits($data->unit_id ?? '') }}
+                            </select>
+                            @if ($errors->has('unit_id'))
+                            <div class="error">{{ $errors->first('unit_id') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="col-md-4">
+                        <div class="position-relative form-group">
+                            <label for="quantity" class="">Quantity</label>
+                            <input type="number" class="form-control quantity" name="quantity"
+                                value="{{ old('quantity', $data->qty ?? '') }}" id="quantity" placeholder="Enter Quantity">
+                            @if ($errors->has('quantity'))
+                            <div class="error">{{ $errors->first('quantity') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="position-relative form-group">
+                            <label for="rate" class="">Rate</label>
+                            <input type="number" class="form-control" name="rate"
+                                value="{{ old('rate', $data->rate ?? '') }}" id="rate" placeholder="Enter rate">
+                            @if ($errors->has('rate'))
+                            <div class="error">{{ $errors->first('rate') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="position-relative form-group totalAmount">
+                            <label for="amount" class="">Amount</label>
+                            <input type="number" class="form-control totalamount" name="amount"
+                                value="{{ old('amount', $data->amount ?? '') }}" id="amount" placeholder="Total Amount" readonly>
+                            @if ($errors->has('amount'))
+                            <div class="error">{{ $errors->first('amount') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="col-md-6">
+                        <div class="position-relative form-group">
+                            <label for="start_date" class="">Start Date</label>
+                            <input type="date" class="form-control" name="start_date"
+                                value="{{ old('start_date', $data->start_date ?? '') }}" id="start_date"
+                                placeholder="Enter start_date">
+                            @if ($errors->has('start_date'))
+                            <div class="error">{{ $errors->first('start_date') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="position-relative form-group">
+                            <label for="end_date" class="">End Date</label>
+                            <input type="date" class="form-control" name="end_date"
+                                value="{{ old('end_date', $data->end_date ?? '') }}" id="end_date"
+                                placeholder="Enter end_date">
+                            @if ($errors->has('end_date'))
+                            <div class="error">{{ $errors->first('end_date') }}</div>
+                            @endif
+                        </div>
+                    </div>
+                </div>`;
+            }
+        });
+    </script>
