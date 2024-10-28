@@ -9,7 +9,7 @@ public function activitiesProjectSearch(Request $request)
     $authCompany = Auth::guard('company-api')->user()->company_id;
 
     // Build the base query with eager loading and conditions
-    $fetchActivities = Activities::with(['units', 'project', 'subproject', 'parent', 'children.activitiesHistory'])
+    $query = Activities::with(['units', 'project', 'subproject', 'parent', 'children.children.activitiesHistory'])
         ->where('company_id', $authCompany)
         ->where('type', 'heading')
         ->where('project_id', $request->project)
@@ -18,31 +18,35 @@ public function activitiesProjectSearch(Request $request)
         })
         ->when($request->filled('search_keyword'), function ($query) use ($request) {
             $keyword = '%' . $request->search_keyword . '%';
-            $query->where(function ($q) use ($keyword, $request) {
+            $query->where(function ($q) use ($keyword) {
                 $q->where('activities', 'LIKE', $keyword)
-                  ->orWhere('type', 'LIKE', $keyword)
-                  ->orWhere('project_id', $request->project)
-                  ->orWhere('subproject_id', $request->subproject);
+                  ->orWhere('type', 'LIKE', $keyword);
             });
-        })
-        ->get();
-
-    if ($fetchActivities->isNotEmpty()) {
-        // Flatten activities and children
-        $allActivities = $fetchActivities->flatMap(function ($activity) {
-            return collect([$activity])->merge($activity->children);
         });
 
-        return $this->responseJson(
-            true,
-            200,
-            'Fetch Search List Successfully',
-            ActiviteiesResources::collection($allActivities)
-        );
+    // Execute the query
+    $activities = $query->get();
+
+    if ($activities->isEmpty()) {
+        return $this->responseJson(true, 200, 'Activities Search Data Not Found', []);
     }
 
-    return $this->responseJson(false, 404, 'No Activities Found');
+    // Flatten activities with their nested children
+    $allActivities = $activities->flatMap(function ($activity) {
+        return collect([$activity])
+            ->merge($activity->children->flatMap(function ($child) {
+                return collect([$child])->merge($child->children);
+            }));
+    });
+
+    return $this->responseJson(
+        true,
+        200,
+        'Fetch Search List Successfully',
+        ActiviteiesResources::collection($allActivities)
+    );
 }
+
 
 ************************************************************************************************************
 $authCompany = Auth::guard('company-api')->user()->company_id;
