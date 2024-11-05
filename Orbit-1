@@ -5,7 +5,66 @@
 ***************************************************************************************
 ***************************************************************************************
 ***************************************************************************************
-***************************************************************************************
+**********************************************
+$(document).ready(function() {
+    const brandSelect = $('#brand_id'); // Assuming you have a brand select element
+    const categorySelect = $('#category_id'); // Assuming you have a category select element
+
+    brandSelect.on('change', function() {
+        const brandId = $(this).val();
+        // Clear previous options
+        categorySelect.empty();
+
+        // Fetch categories based on selected brand
+        $.ajax({
+            url: baseUrl + 'ajax/getCategoryByBrands/' + brandId,
+            method: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                // Create a map to store children under each parent
+                const categoryMap = {};
+
+                // Separate parent and child categories
+                data.forEach(function(category) {
+                    if (category.parent_id === null) {
+                        // Initialize parent category in the map
+                        categoryMap[category.id] = {
+                            name: category.name,
+                            children: []
+                        };
+                    } else if (category.parent_id in categoryMap) {
+                        // Add child to the respective parent
+                        categoryMap[category.parent_id].children.push(category);
+                    }
+                });
+
+                // Populate the select with optgroups and child options
+                Object.keys(categoryMap).forEach(function(parentId) {
+                    const parent = categoryMap[parentId];
+
+                    // Create optgroup for the parent category
+                    const optgroup = $('<optgroup></optgroup>').attr('label', parent.name);
+
+                    // Add each child category as an option within the optgroup
+                    parent.children.forEach(function(childCategory) {
+                        const option = $('<option></option>')
+                            .val(childCategory.id)
+                            .text(childCategory.name);
+                        optgroup.append(option);
+                    });
+
+                    categorySelect.append(optgroup);
+                });
+            },
+            error: function(error) {
+                console.error('Error fetching categories:', error);
+            }
+        });
+    });
+});
+
+
+*****************************************
         {
             "id": 17,
             "uuid": "f9885f46-d203-4ea9-9e2f-6cfe2849f334",
