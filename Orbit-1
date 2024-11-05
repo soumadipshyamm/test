@@ -6,6 +6,94 @@
 ***************************************************************************************
 ***************************************************************************************
 ***************************************************************************************
+        {
+            "id": 17,
+            "uuid": "f9885f46-d203-4ea9-9e2f-6cfe2849f334",
+            "name": "Four Wheeler",
+            "slug": "four_wheeler",
+            "alias": null,
+            "parent_id": null,
+            "type": null,
+            "description": null,
+            "is_active": 1,
+            "created_at": null,
+            "updated_at": null,
+            "deleted_at": null,
+            "children": [{
+                    "id": 19,
+                    "uuid": "b92c0a3e-586d-4dc1-8426-6fcf90aadcdb",
+                    "name": "Mini",
+                    "slug": "mini",
+                    "alias": null,
+                    "parent_id": 17,
+                    "type": null,
+                    "description": null,
+                    "is_active": 1,
+                    "created_at": "2024-10-21T15:53:57.000000Z",
+                    "updated_at": "2024-10-21T15:53:57.000000Z",
+                    "deleted_at": null
+                },
+                {
+                    "id": 21,
+                    "uuid": "b38c588a-442b-4e50-91c7-e3fd1a16ac59",
+                    "name": "Sedan",
+                    "slug": "sedan",
+                    "alias": null,
+                    "parent_id": 17,
+                    "type": "17",
+                    "description": null,
+                    "is_active": 1,
+                    "created_at": "2024-10-21T19:07:21.000000Z",
+                    "updated_at": "2024-10-21T20:22:21.000000Z",
+                    "deleted_at": null
+                }
+            ]
+        }
+
+
+
+
+        $(document).ready(function() {
+                    const brandSelect = $('#brand_id'); // Assuming you have a brand select element
+                    const categorySelect = $('#category_id'); // Assuming you have a category select element
+
+                    // categorySelect.on('change', function() {
+                    // const categoryId = $(this).val();
+
+                    brandSelect.on('change', function() {
+                            const brandId = $(this).val();
+                            // Clear previous options
+                            categorySelect.empty();
+                            // brandSelect.empty();
+
+                            // Fetch brands based on selected category
+                            $.ajax({
+                                    url: baseUrl + 'ajax/getCategoryByBrands/' + brandId,
+                                    // url: baseUrl + 'ajax/getBrandsByCategory/' + categoryId,
+                                    method: 'GET',
+                                    dataType: 'json',
+                                    success: function(data) {
+                                        data.forEach(function(category) {
+                                                    console.log(category);
+                                                    if (category.parent_id == null) {
+                                                        const option = $(' <
+                                                            option > < /option>').val(category.id)
+                                                            .text(category.name);
+                                                        }
+                                                        categorySelect.append(option);
+                                                    });
+                                                // data.forEach(function(brand) {
+                                                // const option = $('<option></option>').val(brand.id).text(
+                                                // brand.name);
+                                                // brandSelect.append(option);
+                                                // });
+                                            },
+                                            error: function(error) {
+                                                console.error('Error fetching brands:', error);
+                                            }
+                                    });
+                            });
+                    });
 **********************************************
 
 <?php
