@@ -1,0 +1,87 @@
+var baseUrl = APP_URL + "/";
+// console.log(baseUrl);
+$(document).ready(function () {
+    // $(".qrCodeDownload").hide();
+    if ($("#generateqrcord").length > 0) {
+        $("#generateqrcord").validate({
+            errorClass: "text-danger",
+            errorElement: "span",
+            rules: {
+                qr_number: {
+                    required: true,
+                    max: 20,
+                    min:1,
+                    digits: true,
+                },
+                qr_size: {
+                    required: true,
+                },
+                background_type: {
+                    required: true,
+                },
+                logo_permission: {
+                    required: true,
+                },
+                encryption_phone_no: {
+                    required: true,
+                },
+            },
+            messages: {
+                qr_number: {
+                    required: "Please enter the number.",
+                    max: "Please enter a valid number between 1 to 20",
+                    digits: "Please enter only digits.",
+                },
+                qr_size: "Please select a size.",
+                background_type: {
+                    required: "Please select a background type.",
+                },
+                logo_permission: {
+                    required: "Please select one radio button",
+                },
+                encryption_phone_no: {
+                    required: "Please select one radio button",
+                },
+            },
+            submitHandler: function (form) {
+                $.ajaxSetup({
+                    headers: {
+                        "X-CSRF-TOKEN": $('meta[name="csrf-token"]').attr(
+                            "content"
+                        ),
+                    },
+                });
+                var data = new FormData($("#generateqrcord")[0]);
+                $.ajax({
+                    url: baseUrl + "add-qr-code",
+                    type: "POST",
+                    data: data,
+                    cache: false,
+                    contentType: false,
+                    processData: false,
+                    success: function (response) {
+                        $("#submit").attr("disabled", false);
+                        swal.fire(
+                            "Generate QR Code Successfully",
+                            response.message,
+                            "success"
+                        ).then(function () {
+                            // location.href = baseUrl + "qr-code-list";
+                            location.href = baseUrl + "download-qr-code";
+                        });
+                    },
+                    error: function (response) {
+                        $(".control-sidebar").hide();
+                        swal.fire({
+                            icon: "error",
+                            title: "Oops...",
+                            text: "Something went wrong!",
+                            error: response,
+                        });
+                    },
+                });
+            },
+        });
+    }
+
+});
