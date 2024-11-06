@@ -85,3 +85,7 @@ $(document).ready(function () {
     }
 
 });
+
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/jquery.validation/1.16.0/additional-methods.js"></script>
