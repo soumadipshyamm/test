@@ -3,7 +3,84 @@
 ***************************************************************************************
 ***************************************************************************************
 ***************************************************************************************
-***************************************************************************************
+**********************************************
+
+/* General Styling */
+td.w-30 {
+    width: 30%;
+    padding: 10px;
+    vertical-align: top;
+}
+
+/* User Box Styling */
+.user_box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user_box.mt-1 {
+    margin-top: 8px;
+}
+
+.user_box .text-danger {
+    color: #dc3545;
+    font-size: 14px;
+    margin-right: 5px;
+}
+
+.user_img img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+/* User Name Styling */
+.user_name p {
+    font-size: 16px;
+    font-weight: bold;
+    margin: 0;
+    color: #333;
+}
+
+/* Employee ID Styling */
+.user_box .fw-bold {
+    font-weight: bold;
+    color: #555;
+    font-size: 14px;
+}
+
+/* Rating Link Styling */
+a {
+    display: flex;
+    align-items: center;
+    margin-top: 5px;
+    color: #007bff;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #0056b3;
+}
+
+a .fa-star {
+    color: #f0ad4e;
+    font-size: 14px;
+    margin-right: 5px;
+}
+
+a .fw-bold {
+    font-size: 14px;
+    color: #333;
+}
+
+/* Total Rating Styling */
+span.fw-bold {
+    font-weight: bold;
+}
+
+*****************************************
 <td class=" w-30"><div class="user_box"><span class="text-danger"><i class="fa-solid fa-circle"></i></span><div class="user_img"><img src="http://127.0.0.1:8088/app-assets/images/avatar-img.jpg" class="img-fluid" alt="user-profile"></div><div class="user_name"><p>soumyajit ball</p></div></div><div class="user_box mt-1 ml-2"><span class="fw-bold">EMP-24510598 </span> </div><a href="http://127.0.0.1:8088/admin/user/review-list/e8a2df93-cdb4-42c5-9ce3-a912ccde0023"><i class="fa fa-star" aria-hidden="true"><span class="fw-bold">Total Rating:- </span>0</i></a></td>
 ***************************************************************************************
 $(document).ready(function() {
