@@ -1,3 +1,6 @@
+
+
+########################################################################################
 To dynamically fetch a date from the database in Laravel and display it on your HTML page using AJAX, follow these steps:
 
 ### Step 1: Set Up the Route in Laravel
