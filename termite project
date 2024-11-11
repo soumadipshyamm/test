@@ -1,6 +1,62 @@
 
 
-##############################################
+########################################
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Date Display</title>
+    <style>
+        .date-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+            color: #3a3a3a;
+        }
+
+        .arrow {
+            font-size: 24px;
+            color: #3a3a3a;
+            cursor: pointer;
+            margin: 0 10px;
+            user-select: none;
+        }
+
+        .date {
+            font-weight: bold;
+        }
+
+        .arrow:hover {
+            color: #007bff; /* Change color on hover */
+        }
+    </style>
+</head>
+<body>
+    <div class="date-container">
+        <span class="arrow" onclick="prevDate()">&lt;</span>
+        <span class="date" id="displayDate">12 November 2024</span>
+        <span class="arrow" onclick="nextDate()">&gt;</span>
+    </div>
+
+    <script>
+        // Functions for changing dates (you could add more complex date logic if needed)
+        function prevDate() {
+            // Logic for previous date
+            console.log("Previous date clicked");
+        }
+
+        function nextDate() {
+            // Logic for next date
+            console.log("Next date clicked");
+        }
+    </script>
+</body>
+</html>
+
+######
 To design a similar structure for the "12 November 2024" header section using HTML and CSS, here’s an example code snippet:
 
 ```html
