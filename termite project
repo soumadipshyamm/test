@@ -1,6 +1,84 @@
 
 
-########################################
+########################
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Date Navigation</title>
+    <style>
+        .date-navigation {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .date-navigation a {
+            color: #2c3e50;
+            font-size: 28px;
+            margin: 0 20px;
+            text-decoration: none;
+        }
+
+        .date-navigation .date {
+            min-width: 200px;
+            text-align: center;
+        }
+
+        .date-navigation a:hover {
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="date-navigation">
+        <!-- Left Arrow -->
+        <a href="#" id="prevDate">&#8249;</a> <!-- HTML code for a left arrow -->
+        
+        <!-- Date -->
+        <span class="date" id="currentDate">12 November 2024</span>
+        
+        <!-- Right Arrow -->
+        <a href="#" id="nextDate">&#8250;</a> <!-- HTML code for a right arrow -->
+    </div>
+
+    <script>
+        // This part could be linked to AJAX to dynamically change the date
+        let currentDate = new Date(); // Default is today's date
+
+        // Function to display the formatted date
+        function displayDate(date) {
+            const options = { day: 'numeric', month: 'long', year: 'numeric' };
+            document.getElementById('currentDate').innerText = date.toLocaleDateString('en-GB', options);
+        }
+
+        // Event listener for the previous date button
+        document.getElementById('prevDate').addEventListener('click', function(event) {
+            event.preventDefault();
+            currentDate.setDate(currentDate.getDate() - 1); // Go one day back
+            displayDate(currentDate);
+        });
+
+        // Event listener for the next date button
+        document.getElementById('nextDate').addEventListener('click', function(event) {
+            event.preventDefault();
+            currentDate.setDate(currentDate.getDate() + 1); // Go one day forward
+            displayDate(currentDate);
+        });
+
+        // Initial display
+        displayDate(currentDate);
+    </script>
+</body>
+</html>
+
+################
 <!DOCTYPE html>
 <html lang="en">
 <head>
