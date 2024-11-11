@@ -1,0 +1,134 @@
+To dynamically fetch a date from the database in Laravel and display it on your HTML page using AJAX, follow these steps:
+
+### Step 1: Set Up the Route in Laravel
+
+In your Laravel application, set up a route that will handle the AJAX request to fetch the date.
+
+Open the `routes/web.php` file and add the following route:
+
+```php
+// routes/web.php
+
+use App\Http\Controllers\EventController;
+
+Route::get('/get-date', [EventController::class, 'getDate']);
+```
+
+### Step 2: Create the Controller and Fetch the Date
+
+Next, create a controller that will handle the database query. If you don't already have an `EventController`, create it by running this command:
+
+```bash
+php artisan make:controller EventController
+```
+
+Then, open `EventController.php` and add the `getDate` method to fetch the date from the database.
+
+```php
+// app/Http/Controllers/EventController.php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+class EventController extends Controller
+{
+    public function getDate()
+    {
+        // Assuming there is a table `events` with a column `event_date`
+        $event = DB::table('events')->where('id', 1)->first();
+
+        if ($event && $event->event_date) {
+            // Format the date to "12 November 2024"
+            $formattedDate = Carbon::parse($event->event_date)->format('d F Y');
+            return response()->json(['date' => $formattedDate]);
+        }
+
+        return response()->json(['date' => 'Date not found']);
+    }
+}
+```
+
+In this example:
+- We use Laravel's `DB` facade to query the `events` table for the `event_date`.
+- `Carbon` is used to format the date to a more readable format, such as "12 November 2024."
+- The method returns a JSON response with the date.
+
+### Step 3: Create the HTML and AJAX Code
+
+In your Blade template (e.g., `resources/views/schedule.blade.php`), set up the HTML structure and AJAX code to call the route and display the fetched date.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Date Fetching</title>
+    <style>
+        /* Your CSS styling here */
+    </style>
+</head>
+<body>
+    <div class="schedule-container">
+        <div class="header">
+            <img src="logo1.png" alt="Moxie Logo">
+            <span class="date" id="dynamicDate">Loading date...</span>
+            <img src="logo2.png" alt="Cission Logo">
+        </div>
+        <!-- Rest of the HTML content -->
+    </div>
+
+    <script>
+        // Fetch the date from the Laravel route using AJAX
+        function fetchDateFromDatabase() {
+            fetch('/get-date')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.date) {
+                        document.getElementById("dynamicDate").innerText = data.date;
+                    } else {
+                        document.getElementById("dynamicDate").innerText = "Date not available";
+                    }
+                })
+                .catch(error => {
+                    console.error("Error fetching date:", error);
+                    document.getElementById("dynamicDate").innerText = "Error fetching date";
+                });
+        }
+
+        // Call the function to fetch the date
+        fetchDateFromDatabase();
+    </script>
+</body>
+</html>
+```
+
+### Explanation
+
+1. **Route (`/get-date`)**:
+   - Defined in `web.php`, it maps to the `getDate` method in the `EventController`.
+
+2. **Controller (EventController)**:
+   - The `getDate` method retrieves the event date from the database, formats it, and returns it as JSON.
+   - `Carbon::parse($event->event_date)->format('d F Y')` formats the date as "DD Month YYYY."
+
+3. **AJAX Code**:
+   - In the Blade template, JavaScript’s `fetch` API calls `/get-date` to retrieve the date.
+   - Once the date is received, it updates the `<span>` with the `id="dynamicDate"` in the HTML.
+
+4. **Styling and Images**:
+   - Add CSS in the `<style>` section to style the components.
+   - Replace `logo1.png` and `logo2.png` with the actual paths to your logo images.
+
+### Step 4: Run and Test
+
+After setting this up, make sure your Laravel server is running:
+
+```bash
+php artisan serve
+```
+
+Then, open the URL in your browser where you access the page with the schedule (e.g., `http://127.0.0.1:8000/schedule`). You should see the date dynamically updated from the database without refreshing the page.
