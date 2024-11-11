@@ -1,6 +1,121 @@
 
 
-########################################################################################
+##############################################
+To design a similar structure for the "12 November 2024" header section using HTML and CSS, here’s an example code snippet:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Design</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f5f5f5;
+            margin: 0;
+        }
+        .schedule-container {
+            text-align: center;
+            background: white;
+            padding: 20px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            width: 300px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header img {
+            height: 30px;
+        }
+        .date {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .profile-section {
+            margin-bottom: 20px;
+        }
+        .profile-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin-bottom: 5px;
+        }
+        .scheduled-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .schedule-item {
+            background-color: #e6f0ff;
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .time {
+            font-weight: bold;
+        }
+        .volunteer-name {
+            color: #555;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="schedule-container">
+        <div class="header">
+            <img src="logo1.png" alt="Moxie Logo">
+            <span class="date">12 November 2024</span>
+            <img src="logo2.png" alt="Cission Logo">
+        </div>
+        
+        <div class="profile-section">
+            <img src="profile.jpg" alt="Profile" class="profile-img">
+            <p>Steve Great</p>
+        </div>
+        
+        <div class="scheduled-list">
+            <div class="schedule-item">
+                <span class="time">7:30AM - 12:00PM</span>
+                <span class="volunteer-name">Joy Karmakar</span>
+            </div>
+            <div class="schedule-item">
+                <span class="time">7:30AM - 12:00PM</span>
+                <span class="volunteer-name">Joy Karmakar</span>
+            </div>
+            <div class="schedule-item">
+                <span class="time">7:30AM - 12:00PM</span>
+                <span class="volunteer-name">Joy Karmakar</span>
+            </div>
+            <div class="schedule-item">
+                <span class="time">7:30AM - 12:00PM</span>
+                <span class="volunteer-name">Joy Karmakar</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+```
+
+### Explanation:
+- The `.schedule-container` is the main wrapper that contains all elements, with a centered layout and shadow for styling.
+- `.header` section displays the logos on the left and right, with the date in the middle.
+- `.profile-section` includes a circular profile image and the name "Steve Great."
+- `.scheduled-list` and `.schedule-item` classes create a list layout for each time slot with the volunteer name next to it.
+
+Make sure to replace `logo1.png`, `logo2.png`, and `profile.jpg` with the actual paths to your images for the logos and profile picture.
+##########################################
 To dynamically fetch a date from the database in Laravel and display it on your HTML page using AJAX, follow these steps:
 
 ### Step 1: Set Up the Route in Laravel
