@@ -3,6 +3,26 @@
 ***************************************************************************************
 ***************************************************************************************
 ***************************************************************************************
+use App\Models\Booking;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+public function getWeeklyBookings()
+{
+    // Get the start and end of the current week
+    $startOfWeek = Carbon::now()->startOfWeek();
+    $endOfWeek = Carbon::now()->endOfWeek();
+
+    // Query to get total bookings and fare amount per driver
+    $weeklyBookings = Booking::select('driver_id', DB::raw('COUNT(*) as total_bookings'), DB::raw('SUM(fare_amount) as total_fare'))
+        ->whereBetween('booking_date', [$startOfWeek, $endOfWeek])
+        ->groupBy('driver_id')
+        ->orderByDesc('total_bookings')
+        ->get();
+
+    return $weeklyBookings;
+}
+
 **********************************************
 
 /* General Styling */
