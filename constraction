@@ -14,7 +14,130 @@
 **************************************************************************************************
 **************************************************************************************************
 **************************************************************************************************
-**************************************************************************************************
+********************************
+
+public function storeOrUpdate(Request $request)
+{
+    // Check subscription status
+    if (!auth()->user()->subscriptionIsActive()) {
+        return redirect()->back()->with('expired', true);
+    }
+
+    try {
+        DB::beginTransaction();
+
+        // Validation rules
+        $validationRules = [
+            'name' => 'required|string|max:255',
+            'phone' => 'required|string|max:15',
+            'email' => 'required|email|unique:company_users,email,' . $request->id,
+            'password' => $request->id ? 'nullable|string|min:8|confirmed' : 'required|string|min:8|confirmed',
+            'country' => 'nullable|string|max:255',
+            'state' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:255',
+            'dob' => 'nullable|date',
+            'address' => 'nullable|string|max:500',
+            'designation' => 'nullable|string|max:255',
+            'aadhar_no' => 'nullable|string|max:20',
+            'pan_no' => 'nullable|string|max:20',
+            'company_user_role' => 'required|exists:company_roles,id',
+            'reporting_person' => 'nullable|exists:company_users,id',
+            'img' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+        ];
+
+        // Validate request data
+        $validatedData = $request->validate($validationRules);
+
+        // Get company ID
+        $companyId = auth()->user()->company_id;
+
+        // Handle profile image
+        $profileImage = $request->hasFile('img') 
+            ? getImgUpload($validatedData['img'], 'profile_image') 
+            : null;
+
+        // Determine if updating or creating
+        if ($request->id) {
+            // Update existing company user
+            $isCompanyUser = CompanyUser::findOrFail($request->id);
+            $isCompanyUser->update([
+                'name' => $validatedData['name'],
+                'phone' => $validatedData['phone'],
+                'email' => $validatedData['email'],
+                'password' => $request->password ? Hash::make($validatedData['password']) : $isCompanyUser->password,
+                'country' => $validatedData['country'],
+                'state' => $validatedData['state'],
+                'city' => $validatedData['city'],
+                'dob' => $validatedData['dob'],
+                'address' => $validatedData['address'],
+                'designation' => $validatedData['designation'],
+                'aadhar_no' => $validatedData['aadhar_no'],
+                'pan_no' => $validatedData['pan_no'],
+                'company_role_id' => $validatedData['company_user_role'],
+                'reporting_person' => $validatedData['reporting_person'],
+                'profile_images' => $profileImage ?? $isCompanyUser->profile_images,
+            ]);
+
+            // Update user role if needed
+            CompanyUserRole::updateOrCreate(
+                ['company_user_id' => $isCompanyUser->id],
+                [
+                    'company_id' => $companyId,
+                    'company_role_id' => $validatedData['company_user_role'],
+                ]
+            );
+
+            $message = 'User updated successfully.';
+        } else {
+            // Create a new company user
+            $isCompanyUser = CompanyUser::create([
+                'uuid' => Str::uuid(),
+                'name' => $validatedData['name'],
+                'phone' => $validatedData['phone'],
+                'email' => $validatedData['email'],
+                'password' => Hash::make($validatedData['password']),
+                'country' => $validatedData['country'],
+                'state' => $validatedData['state'],
+                'city' => $validatedData['city'],
+                'dob' => $validatedData['dob'],
+                'address' => $validatedData['address'],
+                'designation' => $validatedData['designation'],
+                'aadhar_no' => $validatedData['aadhar_no'],
+                'pan_no' => $validatedData['pan_no'],
+                'company_id' => $companyId,
+                'company_role_id' => $validatedData['company_user_role'],
+                'reporting_person' => $validatedData['reporting_person'],
+                'profile_images' => $profileImage,
+            ]);
+
+            // Create user role
+            CompanyUserRole::create([
+                'company_id' => $companyId,
+                'company_user_id' => $isCompanyUser->id,
+                'company_role_id' => $validatedData['company_user_role'],
+            ]);
+
+            $message = 'User created successfully.';
+        }
+
+        // Commit transaction
+        DB::commit();
+
+        return redirect()->route('company.userManagment.list')->with('success', $message);
+    } catch (\Exception $e) {
+        // Rollback transaction and log error
+        DB::rollBack();
+        logger()->error("Error saving company user: {$e->getMessage()}", [
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ]);
+
+        return redirect()->route('company.userManagment.list')->with('error', 'An error occurred while saving the user.');
+    }
+}
+
+
+******************************************************************
 
 [2024-11-21 15:16:13] local.DEBUG: SQLSTATE[HY000]: General error: 1364 Field 'id' doesn't have a default value (Connection: mysql, SQL: insert into `company_users` (`uuid`, `name`, `phone`, `email`, `password`, `country`, `state`, `city`, `dob`, `address`, `designation`, `aadhar_no`, `pan_no`, `company_id`, `company_role_id`, `reporting_person`, `profile_images`, `updated_at`, `created_at`) values (22f6fe30-3d2a-4101-aa51-3ae2fe2b7321, Kessie Ramsey, 8999999999, rekejy@mailinator.com, $2y$10$hZxgtozqdZNebcmDVOVqb.2CxoHi13lEIfSiYgKwPM3mRcxzL8fg2, 101, 4021, 133461, 1983-11-19, Nobis ipsum et sit c, Occaecat iure illo t, Cum in nisi odio bla, Perspiciatis recusa, 1, 2, 2, ?, 2024-11-21 15:16:13, 2024-11-21 15:16:13))--C:\xampp\htdocs\php82\Konsite\construction-app-admin\vendor\laravel\framework\src\Illuminate\Database\Connection.php--829  
 
