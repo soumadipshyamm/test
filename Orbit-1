@@ -1,128 +1,36 @@
 ***************************************************************************************
 ***************************************************************************************
 *****************************************
-
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
-
-public function fetchBoomingData(Request $request)
-{
-    // Optional date range filtering
-    $startDate = $request->input('start_date', Carbon::now()->startOfYear()->toDateString());
-    $endDate = $request->input('end_date', Carbon::now()->endOfYear()->toDateString());
-
-    $boomingData = DB::table('bookings')
-        ->select(
-            DB::raw("YEARWEEK(bookings.created_at, 1) as week_year"),
-            'driver_id',
-            DB::raw('users.name as driver_name'),
-            DB::raw('COUNT(bookings.id) as total_bookings'),
-            DB::raw('SUM(bookings.fare) as total_fare'),
-            DB::raw("DATE_ADD(bookings.created_at, INTERVAL(1 - DAYOFWEEK(bookings.created_at)) DAY) as week_start_date"),
-            DB::raw("DATE_ADD(bookings.created_at, INTERVAL(7 - DAYOFWEEK(bookings.created_at)) DAY) as week_end_date")
-        )
-        ->join('users', 'bookings.driver_id', '=', 'users.id')
-        ->whereBetween('bookings.created_at', [$startDate, $endDate]) // Use qualified column name
-        ->groupBy('week_year', 'driver_id', 'users.name')
-        ->orderBy('week_year', 'asc')
-        ->orderBy('driver_id', 'asc')
-        ->get();
-
-    return response()->json([
-        'success' => true,
-        'data' => $boomingData,
-    ]);
-}
-
-
-**************************
-[2024-11-21 16:36:51] local.DEBUG: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'created_at' in field list is ambiguous 
-(Connection: mysql, SQL: select YEARWEEK(created_at, 1) as week_year, `driver_id`, COUNT(id) as total_bookings, SUM(fare) as total_fare, DATE_ADD
-(created_at, INTERVAL(1 - DAYOFWEEK(created_at)) DAY) as week_start_date, DATE_ADD(created_at, INTERVAL(7 - DAYOFWEEK(created_at)) DAY) 
-as week_end_date from `bookings` inner join `users` on `bookings`.`driver_id` = `users`.`id` group by `week_year`, `driver_id` order by `week_year` asc, 
-`driver_id` asc) on C:\xampp\htdocs\php82\orbitcab-admin-api\vendor\laravel\framework\src\Illuminate\Database\Connection.php line number 829  
-
-********************
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
-
-public function fetchBoomingData(Request $request)
-{
-    // Optional: Allow filtering by a specific date range
-    $startDate = $request->input('start_date', Carbon::now()->startOfYear()->toDateString());
-    $endDate = $request->input('end_date', Carbon::now()->endOfYear()->toDateString());
-
-    // Fetch booming data dynamically by date range, week, and driver
-    $boomingData = DB::table('booming')
-        ->select(
-            DB::raw("YEARWEEK(created_at, 1) as week_year"), // ISO week-year
-            'driver_id',
-            DB::raw('drivers.name as driver_name'),
-            DB::raw('COUNT(id) as total_bookings'),
-            DB::raw('SUM(fare) as total_fare'),
-            DB::raw("DATE_ADD(created_at, INTERVAL(1 - DAYOFWEEK(created_at)) DAY) as week_start_date"),
-            DB::raw("DATE_ADD(created_at, INTERVAL(7 - DAYOFWEEK(created_at)) DAY) as week_end_date")
-        )
-        ->join('drivers', 'booming.driver_id', '=', 'drivers.id')
-        ->whereBetween('created_at', [$startDate, $endDate]) // Filter by the requested date range
-        ->groupBy('week_year', 'driver_id', 'drivers.name')
-        ->orderBy('week_year', 'asc')
-        ->orderBy('driver_id', 'asc')
-        ->get();
-
-    // Format the response with separate week and year
-    $formattedData = $boomingData->map(function ($item) {
-        $weekYearParts = explode('-', $item->week_year);
-        return [
-            'year' => $weekYearParts[0] ?? null,
-            'week_number' => $weekYearParts[1] ?? null,
-            'driver_id' => $item->driver_id,
-            'driver_name' => $item->driver_name,
-            'total_bookings' => $item->total_bookings,
-            'total_fare' => $item->total_fare,
-            'week_start_date' => Carbon::parse($item->week_start_date)->toDateString(),
-            'week_end_date' => Carbon::parse($item->week_end_date)->toDateString(),
-        ];
-    });
-
-    return response()->json([
-        'success' => true,
-        'data' => $formattedData,
-    ]);
-}
-
-
-
-use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
-
-public function fetchBoomingData()
-{
-    // Fetch booming data week-wise and driver-wise
-    $boomingData = DB::table('booming')
-        ->select(
-            DB::raw('WEEK(created_at) as week_number'),
-            'driver_id',
-            DB::raw('drivers.name as driver_name'),
-            DB::raw('COUNT(*) as total_bookings'),
-            DB::raw('SUM(fare) as total_fare'),
-            DB::raw('MIN(created_at) as week_start_date'),
-            DB::raw('MAX(created_at) as week_end_date')
-        )
-        ->join('drivers', 'booming.driver_id', '=', 'drivers.id')
-        ->groupBy('week_number', 'driver_id', 'drivers.name')
-        ->orderBy('week_number', 'asc')
-        ->get();
-
-    // Return a formatted response
-    return response()->json([
-        'success' => true,
-        'data' => $boomingData,
-    ]);
-}
-
 ***************************************************************************************
-***************************************************************************************
+  $boomingData = DB::table('bookings')
+    ->select(
+        DB::raw("YEARWEEK(bookings.created_at, 1) as week_year"),
+        'driver_id',
+        DB::raw('users.first_name as driver_name'),
+        DB::raw('COUNT(bookings.id) as total_bookings'),
+        DB::raw('SUM(bookings.fare) as total_fare'),
+        DB::raw("DATE_ADD(bookings.created_at, INTERVAL(1 - DAYOFWEEK(bookings.created_at)) DAY) as week_start_date"),
+        DB::raw("DATE_ADD(bookings.created_at, INTERVAL(7 - DAYOFWEEK(bookings.created_at)) DAY) as week_end_date")
+    )
+    ->join('users', 'bookings.driver_id', '=', 'users.id')
+    // ->whereBetween('bookings.created_at', [$startDate, $endDate]) // Use qualified column name
+    ->groupBy('driver_id')
+    ->orderBy('week_year', 'asc')
+    ->orderBy('driver_id', 'asc')
+    ->get();
+
+[2024-11-21 16:44:15] local.DEBUG: SQLSTATE[42000]: Syntax error or access violation: 1055 
+'laravel_orbitcabadmin_server.bookings.created_at' isn't in GROUP BY (Connection: mysql, SQL: select 
+YEARWEEK(bookings.created_at, 1) as week_year, `driver_id`, users.first_name as driver_name, COUNT(bookings.id)
+as total_bookings, SUM(bookings.fare) as total_fare, DATE_ADD(bookings.created_at, INTERVAL(1 - DAYOFWEEK(bookings.created_at)) DAY) 
+as week_start_date, DATE_ADD(bookings.created_at, INTERVAL(7 - DAYOFWEEK(bookings.created_at)) DAY) as week_end_date from `bookings`
+inner join `users` on `bookings`.`driver_id` = `users`.`id` group by `driver_id` order by `week_year` asc, `driver_id` asc) on 
+C:\xampp\htdocs\php82\orbitcab-admin-api\vendor\laravel\framework\src\Illuminate\Database\Connection.php line number 829  
+
+*******************************************
+
+
+********************************************
 use App\Models\Booking;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
