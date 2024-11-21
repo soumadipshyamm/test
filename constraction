@@ -15,7 +15,82 @@
 **************************************************************************************************
 **************************************************************************************************
 **************************************************************************************************
-***************************************************
+*************************
+
+public function store(Request $request)
+{
+    if (auth()->user()->subscriptionIsActive()) {
+        try {
+            DB::beginTransaction();
+
+            // Validate the request data
+            $validatedData = $request->validate([
+                'name' => 'required|string|max:255',
+                'phone' => 'required|string|max:15',
+                'email' => 'required|email|unique:company_users,email',
+                'password' => 'required|string|min:8|confirmed',
+                'country' => 'nullable|string|max:255',
+                'state' => 'nullable|string|max:255',
+                'city' => 'nullable|string|max:255',
+                'dob' => 'nullable|date',
+                'address' => 'nullable|string|max:500',
+                'designation' => 'nullable|string|max:255',
+                'aadhar_no' => 'nullable|string|max:20',
+                'pan_no' => 'nullable|string|max:20',
+                'company_user_role' => 'required|exists:company_roles,id',
+                'reporting_person' => 'nullable|exists:company_users,id',
+                'img' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            ]);
+
+            // Create a company user
+            $isCompanyUser = CompanyUser::create([
+                'uuid' => Str::uuid(),
+                'name' => $validatedData['name'],
+                'phone' => $validatedData['phone'],
+                'email' => $validatedData['email'],
+                'password' => Hash::make($validatedData['password']),
+                'country' => $validatedData['country'] ?? null,
+                'state' => $validatedData['state'] ?? null,
+                'city' => $validatedData['city'] ?? null,
+                'dob' => $validatedData['dob'] ?? null,
+                'address' => $validatedData['address'] ?? null,
+                'designation' => $validatedData['designation'] ?? null,
+                'aadhar_no' => $validatedData['aadhar_no'] ?? null,
+                'pan_no' => $validatedData['pan_no'] ?? null,
+                'company_id' => $companyId ?? null,
+                'company_role_id' => $validatedData['company_user_role'],
+                'reporting_person' => $validatedData['reporting_person'] ?? null,
+                'profile_images' => $validatedData['img'] ? getImgUpload($validatedData['img'], 'profile_image') : null,
+            ]);
+
+            // Create the user role
+            CompanyUserRole::create([
+                'company_id' => $companyId,
+                'company_user_id' => $isCompanyUser->id,
+                'company_role_id' => $validatedData['company_user_role'],
+            ]);
+
+            // Commit transaction and redirect
+            DB::commit();
+            return redirect()->route('company.userManagment.list')->with('success', 'User Created Successfully');
+        } catch (\Exception $e) {
+            // Rollback transaction and log error
+            DB::rollBack();
+            logger()->error("Error creating company user: {$e->getMessage()} in {$e->getFile()} at line {$e->getLine()}");
+            return redirect()->route('company.userManagment.list')->with('error', 'An error occurred while creating the user.');
+        }
+    } else {
+        return redirect()
+            ->back()
+            ->with('expired', true);
+    }
+
+    return view('Company.userManagment.add-user');
+}
+
+
+
+**************************
  public function add(Request $request)
     {
         $authConpany = Auth::guard('company')->user()->id;
