@@ -1,0 +1,56 @@
+ public function createChat(Request $request)
+    {
+        if ($request->isMethod('post')) {
+            $request->validate([
+                'sender_id' => 'required|integer',
+                'reciver_id' => 'required|integer',
+                'room_id' => 'nullable|string',
+            ]);
+
+            // Fetch existing chat or create a new one
+            $fetchUser = UserChat::firstOrCreate([
+                'sender_id' => $request->sender_id,
+                'reciver_id' => $request->reciver_id,
+                'room_id' => $request->room_id,
+            ]);
+            return $this->responseJson(true, 200, 'Room Created Successfully', $fetchUser);
+        }
+
+        $data = [];
+        $authCompany = Auth::guard('company-api')->user();
+        $fetchUsers = UserChat::where('sender_id', $authCompany->id)->get();
+
+        foreach ($fetchUsers as $fetchUser) {
+            // Fetch Firestore data
+            $fetchRoom = getFirestoreData($fetchUser->room_id);
+            $lastMessage = null;
+
+            // Find the last message based on createTime
+            foreach ($fetchRoom['documents'] as $document) {
+            // dd($document);
+
+                $createTime = $document['createTime'];
+
+                if (!$lastMessage || $createTime > $lastMessage['createTime']) {
+                    $lastMessage = $document;
+                }
+            }
+
+            if ($lastMessage) {
+                // dd($lastMessage);
+                $data = [
+                    'room_id' => $fetchUser->room_id,
+                    'message' => $lastMessage['fields']['text']['stringValue'],
+                    'sendBy' => $lastMessage['fields']['sendBy']['integerValue'],
+                    'sendTo' => $lastMessage['fields']['sendTo']['integerValue'],
+                    'createTime' => $lastMessage['createTime'],
+                    'sendByDetails' => new UserResource(findUserDetails($lastMessage['fields']['sendBy']['integerValue'])),
+                    'sendToDetails' => new UserResource(findUserDetails($lastMessage['fields']['sendTo']['integerValue'])),
+                ];
+            }else {
+                            $data = []; // Handle case where no messages are found
+                        }
+        }
+
+        return response()->json($data);
+    }
