@@ -1,3 +1,192 @@
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+**************************************************************************************************
+***************************************************
+ public function add(Request $request)
+    {
+        $authConpany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authConpany);
+        $checkAdditionalFeatures = fetchData($companyId, 'company_users');
+        $isSubscription = checkSubscriptionPermission($companyId, 'no_of_users');
+        if (count($checkAdditionalFeatures) <= $isSubscription->is_subscription) {
+            // dd($checkAdditionalFeatures);
+            if ($request->isMethod('post')) {
+                // dd($request->all());
+                $validatedData = $request->validate([
+                    'company_user_role' => 'required',
+                    'name' => 'required',
+                    // 'email' => 'required_if|unique:company_users,email',
+                    'email' => 'required',
+                    // 'password' => 'required|confirmed',
+                    'phone' => 'required',
+                    'address' => 'required',
+                    'designation' => 'required',
+                    // 'reporting_person' => 'required',
+                    // 'img' => 'mimes:jpeg,jpg,png',
+                ]);
+
+                    // dd($request->all());
+                DB::beginTransaction();
+                if ($request->uuid) {
+                    dd($request->all());
+                    try {
+                        $id = uuidtoid($request->uuid, 'company_users');
+                        $fetchUserId = CompanyUser::find($id);
+                        if ($request->hasFile('img')) {
+                            deleteFile($id, 'company_users', 'profile_images', 'profile_image');
+
+                            $isUpdated = CompanyUser::where('id', $id)->update([
+                                'name' => $request->name,
+                                'phone' => $request->phone,
+                                // 'email' => $request->email,
+                                // 'password' => $request->password ? Hash::make($request->password) : $fetchUserId->password,
+                                'country' => $request->country??null,
+                                'city' => $request->city??null,
+                                'dob' => $request->dob,
+                                'address' => $request->address,
+                                'designation' => $request->designation,
+                                'aadhar_no' => $request->aadhar_no,
+                                'pan_no' => $request->pan_no,
+                                'company_role_id' => $request->company_user_role,
+                                'reporting_person' => $request->reporting_person,
+                                'profile_images' => getImgUpload($request->img, 'profile_image'),
+                            ]);
+                        } else {
+                            dd($request->all());
+                            $id = uuidtoid($request->uuid, 'company_users');
+                            $isUpdated = CompanyUser::where('id', $id)->update([
+                                'name' => $request->name,
+                                'phone' => $request->phone,
+                                // 'email' => $request->email,
+                                // 'password' => $request->password ? Hash::make($request->password) : $fetchUserId->password,
+                                'country' => $request->country,
+                                'city' => $request->city,
+                                'dob' => $request->dob,
+                                'address' => $request->address,
+                                'designation' => $request->designation,
+                                'aadhar_no' => $request->aadhar_no,
+                                'pan_no' => $request->pan_no,
+                                'reporting_person' => $request->reporting_person,
+                                'company_role_id' => $request->company_user_role,
+                            ]);
+                        }
+
+                        // $isUpdated = CompanyUser::where('id', $id)->update([
+                        //     'name' => $request->name,
+                        //     'phone' => $request->phone,
+                        //     'email' => $request->email,
+                        //     'password' => $request->password ? Hash::make($request->password) : $fetchUserId,
+                        //     'country' => $request->country,
+                        //     'city' => $request->city,
+                        //     'dob' => $request->dob,
+                        //     'address' => $request->address,
+                        //     'designation' => $request->designation,
+                        //     'aadhar_no' => $request->aadhar_no,
+                        //     'pan_no' => $request->pan_no,
+                        //     'company_role_id' => $request->company_user_role,
+                        //     'reporting_person' => $request->reporting_person,
+                        //     // 'profile_images' => $img,
+                        // ]);
+                        // } else {
+                        //     $id = uuidtoid($request->uuid, 'company_users');
+                        //     $isUpdated = CompanyUser::where('id', $id)->update([
+                        //         'name' => $request->name,
+                        //         'phone' => $request->phone,
+                        //         'email' => $request->email,
+                        //         'password' => $request->password ? Hash::make($request->password) : $fetchUserId,
+                        //         'country' => $request->country,
+                        //         'city' => $request->city,
+                        //         'dob' => $request->dob,
+                        //         'address' => $request->address,
+                        //         'designation' => $request->designation,
+                        //         'aadhar_no' => $request->aadhar_no,
+                        //         'pan_no' => $request->pan_no,
+                        //         'reporting_person' => $request->reporting_person,
+                        //         'company_role_id' => $request->company_user_role,
+                        //     ]);
+                        // }
+                        if ($isUpdated) {
+                            DB::commit();
+                            // dd($isUpdated);
+                            return redirect()->route('company.userManagment.list')->with('success', 'User Updated Successfully');
+                        } else {
+                            return redirect()->route('company.userManagment.list')->with('error', 'something want to be worng');
+                        }
+                    } catch (\Exception $e) {
+                        DB::rollBack();
+                        logger($e->getMessage() . '--' . $e->getFile() . '--' . $e->getLine());
+                        return redirect()->route('company.userManagment.list')->with('false', $e->getMessage());
+                    }
+                } else {
+                    // dd($request->all());
+                    try {
+                        // $checkexist = CompanyUser::where('email', $request->email)->first();
+                        // if (!empty($checkexist)) {
+                        //     return redirect()->route('company.userManagment.add')->with('message', 'Email id already exist!');
+                        // }
+                        // dd($request->all(),$companyId);
+                        $isCompanyUser = CompanyUser::create([
+                            'uuid' => Str::uuid()??null,
+                            'name' => $request->name??null,
+                            'phone' => $request->phone??null,
+                            'email' => $request->email??null,
+                            'password' => Hash::make($request->password)??null,
+                            'country' => $request->country??null,
+                            'state' => $request->state??null,
+                            'city' => $request->city??null,
+                            'dob' => $request->dob??null,
+                            'address' => $request->address??null,
+                            'designation' => $request->designation??null,
+                            'aadhar_no' => $request->aadhar_no??null,
+                            'pan_no' => $request->pan_no??null,
+                            'company_id' => $companyId??null,
+                            'company_role_id' => $request->company_user_role??null,
+                            'reporting_person' => $request->reporting_person??null,
+                            'profile_images' => $request->img ? getImgUpload($request->img, 'profile_image') : null,
+                        ]);
+                        dd($isCompanyUser);
+                        $isCompanyUserRole = CompanyuserRole::create([
+                            'company_id' => $companyId,
+                            'company_user_id' => $isCompanyUser->id,
+                            'company_role_id' => $request->company_user_role,
+                        ]);
+
+                        if ($isCompanyUser) {
+                            DB::commit();
+                            return redirect()->route('company.userManagment.list')->with('success', 'User Created Successfully');
+                        }
+                        dd($request->all());
+                    } catch (\Exception $e) {
+                        DB::rollBack();
+                        logger($e->getMessage() . '--' . $e->getFile() . '--' . $e->getLine());
+                        return redirect()->route('company.userManagment.list')->with('error', $e->getMessage());
+                    }
+                }
+            }
+            return view('Company.userManagment.add-user');
+        } else {
+            return redirect()
+                ->back()
+                // ->route('company.subscription.list')
+                ->with('expired', true);
+        }
+    }
+
+***********************************************
 
 public function createChat(Request $request)
 {
