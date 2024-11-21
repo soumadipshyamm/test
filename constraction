@@ -15,6 +15,9 @@
 **************************************************************************************************
 **************************************************************************************************
 **************************************************************************************************
+
+[2024-11-21 15:16:13] local.DEBUG: SQLSTATE[HY000]: General error: 1364 Field 'id' doesn't have a default value (Connection: mysql, SQL: insert into `company_users` (`uuid`, `name`, `phone`, `email`, `password`, `country`, `state`, `city`, `dob`, `address`, `designation`, `aadhar_no`, `pan_no`, `company_id`, `company_role_id`, `reporting_person`, `profile_images`, `updated_at`, `created_at`) values (22f6fe30-3d2a-4101-aa51-3ae2fe2b7321, Kessie Ramsey, 8999999999, rekejy@mailinator.com, $2y$10$hZxgtozqdZNebcmDVOVqb.2CxoHi13lEIfSiYgKwPM3mRcxzL8fg2, 101, 4021, 133461, 1983-11-19, Nobis ipsum et sit c, Occaecat iure illo t, Cum in nisi odio bla, Perspiciatis recusa, 1, 2, 2, ?, 2024-11-21 15:16:13, 2024-11-21 15:16:13))--C:\xampp\htdocs\php82\Konsite\construction-app-admin\vendor\laravel\framework\src\Illuminate\Database\Connection.php--829  
+
 *************************
 
 public function store(Request $request)
