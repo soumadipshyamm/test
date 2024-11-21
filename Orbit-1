@@ -1,6 +1,36 @@
 ***************************************************************************************
 ***************************************************************************************
 *****************************************
+
+week_no
+from_date
+to_date
+driver_id
+mobile_no
+driver_name
+total_trip
+total_ride_amount
+incentives
+bonuses
+total_earning
+deductions
+net_earning
+cash
+bank
+wallet
+payout_amount
+actual_ayout
+balance_amount
+payment_transaction
+date_paid
+status
+remarks
+
+add table reward_logs,booking_transactions,transactions,payouts
+
+
+
+
 use App\Models\Booking;
 use Carbon\Carbon;
 
