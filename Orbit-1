@@ -1,6 +1,41 @@
 ***************************************************************************************
 ***************************************************************************************
-*******************************************************************
+*****************************************
+
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+public function fetchBoomingData(Request $request)
+{
+    // Optional date range filtering
+    $startDate = $request->input('start_date', Carbon::now()->startOfYear()->toDateString());
+    $endDate = $request->input('end_date', Carbon::now()->endOfYear()->toDateString());
+
+    $boomingData = DB::table('bookings')
+        ->select(
+            DB::raw("YEARWEEK(bookings.created_at, 1) as week_year"),
+            'driver_id',
+            DB::raw('users.name as driver_name'),
+            DB::raw('COUNT(bookings.id) as total_bookings'),
+            DB::raw('SUM(bookings.fare) as total_fare'),
+            DB::raw("DATE_ADD(bookings.created_at, INTERVAL(1 - DAYOFWEEK(bookings.created_at)) DAY) as week_start_date"),
+            DB::raw("DATE_ADD(bookings.created_at, INTERVAL(7 - DAYOFWEEK(bookings.created_at)) DAY) as week_end_date")
+        )
+        ->join('users', 'bookings.driver_id', '=', 'users.id')
+        ->whereBetween('bookings.created_at', [$startDate, $endDate]) // Use qualified column name
+        ->groupBy('week_year', 'driver_id', 'users.name')
+        ->orderBy('week_year', 'asc')
+        ->orderBy('driver_id', 'asc')
+        ->get();
+
+    return response()->json([
+        'success' => true,
+        'data' => $boomingData,
+    ]);
+}
+
+
+**************************
 [2024-11-21 16:36:51] local.DEBUG: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'created_at' in field list is ambiguous 
 (Connection: mysql, SQL: select YEARWEEK(created_at, 1) as week_year, `driver_id`, COUNT(id) as total_bookings, SUM(fare) as total_fare, DATE_ADD
 (created_at, INTERVAL(1 - DAYOFWEEK(created_at)) DAY) as week_start_date, DATE_ADD(created_at, INTERVAL(7 - DAYOFWEEK(created_at)) DAY) 
