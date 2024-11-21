@@ -1,6 +1,39 @@
 ***************************************************************************************
 ***************************************************************************************
 *****************************************
+use App\Models\Booking;
+use Carbon\Carbon;
+
+public function fetchBoomingData(Request $request)
+{
+    $startDate = $request->input('start_date', Carbon::now()->startOfYear()->toDateString());
+    $endDate = $request->input('end_date', Carbon::now()->endOfYear()->toDateString());
+
+    $boomingData = Booking::join('users', 'bookings.driver_id', '=', 'users.id')
+        ->selectRaw("
+            YEARWEEK(bookings.created_at, 1) as week_year,
+            WEEK(bookings.created_at, 1) as week_number,
+            YEAR(bookings.created_at) as year,
+            bookings.driver_id,
+            users.first_name as driver_name,
+            COUNT(bookings.id) as total_bookings,
+            SUM(bookings.fare) as total_fare,
+            DATE_ADD(bookings.created_at, INTERVAL(1 - DAYOFWEEK(bookings.created_at)) DAY) as week_start_date,
+            DATE_ADD(bookings.created_at, INTERVAL(7 - DAYOFWEEK(bookings.created_at)) DAY) as week_end_date
+        ")
+        ->whereBetween('bookings.created_at', [$startDate, $endDate]) // Filter by date range
+        ->groupByRaw('week_year, bookings.driver_id, users.first_name')
+        ->orderBy('year', 'asc')
+        ->orderBy('week_number', 'asc')
+        ->orderBy('bookings.driver_id', 'asc')
+        ->get();
+
+    return response()->json([
+        'success' => true,
+        'data' => $boomingData,
+    ]);
+}
+
 ****************************
 DB::raw('SUM(bookings.fare) as total_fare'),
             DB::raw("DATE_ADD(bookings.created_at, INTERVAL(1 - DAYOFWEEK(bookings.created_at)) DAY) as week_start_date"), // Start of the week
