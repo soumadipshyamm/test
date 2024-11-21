@@ -13,7 +13,22 @@
 **************************************************************************************************
 **************************************************************************************************
 **************************************************************************************************
-**************************************************************************************************
+**********************************
+
+**Subject:** Request for VPN Access for Remote Work
+
+Dear [IT Team/Manager's Name],
+
+I hope this email finds you well. I would like to request VPN access to facilitate remote support and server updates from home. This will enable me to continue working efficiently and ensure timely updates.
+
+Please let me know if any additional information is needed to process this request.
+
+Thank you for your assistance.
+
+Best regards,  
+[Your Name]  
+[Your Job Title]  
+****************************************************************
 ********************************
 
 public function storeOrUpdate(Request $request)
