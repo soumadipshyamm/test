@@ -1,4 +1,17 @@
- public function createChat(Request $request)
+
+{
+    "message": "Undefined array key \"documents\"",
+    "exception": "ErrorException",
+
+
+
+
+
+
+
+
+
+public function createChat(Request $request)
     {
         if ($request->isMethod('post')) {
             $request->validate([
