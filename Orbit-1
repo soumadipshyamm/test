@@ -1,5 +1,10 @@
 ***************************************************************************************
 ***************************************************************************************
+ DB::raw('SUM(booking_transactions.cash) as cash'),  //booking_transactions.payment_type=='cash'
+                DB::raw('SUM(booking_transactions.bank) as bank'), //booking_transactions.payment_type=='bank'
+                DB::raw('SUM(booking_transactions.wallet) as wallet'),  //booking_transactions.payment_type=='wallet'
+
+
 ***********************
 
 use Illuminate\Support\Facades\DB;
