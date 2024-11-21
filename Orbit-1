@@ -1,7 +1,12 @@
 ***************************************************************************************
 ***************************************************************************************
 *****************************************
-******************************************
+****************************
+DB::raw('SUM(bookings.fare) as total_fare'),
+            DB::raw("DATE_ADD(bookings.created_at, INTERVAL(1 - DAYOFWEEK(bookings.created_at)) DAY) as week_start_date"), // Start of the week
+            DB::raw("DATE_ADD(bookings.created_at, INTERVAL(7 - DAYOFWEEK(bookings.created_at)) DAY) as week_end_date")   // End of the week
+        )
+**************
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
