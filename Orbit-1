@@ -1,6 +1,35 @@
 ***************************************************************************************
 ***************************************************************************************
 ***************************************************************************************
+
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+public function fetchBoomingData()
+{
+    // Fetch booming data week-wise and driver-wise
+    $boomingData = DB::table('booming')
+        ->select(
+            DB::raw('WEEK(created_at) as week_number'),
+            'driver_id',
+            DB::raw('drivers.name as driver_name'),
+            DB::raw('COUNT(*) as total_bookings'),
+            DB::raw('SUM(fare) as total_fare'),
+            DB::raw('MIN(created_at) as week_start_date'),
+            DB::raw('MAX(created_at) as week_end_date')
+        )
+        ->join('drivers', 'booming.driver_id', '=', 'drivers.id')
+        ->groupBy('week_number', 'driver_id', 'drivers.name')
+        ->orderBy('week_number', 'asc')
+        ->get();
+
+    // Return a formatted response
+    return response()->json([
+        'success' => true,
+        'data' => $boomingData,
+    ]);
+}
+
 ***************************************************************************************
 ***************************************************************************************
 use App\Models\Booking;
