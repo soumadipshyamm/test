@@ -1,6 +1,64 @@
 ***************************************************************************************
 ***************************************************************************************
-*****************************************
+***********************
+
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+public function fetchEarningsData(Request $request)
+{
+    $startDate = $request->input('start_date', Carbon::now()->startOfYear()->toDateString());
+    $endDate = $request->input('end_date', Carbon::now()->endOfYear()->toDateString());
+
+    $earningsData = DB::table('bookings')
+        ->join('users', 'bookings.driver_id', '=', 'users.id')
+        ->leftJoin('reward_logs', 'bookings.driver_id', '=', 'reward_logs.driver_id')
+        ->leftJoin('booking_transactions', 'bookings.id', '=', 'booking_transactions.booking_id')
+        ->leftJoin('transactions', 'booking_transactions.transaction_id', '=', 'transactions.id')
+        ->leftJoin('payouts', 'bookings.driver_id', '=', 'payouts.driver_id')
+        ->select(
+            DB::raw("WEEK(bookings.created_at, 1) as week_no"), // ISO week number
+            DB::raw("DATE(DATE_SUB(bookings.created_at, INTERVAL WEEKDAY(bookings.created_at) DAY)) as from_date"), // Week start
+            DB::raw("DATE(DATE_ADD(bookings.created_at, INTERVAL (6 - WEEKDAY(bookings.created_at)) DAY)) as to_date"), // Week end
+            'bookings.driver_id',
+            'users.mobile_no',
+            DB::raw('users.first_name as driver_name'),
+            DB::raw('COUNT(bookings.id) as total_trip'),
+            DB::raw('SUM(bookings.fare) as total_ride_amount'),
+            DB::raw('SUM(reward_logs.incentive) as incentives'),
+            DB::raw('SUM(reward_logs.bonus) as bonuses'),
+            DB::raw('(SUM(bookings.fare) + SUM(reward_logs.incentive) + SUM(reward_logs.bonus)) as total_earning'),
+            DB::raw('SUM(booking_transactions.deductions) as deductions'),
+            DB::raw('(SUM(bookings.fare) + SUM(reward_logs.incentive) + SUM(reward_logs.bonus) - SUM(booking_transactions.deductions)) as net_earning'),
+            DB::raw('SUM(booking_transactions.cash) as cash'),
+            DB::raw('SUM(booking_transactions.bank) as bank'),
+            DB::raw('SUM(booking_transactions.wallet) as wallet'),
+            DB::raw('SUM(payouts.payout_amount) as payout_amount'),
+            DB::raw('SUM(payouts.actual_payout) as actual_payout'),
+            DB::raw('(SUM(payouts.payout_amount) - SUM(payouts.actual_payout)) as balance_amount'),
+            DB::raw('GROUP_CONCAT(DISTINCT transactions.id) as payment_transaction'),
+            DB::raw('MAX(payouts.date_paid) as date_paid'),
+            DB::raw('MAX(payouts.status) as status'),
+            DB::raw('GROUP_CONCAT(DISTINCT payouts.remarks) as remarks')
+        )
+        ->whereBetween('bookings.created_at', [$startDate, $endDate]) // Filter by date range
+        ->groupBy(
+            DB::raw("WEEK(bookings.created_at, 1)"), 
+            'bookings.driver_id', 
+            'users.mobile_no', 
+            'users.first_name'
+        )
+        ->orderBy(DB::raw("WEEK(bookings.created_at, 1)"), 'asc')
+        ->orderBy('bookings.driver_id', 'asc')
+        ->get();
+
+    return response()->json([
+        'success' => true,
+        'data' => $earningsData,
+    ]);
+}
+
+******************
 
 week_no
 from_date
