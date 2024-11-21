@@ -1,7 +1,43 @@
 ***************************************************************************************
 ***************************************************************************************
 *****************************************
-***************************************************************************************
+******************************************
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+public function fetchBoomingData(Request $request)
+{
+    $startDate = $request->input('start_date', Carbon::now()->startOfYear()->toDateString());
+    $endDate = $request->input('end_date', Carbon::now()->endOfYear()->toDateString());
+
+    $boomingData = DB::table('bookings')
+        ->join('users', 'bookings.driver_id', '=', 'users.id')
+        ->select(
+            DB::raw("YEARWEEK(bookings.created_at, 1) as week_year"), // ISO week-year
+            DB::raw("WEEK(bookings.created_at, 1) as week_number"),   // Week number (1 = starts on Monday)
+            DB::raw("YEAR(bookings.created_at) as year"),            // Year for clarity
+            'bookings.driver_id',
+            DB::raw('users.first_name as driver_name'),
+            DB::raw('COUNT(bookings.id) as total_bookings'),
+            DB::raw('SUM(bookings.fare) as total_fare'),
+            DB::raw("MIN(DATE(bookings.created_at)) as week_start_date"),
+            DB::raw("MAX(DATE(bookings.created_at)) as week_end_date")
+        )
+        ->whereBetween('bookings.created_at', [$startDate, $endDate]) // Filter by date range
+        ->groupBy('week_year', 'bookings.driver_id', 'users.first_name') // Include all non-aggregated columns
+        ->orderBy('year', 'asc') // Order by year first
+        ->orderBy('week_number', 'asc') // Order by week number
+        ->orderBy('bookings.driver_id', 'asc') // Then by driver
+        ->get();
+
+    return response()->json([
+        'success' => true,
+        'data' => $boomingData,
+    ]);
+}
+
+
+*********************************************
   $boomingData = DB::table('bookings')
     ->select(
         DB::raw("YEARWEEK(bookings.created_at, 1) as week_year"),
