@@ -1,4 +1,74 @@
 
+public function createChat(Request $request)
+{
+    if ($request->isMethod('post')) {
+        // Validate the incoming request
+        $validated = $request->validate([
+            'sender_id' => 'required|integer',
+            'reciver_id' => 'required|integer',
+            'room_id' => 'nullable|string',
+        ]);
+
+        // Fetch or create a UserChat entry
+        $chat = UserChat::firstOrCreate([
+            'sender_id' => $validated['sender_id'],
+            'reciver_id' => $validated['reciver_id'],
+            'room_id' => $validated['room_id'],
+        ]);
+
+        // Return a success response
+        return $this->responseJson(true, 200, 'Room Created Successfully', $chat);
+    }
+
+    // Fetch authenticated company user
+    $authCompany = Auth::guard('company-api')->user();
+    if (!$authCompany) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    $data = [];
+    $userChats = UserChat::where('sender_id', $authCompany->id)->get();
+
+    foreach ($userChats as $userChat) {
+        $roomId = $userChat->room_id;
+
+        // Fetch Firestore data
+        $fetchRoom = getFirestoreData($roomId);
+
+        // Check if 'documents' key exists and is an array
+        if (isset($fetchRoom['documents']) && is_array($fetchRoom['documents']) && count($fetchRoom['documents']) > 0) {
+            $lastMessage = null;
+
+            // Sort and get the latest message by createTime
+            usort($fetchRoom['documents'], function ($a, $b) {
+                return strcmp($b['createTime'], $a['createTime']);
+            });
+
+            $lastMessage = $fetchRoom['documents'][0]; // Latest message
+
+            // Build response data for the chat
+            $data[] = [
+                'room_id' => $roomId,
+                'message' => $lastMessage['fields']['text']['stringValue'] ?? '',
+                'sendBy' => $lastMessage['fields']['sendBy']['integerValue'] ?? null,
+                'sendTo' => $lastMessage['fields']['sendTo']['integerValue'] ?? null,
+                'createTime' => $lastMessage['createTime'] ?? null,
+                'sendByDetails' => new UserResource(findUserDetails($lastMessage['fields']['sendBy']['integerValue'] ?? 0)),
+                'sendToDetails' => new UserResource(findUserDetails($lastMessage['fields']['sendTo']['integerValue'] ?? 0)),
+            ];
+        }
+    }
+
+    return response()->json($data);
+}
+
+
+
+
+
+
+
+
 {
     "message": "Undefined array key \"documents\"",
     "exception": "ErrorException",
