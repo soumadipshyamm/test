@@ -5,6 +5,60 @@
 **************************************************
 **************************************************
 **************************************************
+
+public function getPayoutWeeklyList(array $filterConditions, $start = null, $limit = null, $order = 'week_no', $dir = 'asc')
+{
+    $query = DB::table('bookings')
+        ->join('users', 'bookings.driver_id', '=', 'users.id')
+        ->leftJoin('reward_logs', 'bookings.driver_id', '=', 'reward_logs.user_id')
+        ->leftJoin('booking_transactions', 'bookings.id', '=', 'booking_transactions.booking_id')
+        ->leftJoin('payouts', 'bookings.driver_id', '=', 'payouts.driver_id')
+        ->select(
+            DB::raw("YEARWEEK(bookings.created_at, 1) as year_week"),
+            DB::raw("DATE(DATE_SUB(bookings.created_at, INTERVAL WEEKDAY(bookings.created_at) DAY)) as week_start"),
+            DB::raw("DATE(DATE_ADD(bookings.created_at, INTERVAL (6 - WEEKDAY(bookings.created_at)) DAY)) as week_end"),
+            'bookings.driver_id',
+            'users.mobile_number',
+            DB::raw('users.first_name as driver_name'),
+            DB::raw('COUNT(bookings.id) as total_trips'),
+            DB::raw('SUM(bookings.fare) as total_fare'),
+            DB::raw('SUM(reward_logs.reward_amount) as total_incentives'),
+            DB::raw('(SUM(bookings.fare) + SUM(reward_logs.reward_amount)) as total_earnings'),
+            DB::raw('SUM(booking_transactions.comission) as total_deductions'),
+            DB::raw('(SUM(bookings.fare) + SUM(reward_logs.reward_amount) - SUM(booking_transactions.comission)) as net_earnings'),
+            DB::raw('SUM(payouts.driver_amount) as total_payout'),
+            DB::raw('MAX(payouts.trantion_date) as last_payout_date'),
+            DB::raw('MAX(payouts.status) as payout_status'),
+            DB::raw('GROUP_CONCAT(DISTINCT payouts.details) as payout_remarks')
+        );
+
+    // Apply filters
+    if (!empty($filterConditions['weekrang'])) {
+        [$startDate, $endDate] = explode(' - ', $filterConditions['weekrang']);
+        $query->whereBetween('bookings.created_at', [trim($startDate), trim($endDate)]);
+    }
+
+    if (!empty($filterConditions['driver_list'])) {
+        $query->whereIn('bookings.driver_id', (array)$filterConditions['driver_list']);
+    }
+
+    // Grouping and sorting
+    $query->groupBy(
+        DB::raw("YEARWEEK(bookings.created_at, 1)"),
+        'bookings.driver_id',
+        'users.mobile_number',
+        'users.first_name'
+    )
+    ->orderBy($order, $dir);
+
+    // Pagination
+    if (!is_null($start) && !is_null($limit)) {
+        $query->offset($start)->limit($limit);
+    }
+
+    return $query->get();
+}
+
 *****************************
    public function getpayoutWeelyList(array $filterConditions, $start, $limit, $order, $dir, $search = null)
     {
