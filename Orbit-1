@@ -6,6 +6,7 @@
 **************************************************
 **************************************************
 *****************************
+   public function getpayoutWeelyList(array $filterConditions, $start, $limit, $order, $dir, $search = null)
     {
         $startDate = '';
         $endDate = '';
@@ -45,7 +46,7 @@
         if (isset($filterConditions['weekrang']) && !empty($filterConditions['weekrang'])) {
             $query = $query->whereBetween('bookings.created_at', [$startDate, $endDate]); // Filter by date range
         }
-        if (isset($filterConditions['driver_list']) && !empty($filterConditions['driver_list'])) {
+         if (isset($filterConditions['driver_list']) && !empty($filterConditions['driver_list'])) {
             $query = $query->where('bookings.driver_id', $filterConditions['driver_list']);
         }
         $query = $query->groupBy(
@@ -57,8 +58,6 @@
         )
             ->orderBy(DB::raw("WEEK(bookings.created_at, 1)"), 'asc')
             ->orderBy('bookings.driver_id', 'asc');
-
-
         return $query->get();
     }
 *********************
