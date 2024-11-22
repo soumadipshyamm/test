@@ -1,5 +1,55 @@
 ***************************************************************************************
-**********************************************************
+********************
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Week Picker</title>
+    
+    <!-- Include jQuery and jQuery UI CSS -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.css">
+    
+    <!-- Include jQuery and jQuery UI JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Pick a Week</h1>
+        <!-- Input field for the week picker -->
+        <input type="text" id="weekPicker" placeholder="Select Week Range">
+    </div>
+
+    <!-- jQuery week picker script -->
+    <script>
+        $(function () {
+            $("#weekPicker").datepicker({
+                showOtherMonths: true,
+                selectOtherMonths: true,
+                onSelect: function (dateText, inst) {
+                    const date = new Date(dateText);
+                    const day = date.getDay();
+                    
+                    const startOfWeek = new Date(date);
+                    startOfWeek.setDate(date.getDate() - (day === 0 ? 6 : day - 1));
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+                    $(this).val(
+                        `${$.datepicker.formatDate("yy-mm-dd", startOfWeek)} - ${$.datepicker.formatDate("yy-mm-dd", endOfWeek)}`
+                    );
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
+
+
+**************************************
 
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
