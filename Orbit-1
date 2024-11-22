@@ -1,4 +1,67 @@
 **************************************************
+**************************************************
+**************************************************
+**************************************************
+**************************************************
+**************************************************
+**************************************************
+*****************************
+    {
+        $startDate = '';
+        $endDate = '';
+        if (isset($filterConditions['weekrang']) && !empty($filterConditions['weekrang'])) {
+            list($startDate, $endDate) = explode(' - ', $filterConditions['weekrang']);
+            $startDate = $startDate;
+            $endDate = $endDate;
+        }
+        $query =  DB::table('bookings')
+            ->join('users', 'bookings.driver_id', '=', 'users.id')
+            ->leftJoin('reward_logs', 'bookings.driver_id', '=', 'reward_logs.user_id')
+            ->leftJoin('booking_transactions', 'bookings.id', '=', 'booking_transactions.booking_id')
+            ->leftJoin('transactions', 'bookings.id', '=', 'transactions.booking_id')
+            ->leftJoin('payouts', 'bookings.driver_id', '=', 'payouts.driver_id')
+            ->select(
+                DB::raw("WEEK(bookings.created_at, 1) as week_no"),
+                DB::raw("DATE(DATE_SUB(bookings.created_at, INTERVAL WEEKDAY(bookings.created_at) DAY)) as from_date"),
+                DB::raw("DATE(DATE_ADD(bookings.created_at, INTERVAL (6 - WEEKDAY(bookings.created_at)) DAY)) as to_date"),
+                'bookings.driver_id',
+                'users.mobile_number',
+                DB::raw('users.first_name as driver_name'),
+                DB::raw('COUNT(bookings.id) as total_trip'),
+                DB::raw('SUM(bookings.fare) as total_ride_amount'),
+                DB::raw('SUM(reward_logs.reward_amount) as incentives'),
+                DB::raw('SUM(reward_logs.reward_amount) as bonuses'),
+                DB::raw('(SUM(bookings.fare) + SUM(reward_logs.reward_amount) + SUM(reward_logs.reward_amount)) as total_earning'),
+                DB::raw('SUM(booking_transactions.comission) as deductions'),
+                DB::raw('(SUM(bookings.fare) + SUM(reward_logs.reward_amount) + SUM(reward_logs.reward_amount) - SUM(booking_transactions.comission)) as net_earning'),
+                DB::raw('SUM(CASE WHEN booking_transactions.payment_type = "cash" THEN booking_transactions.comission ELSE 0 END) as cash'),
+                DB::raw('SUM(CASE WHEN booking_transactions.payment_type = "bank" THEN booking_transactions.comission ELSE 0 END) as bank'),
+                DB::raw('SUM(CASE WHEN booking_transactions.payment_type = "wallet" THEN booking_transactions.comission ELSE 0 END) as wallet'),
+                DB::raw('SUM(payouts.driver_amount) as payout_amount'),
+                DB::raw('MAX(payouts.trantion_date) as date_paid'),
+                DB::raw('MAX(payouts.status) as status'),
+                DB::raw('GROUP_CONCAT(DISTINCT payouts.details) as remarks')
+            );
+        if (isset($filterConditions['weekrang']) && !empty($filterConditions['weekrang'])) {
+            $query = $query->whereBetween('bookings.created_at', [$startDate, $endDate]); // Filter by date range
+        }
+        if (isset($filterConditions['driver_list']) && !empty($filterConditions['driver_list'])) {
+            $query = $query->where('bookings.driver_id', $filterConditions['driver_list']);
+        }
+        $query = $query->groupBy(
+            DB::raw("WEEK(bookings.created_at, 1)"),
+            'bookings.driver_id',
+            'users.mobile_number',
+            'users.first_name',
+            'bookings.created_at' // Add this line
+        )
+            ->orderBy(DB::raw("WEEK(bookings.created_at, 1)"), 'asc')
+            ->orderBy('bookings.driver_id', 'asc');
+
+
+        return $query->get();
+    }
+*********************
 <!DOCTYPE html>
 <html lang="en">
 <head>
