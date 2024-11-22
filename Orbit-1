@@ -1,5 +1,92 @@
 ***************************************************************************************
-********************
+*
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>jQuery Week Picker</title>
+
+    <!-- jQuery and jQuery UI -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/smoothness/jquery-ui.css">
+
+    <style>
+        #weekPicker {
+            width: 200px;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .ui-datepicker .ui-datepicker-calendar .ui-state-highlight {
+            background: #ffeb3b; /* Highlight color for the week */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Select a Week</h1>
+        <input type="text" id="weekPicker" placeholder="Select Week">
+    </div>
+
+    <script>
+        $(function () {
+            // Initialize datepicker
+            $("#weekPicker").datepicker({
+                showOtherMonths: true,
+                selectOtherMonths: true,
+                firstDay: 1, // Start the week on Monday
+                onSelect: function (dateText, inst) {
+                    const selectedDate = new Date(dateText);
+                    const day = selectedDate.getDay();
+
+                    // Calculate the start and end of the week
+                    const startOfWeek = new Date(selectedDate);
+                    startOfWeek.setDate(selectedDate.getDate() - (day === 0 ? 6 : day - 1));
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+                    // Display the week range
+                    $(this).val(
+                        `${$.datepicker.formatDate("yy-mm-dd", startOfWeek)} - ${$.datepicker.formatDate("yy-mm-dd", endOfWeek)}`
+                    );
+
+                    // Highlight the selected week
+                    highlightWeek(startOfWeek, endOfWeek);
+                },
+                beforeShowDay: function (date) {
+                    return [true, ""]; // Enable all days for selection
+                }
+            });
+
+            function highlightWeek(startOfWeek, endOfWeek) {
+                // Highlight week in the calendar
+                setTimeout(function () {
+                    $(".ui-datepicker-calendar td").each(function () {
+                        const cellDate = $(this).data("year") + "-" + pad($(this).data("month") + 1) + "-" + pad($(this).text());
+                        const cellTime = new Date(cellDate).getTime();
+
+                        if (cellTime >= startOfWeek.getTime() && cellTime <= endOfWeek.getTime()) {
+                            $(this).addClass("ui-state-highlight");
+                        } else {
+                            $(this).removeClass("ui-state-highlight");
+                        }
+                    });
+                }, 10);
+            }
+
+            function pad(number) {
+                return number < 10 ? "0" + number : number;
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
+*******************
 <!DOCTYPE html>
 <html lang="en">
 <head>
