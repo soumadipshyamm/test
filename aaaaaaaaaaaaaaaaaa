@@ -9,6 +9,220 @@ https://stackoverflow.com/questions/65261927/how-to-add-text-in-image-from-datab
 
 
 
+To send push notifications using Firebase via **cURL** in Laravel, you can create a reusable function or implement it in a Laravel Job for sending notifications in the background. Here’s how to use Firebase with cURL to send a notification to 100 users at once:
 
+---
+
+### **1. Create a Helper Function or Job**
+You can write a reusable function in a helper file or directly within a Laravel Job.
+
+#### Example Helper Function:
+Add this to a helper file, e.g., `app/Helpers/CommonHelper.php`:
+
+```php
+<?php
+
+if (!function_exists('sendPushNotification')) {
+    function sendPushNotification($title, $body, $tokens)
+    {
+        $serverKey = 'YOUR_FIREBASE_SERVER_KEY'; // Replace with your Firebase server key
+        $url = 'https://fcm.googleapis.com/fcm/send';
+
+        $headers = [
+            'Authorization: key=' . $serverKey,
+            'Content-Type: application/json',
+        ];
+
+        // Split tokens into batches of 100 (Firebase limit is 500, but smaller batches are better for reliability)
+        $chunks = array_chunk($tokens, 100);
+
+        foreach ($chunks as $tokenBatch) {
+            $payload = [
+                'registration_ids' => $tokenBatch,
+                'notification' => [
+                    'title' => $title,
+                    'body' => $body,
+                ],
+            ];
+
+            $ch = curl_init();
+
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+            $response = curl_exec($ch);
+
+            if ($response === false) {
+                \Log::error('Firebase cURL error: ' . curl_error($ch));
+            } else {
+                \Log::info('Firebase Response: ' . $response);
+            }
+
+            curl_close($ch);
+        }
+    }
+}
+```
+
+---
+
+### **2. Dispatch the Notifications**
+From your controller or service, call the `sendPushNotification` function with the title, body, and array of tokens.
+
+#### Example in a Controller:
+```php
+public function sendBatchNotification()
+{
+    $title = "Bulk Notification";
+    $body = "This is a bulk push notification to 100 users.";
+    
+    // Array of 100 device tokens (replace with actual tokens)
+    $tokens = [
+        'TOKEN_1',
+        'TOKEN_2',
+        'TOKEN_3',
+        // ... up to 100 tokens
+    ];
+
+    // Call the helper function
+    sendPushNotification($title, $body, $tokens);
+
+    return response()->json(['status' => 'Bulk notifications sent!']);
+}
+```
+
+---
+
+### **3. Send Notifications in the Background Using a Job**
+If you want to use a **Job** instead of a helper function to send notifications in the background:
+
+#### Step 1: Create a Job
+```bash
+php artisan make:job SendPushNotification
+```
+
+#### Step 2: Implement the Logic
+In the `handle()` method of the job, use the cURL logic:
+
+```php
+<?php
+
+namespace App\Jobs;
+
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+
+class SendPushNotification implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    protected $title;
+    protected $body;
+    protected $tokens;
+
+    public function __construct($title, $body, $tokens)
+    {
+        $this->title = $title;
+        $this->body = $body;
+        $this->tokens = $tokens;
+    }
+
+    public function handle()
+    {
+        $serverKey = 'YOUR_FIREBASE_SERVER_KEY'; // Replace with your Firebase server key
+        $url = 'https://fcm.googleapis.com/fcm/send';
+
+        $headers = [
+            'Authorization: key=' . $serverKey,
+            'Content-Type: application/json',
+        ];
+
+        $chunks = array_chunk($this->tokens, 100);
+
+        foreach ($chunks as $tokenBatch) {
+            $payload = [
+                'registration_ids' => $tokenBatch,
+                'notification' => [
+                    'title' => $this->title,
+                    'body' => $this->body,
+                ],
+            ];
+
+            $ch = curl_init();
+
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+            $response = curl_exec($ch);
+
+            if ($response === false) {
+                \Log::error('Firebase cURL error: ' . curl_error($ch));
+            } else {
+                \Log::info('Firebase Response: ' . $response);
+            }
+
+            curl_close($ch);
+        }
+    }
+}
+```
+
+#### Step 3: Dispatch the Job
+From your controller, dispatch the job:
+
+```php
+use App\Jobs\SendPushNotification;
+
+public function sendBatchNotification()
+{
+    $title = "Bulk Notification";
+    $body = "This is a bulk push notification to 100 users.";
+    
+    // Array of 100 device tokens (replace with actual tokens)
+    $tokens = [
+        'TOKEN_1',
+        'TOKEN_2',
+        'TOKEN_3',
+        // ... up to 100 tokens
+    ];
+
+    // Dispatch the job
+    SendPushNotification::dispatch($title, $body, $tokens);
+
+    return response()->json(['status' => 'Bulk notifications queued!']);
+}
+```
+
+---
+
+### **4. Monitor Notifications**
+- Run the queue worker:
+  ```bash
+  php artisan queue:work
+  ```
+
+- Use **failed jobs table** to track errors:
+  ```bash
+  php artisan queue:failed-table
+  php artisan migrate
+  ```
+
+---
+
+### **5. Firebase Multicast Limits**
+Firebase allows up to **500 device tokens** per `registration_ids` request. If sending to more than 100 tokens, adjust the `array_chunk` size in the helper or job code to a maximum of 500.
+
+---
+
+This method ensures notifications are sent in batches using **cURL** and Laravel’s job queue for efficient background processing. Let me know if you need further clarification!
 
 
