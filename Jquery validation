@@ -1,0 +1,144 @@
+To create a `common.js` file that handles all the validations and allows validation rules to be passed as parameters, you can define a function that accepts form-specific validation rules and messages. This approach makes the validation reusable and customizable for different forms.
+
+### Steps:
+1. Create a `common.js` file to include the validation logic.
+2. Define a function that accepts rules and messages as parameters.
+3. Apply validation dynamically to any form using this function.
+
+---
+
+### 1. **common.js**
+
+```javascript
+// common.js
+function validateForm(formId, validationRules, validationMessages) {
+    // Check if jQuery and jQuery Validation Plugin are loaded
+    if (typeof $ !== 'undefined' && $.fn.validate) {
+        $(document).ready(function () {
+            $(`#${formId}`).validate({
+                rules: validationRules,
+                messages: validationMessages,
+                submitHandler: function (form) {
+                    alert("Form successfully submitted!");
+                    form.submit();
+                }
+            });
+        });
+    } else {
+        console.error("jQuery or jQuery Validation Plugin is not loaded.");
+    }
+}
+```
+
+### 2. **HTML Example (form with validation using common.js)**
+
+You can now call this function for any form in your project. Here’s how you might do that in an HTML file.
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Validation with common.js</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/jquery.validation/1.19.5/jquery.validate.min.js"></script>
+    <script src="path/to/common.js"></script> <!-- Link to your common.js file -->
+</head>
+<body>
+    <form id="myForm1">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username">
+        <br><br>
+
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email">
+        <br><br>
+
+        <button type="submit">Submit</button>
+    </form>
+
+    <form id="myForm2">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name">
+        <br><br>
+
+        <label for="age">Age</label>
+        <input type="number" id="age" name="age">
+        <br><br>
+
+        <button type="submit">Submit</button>
+    </form>
+
+    <script>
+        // Validation rules and messages for form 1
+        const form1Rules = {
+            username: {
+                required: true,
+                minlength: 3
+            },
+            email: {
+                required: true,
+                email: true
+            }
+        };
+
+        const form1Messages = {
+            username: {
+                required: "Please enter your username",
+                minlength: "Your username must be at least 3 characters long"
+            },
+            email: {
+                required: "Please enter your email",
+                email: "Please enter a valid email address"
+            }
+        };
+
+        // Validation rules and messages for form 2
+        const form2Rules = {
+            name: {
+                required: true,
+                minlength: 2
+            },
+            age: {
+                required: true,
+                min: 18
+            }
+        };
+
+        const form2Messages = {
+            name: {
+                required: "Please enter your name",
+                minlength: "Your name must be at least 2 characters long"
+            },
+            age: {
+                required: "Please enter your age",
+                min: "You must be at least 18 years old"
+            }
+        };
+
+        // Apply validation using the common.js function
+        validateForm("myForm1", form1Rules, form1Messages);
+        validateForm("myForm2", form2Rules, form2Messages);
+    </script>
+</body>
+</html>
+```
+
+### 3. **Explanation**:
+
+- **`validateForm()`**: This function takes three parameters:
+    - `formId`: The ID of the form to apply the validation.
+    - `validationRules`: The set of rules for validation (required, minlength, etc.).
+    - `validationMessages`: Custom error messages corresponding to the validation rules.
+  
+- **Reusability**: You can now reuse the `validateForm()` function by passing different rules and messages for each form, making your validation logic centralized in `common.js`.
+
+---
+
+### Benefits:
+- **Code Reusability**: One centralized function for form validation.
+- **Parameter Flexibility**: You can pass specific rules and messages for each form.
+- **Easier Maintenance**: If validation logic needs to change, you only need to update `common.js`.
+
+Let me know if you need more customization or adjustments!
