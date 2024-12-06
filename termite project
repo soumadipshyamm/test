@@ -7,6 +7,21 @@
 ########################
 ########################
 ########################
+
+$(document).on("click", ".editBillingAddress", function () {
+    // Enable all input and select fields inside the billing address section
+    $('.billing-address input, .billing-address select').prop('readonly', false).prop('disabled', false);
+
+    // Check if the Save button already exists to avoid duplication
+    if (!$('.save-billing-address').length) {
+        $('<button>', {
+            class: 'btn btn-primary save-billing-address',
+            type: 'button', // Prevent form submission
+            text: 'Save Billing Address',
+        }).appendTo('.billing-address');
+    }
+});
+
 ########################
 
      $(document).on("click", ".editBillingAddress", function() {
