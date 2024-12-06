@@ -6,6 +6,62 @@
 ########################
 ########################
 ########################
+
+
+$(document).on("click", ".editBillingAddress", function() {
+    // Select all input and select elements within the billing address section
+    const billingFields = $('.billing-address input, .billing-address select');
+    
+    // Enable input and select fields for editing
+    billingFields.each(function() {
+        $(this).prop('readonly', false); // Enable input fields
+        $(this).prop('disabled', false); // Enable select fields
+    });
+
+    // Check if the save button already exists, so we don't create duplicates
+    if ($('.save-billing-address').length === 0) {
+        const saveButton = $('<button>', {
+            class: 'btn btn-primary save-billing-address',
+            text: 'Save Billing Address',
+            type: 'button'
+        });
+
+        // Append the Save button to the billing address section
+        $('.billing-address').append(saveButton);
+    }
+});
+
+// Handle the Save button click
+$(document).on("click", ".save-billing-address", function() {
+    // Collect data from inputs and select fields using their IDs
+    const data = {};
+    $('.billing-address input, .billing-address select').each(function() {
+        const id = $(this).attr('id'); // Get the ID of the field
+        if (id) {
+            data[id] = $(this).val(); // Store the field value in the data object
+        }
+    });
+
+    // Send the data using AJAX
+    $.ajax({
+        url: '/save-billing-address', // Update with your server-side endpoint
+        method: 'POST',
+        data: {
+            ...data, // Spread the collected data
+            _token: $('meta[name="csrf-token"]').attr('content') // Include CSRF token
+        },
+        success: function(response) {
+            // Handle successful response
+            alert(response.message || 'Billing address updated successfully!');
+        },
+        error: function(xhr) {
+            // Handle error response
+            alert('Error: ' + (xhr.responseJSON.message || xhr.responseText));
+        }
+    });
+});
+
+
 ########################
 
 $(document).on("click", ".editBillingAddress", function () {
