@@ -1,6 +1,29 @@
 
 
 ########################
+########################
+########################
+########################
+########################
+########################
+########################
+########################
+
+     $(document).on("click", ".editBillingAddress", function() {
+            // Select all input and select elements within the billing address section
+            const billingFields = document.querySelectorAll('.billing-address');
+
+            // Loop through each field and remove the readonly attribute
+            billingFields.forEach(function(field) {
+                field.removeAttribute('readonly'); // Make the field editable
+            });
+
+            const saveButton = document.createElement('button');
+            saveButton.className = 'btn btn-primary save-billing-address';
+            saveButton.textContent = 'Save Billing Address';
+            saveButton.type = 'button'; // Set type to button to prevent form submission
+            document.querySelector('.billing-address').parentElement.appendChild(saveButton);}
+########################
 <!DOCTYPE html>
 <html lang="en">
 <head>
