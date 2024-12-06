@@ -4,7 +4,58 @@
 ########################
 ########################
 ########################
-########################
+#######################
+
+$(document).on("click", ".editBillingAddress", function() {
+    // Select all input and select elements within the billing address section
+    const billingFields = $('.billing-address input, .billing-address select');
+    
+    // Make all fields editable
+    billingFields.each(function() {
+        $(this).prop('readonly', false); // For input fields
+        $(this).prop('disabled', false); // For select fields
+    });
+
+    // Check if the save button already exists
+    if ($('.save-billing-address').length === 0) {
+        const saveButton = $('<button>', {
+            class: 'btn btn-primary save-billing-address',
+            text: 'Save Billing Address',
+            type: 'button'
+        });
+
+        // Append the Save button to the billing address section
+        $('.billing-address').append(saveButton);
+    }
+});
+
+// Handle the click event for saving the billing address
+$(document).on("click", ".save-billing-address", function() {
+    // Collect data from the fields using their IDs
+    const billingData = {
+        name: $('#billing-name').val(),
+        email: $('#billing-email').val(),
+        phone: $('#billing-phone').val(),
+        address: $('#billing-address').val(),
+        _token: $('meta[name="csrf-token"]').attr('content') // CSRF token for Laravel
+    };
+
+    // Send the data via AJAX without reloading the page
+    $.ajax({
+        url: "/save-billing-address",  // Replace with the actual URL to submit data
+        type: "POST",
+        data: billingData,
+        success: function(response) {
+            // Handle success - show a success message or update UI accordingly
+            alert('Billing address saved successfully!');
+        },
+        error: function(xhr) {
+            // Handle errors - show error message or perform other actions
+            alert('Error saving billing address: ' + xhr.responseText);
+        }
+    });
+});
+
 ########################
 
 
