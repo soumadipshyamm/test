@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zxx">
+
+<head>
+      <meta charset="UTF-8">
+      <meta http-equiv="X-UA-Compatible" content="IE=edge">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <!-- bootstrap css -->
+      <link rel="stylesheet" href="assets/css/bootstrap.min.css">
+      <!-- animation css -->
+      <link rel="stylesheet" href="assets/css/animate.css">
+      <!-- stellarnav css -->
+      <link rel="stylesheet" href="assets/css/stellarnav.css">
+      <!-- owl carousel css -->
+      <link rel="stylesheet" href="assets/css/owl.carousel.min.css">
+      <link rel="stylesheet" href="assets/css/owl.theme.default.min.css">
+      <!-- dashboard css -->
+      <link href="assets/css/main.css" rel="stylesheet">
+      <!-- handsontable -->
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
+      <!-- font family -->
+      <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700;800&display=swap"
+            rel="stylesheet">
+
+      <link rel="stylesheet" href="assets/css/dhtmlxgantt.css">
+      <!-- custom css -->
+      <link rel="stylesheet" href="assets/css/style.css">
+      <link rel="stylesheet" href="assets/css/responsive.css">
+      <!-- fav icon -->
+      <link rel="shortcut icon" href="assets/images/fav-icon.ico">
+      <title>Koncite</title>
+      <style>
+            .gantt_layout_cell.timeline_cell.gantt_layout_outer_scroll.gantt_layout_outer_scroll_vertical.gantt_layout_outer_scroll.gantt_layout_outer_scroll_horizontal {
+                  display: none;
+            }
+            
+            .gantt_layout_cell.grid_cell.gantt_layout_outer_scroll.gantt_layout_outer_scroll_vertical.gantt_layout_outer_scroll.gantt_layout_outer_scroll_horizontal.gantt_layout_cell_border_right{
+                  width: 100%!important;
+            }
+            .gantt_grid_scale > div{
+                  min-width: 30%!important;
+            }
+            
+            /*.gantt_row  div{
+                  min-width: 30%!important;
+            }*/
+      </style>
+
+</head>
+
+<body>
+
+      <!-- dashboard section -->
+      <section class="top-bar">
+
+
+
+            <!-- logo sec -->
+            <div class="logo-sec">
+                  <div class="container-fluid">
+                        <div class="logos_box">
+                              <div class="logo-box">
+                                    <img src="assets/images/logo.svg" class="img-fluid" alt="">
+                                    <div class="dropdown">
+                                          <button class="btn btn_company dropdown-toggle" type="button"
+                                                id="dropdownMenuButton1" data-bs-toggle="dropdown"
+                                                aria-expanded="false">
+                                                Company A
+                                          </button>
+                                          <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                                                <li><a class="dropdown-item" href="#">Action</a></li>
+                                                <li><a class="dropdown-item" href="#">Another action</a></li>
+                                                <li><a class="dropdown-item" href="#">Something else here</a></li>
+                                          </ul>
+                                    </div>
+                              </div>
+
+                              <div class="profile_box">
+                                    <a href="#" class="ads-btn">Ads</a>
+                                    <div class="profilel_box">
+                                          <div class="widget-content p-0">
+                                                <div class="widget-content-wrapper">
+
+                                                      <div class="widget-content-left widget_profile">
+                                                            <div class="btn-group">
+                                                                  <a data-toggle="dropdown" aria-haspopup="true"
+                                                                        aria-expanded="false" class="p-0 btn prol_img">
+                                                                        <img class="rounded-circle"
+                                                                              src="assets/images/user.png" alt="">
+                                                                        <h6 class="widget-heading">
+                                                                              Dianne Russell
+                                                                        </h6>
+
+                                                                        <i class="fa fa-angle-down ml-2 opacity-8"
+                                                                              aria-hidden="true"></i>
+                                                                  </a>
+                                                                  <div tabindex="-1" role="menu" aria-hidden="true"
+                                                                        class="dropdown-menu dropdown-menu-right"
+                                                                        x-placement="bottom-end"
+                                                                        style="position: absolute; will-change: transform; top: 0px; left: 0px; transform: translate3d(-174px, 47px, 0px);">
+                                                                        <button type="button" tabindex="0"
+                                                                              class="dropdown-item">User
+                                                                              Account</button>
+                                                                        <button type="button" tabindex="0"
+                                                                              class="dropdown-item">Settings</button>
+                                                                        <h6 tabindex="-1" class="dropdown-header">Header
+                                                                        </h6>
+                                                                        <button type="button" tabindex="0"
+                                                                              class="dropdown-item">Actions</button>
+                                                                        <div tabindex="-1" class="dropdown-divider">
+                                                                        </div>
+                                                                        <button type="button" tabindex="0"
+                                                                              class="dropdown-item">Dividers</button>
+                                                                  </div>
+                                                            </div>
+
+
+                                                      </div>
+
+
+                                                      <div class="widget-content-notification">
+                                                            <a href="#">
+                                                                  <img src="assets/images/side-icon/noti-icon.svg"
+                                                                        class="img-fluid" alt="">
+                                                            </a>
+                                                            <span class="noti_no">5</span>
+                                                      </div>
+                                                </div>
+                                          </div>
+                                    </div>
+                              </div>
+
+                        </div>
+                  </div>
+            </div>
+
+            <!-- trial sec -->
+            <div class="trial-box">
+                  <div class="trail_con">
+                        <h6>Your free trial will expires in 30 days.</h6>
+                        <a href="#" class="subs-btn">Buy Subscription</a>
+                  </div>
+            </div>
+      </section>
+
+
+      <section class="app-container app-theme-white body-tabs-shadow fixed-sidebar fixed-header">
+            <div class="app-main">
+
+
+                  <!-- dashboard side bar -->
+                  <div class="app-sidebar sidebar-shadow">
+
+                        <!-- side bar logo  -->
+                        <div class="app-header__logo">
+                              <div class="widget-content-left widget_profile">
+                                    <div class="p-0 btn prol_img">
+                                          <img class="rounded-circle" src="assets/images/user.png" alt="">
+                                          <h6 class="widget-heading">
+                                                Dianne Russell
+                                          </h6>
+                                    </div>
+                              </div>
+                              <div class="header__pane ml-auto">
+                                    <div>
+                                          <button type="button" class="hamburger close-sidebar-btn hamburger--elastic"
+                                                data-class="closed-sidebar">
+                                                <span class="hamburger-box">
+                                                      <span class="hamburger-inner"></span>
+                                                </span>
+                                          </button>
+
+                                    </div>
+                              </div>
+                        </div>
+                        <div class="app-header__mobile-menu">
+                              <div>
+                                    <button type="button" class="hamburger hamburger--elastic mobile-toggle-nav">
+                                          <span class="hamburger-box">
+                                                <span class="hamburger-inner"></span>
+                                          </span>
+                                    </button>
+
+                              </div>
+                        </div>
+
+                        <div class="scrollbar-sidebar">
+                              <div class="app-sidebar__inner">
+                                    <ul class="vertical-nav-menu">
+                                          <li class="app-sidebar__heading">
+                                                <a href="dashboard.html">
+                                                      <span>
+                                                            <img src="assets/images/side-icon/dashboard.svg"
+                                                                  class="img-fluid" alt="">
+                                                      </span>
+                                                      Dashboard
+                                                </a>
+                                          </li>
+                                          <li class="app-sidebar__heading">
+                                                <a href="#">
+                                                      <span>
+                                                            <img src="assets/images/side-icon/master.svg"
+                                                                  class="img-fluid" alt="">
+                                                      </span>
+                                                      Masters
+                                                </a>
+                                                <ul>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Companies
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Projects
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Subproject
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Additional Stores/ Warehouses
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Teams
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Activities
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Materials
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Labours
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Assets/Equipments
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Vendors
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Role
+                                                            </a>
+                                                      </li>
+                                                      <li>
+                                                            <a href="#">
+                                                                  Unit master
+                                                            </a>
+                                                      </li>
+
+
+                                                </ul>
+                                          </li>
+
+
+                                          <li class="app-sidebar__heading  mm-active">
+                                                <a href="#">
+                                                      <span>
+                                                            <img src="assets/images/side-icon/transaction.svg"
+                                                                  class="img-fluid" alt="">
+                                                      </span>
+                                                      Transactions
+                                                </a>
+                                          </li>
+
+
+                                          <li class="app-sidebar__heading">
+                                                <a href="#">
+                                                      <span>
+                                                            <img src="assets/images/side-icon/report.svg"
+                                                                  class="img-fluid" alt="">
+                                                      </span>
+                                                      Reports
+                                                </a>
+                                          </li>
+                                          <li class="app-sidebar__heading">
+                                                <a href="#">
+                                                      <span>
+                                                            <img src="assets/images/side-icon/settings.svg"
+                                                                  class="img-fluid" alt="">
+                                                      </span>
+                                                      Settings
+                                                </a>
+                                          </li>
+                                          <li class="app-sidebar__heading">
+                                                <a href="#">
+                                                      <span>
+                                                            <img src="assets/images/side-icon/offers.svg"
+                                                                  class="img-fluid" alt="">
+                                                      </span>
+                                                      Offers
+                                                </a>
+                                          </li>
+                                          <li class="app-sidebar__heading">
+                                                <a href="#">
+                                                      <span>
+                                                            <img src="assets/images/side-icon/help.svg"
+                                                                  class="img-fluid" alt="">
+                                                      </span>
+                                                      Help
+                                                </a>
+                                          </li>
+
+                                          <li class="app-sidebar__heading">
+                                                <a href="#">
+                                                      <span>
+                                                            <img src="assets/images/side-icon/logout.svg"
+                                                                  class="img-fluid" alt="">
+                                                      </span>
+                                                      Log out
+                                                </a>
+                                          </li>
+
+
+                                    </ul>
+                              </div>
+                        </div>
+                  </div>
+                  <!-- dashboard main body -->
+                  <div class="app-main__outer">
+
+                        <div class="app-main__inner card">
+
+                              <!-- dashboard body -->
+                              <div class="dashboard_body">
+                                    <div class="breadcrumbs">
+                                          <ul>
+                                                <li> <a href="#">Project</a></li>
+                                                <li> <a href="#">Project</a></li>
+                                                <li> <a href="#">Project</a></li>
+                                          </ul>
+                                    </div>
+                                    <div class="tablesec-head">
+                                          <div class="tablehead_searchbox">
+                                                <div class="dropdown_box dropdown">
+                                                      <button class="btn btn-secondary dropdown-toggle" type="button"
+                                                            id="dropdownMenuButton1" data-bs-toggle="dropdown"
+                                                            aria-expanded="false">
+                                                            Select Projects
+                                                      </button>
+                                                      <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                                                            <li><a class="dropdown-item" href="#">Projects one</a></li>
+                                                            <li><a class="dropdown-item" href="#">Projects two</a>
+                                                            </li>
+                                                            <li><a class="dropdown-item" href="#">Projects three</a>
+                                                            </li>
+                                                      </ul>
+                                                </div>
+                                                <div class="search-box">
+                                                      <i class="fa-solid fa-magnifying-glass"></i>
+                                                      <input type="search" class="form-control" name=""
+                                                            placeholder="Search Company" id="">
+                                                </div>
+
+
+                                          </div>
+                                          <div class="tableh_subpro">
+                                                <div class="dropdown_box dropdown">
+                                                      <button class="btn btn-secondary dropdown-toggle" type="button"
+                                                            id="dropdownMenuButton1" data-bs-toggle="dropdown"
+                                                            aria-expanded="false">
+                                                            Sub Projects
+                                                      </button>
+                                                      <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                                                            <li><a class="dropdown-item" href="#">Projects one</a></li>
+                                                            <li><a class="dropdown-item" href="#">Projects two</a>
+                                                            </li>
+                                                            <li><a class="dropdown-item" href="#">Projects three</a>
+                                                            </li>
+                                                      </ul>
+                                                </div>
+
+                                                <div class="tablehsub_right">
+                                                      <a href="#" class="ads-btn">
+                                                            <span><i class="fa-solid fa-plus"></i></span>Create
+                                                            new
+                                                      </a>
+                                                      <a href="#" class="btn btn-secondary">
+                                                            <span><i class="fa-solid fa-plus"></i></span>Bulk Upload
+                                                      </a>
+                                                      <a href="#" class="btn btn-secondary">Copy
+                                                      </a>
+                                                </div>
+                                          </div>
+                                    </div>
+
+                                    <div class="projecttable_box">
+                                          <div class="projecttb_head">
+                                                <div class="search-box">
+                                                      <i class="fa-solid fa-magnifying-glass"></i>
+                                                      <input type="search" class="form-control" name=""
+                                                            placeholder="Search Company" id="">
+                                                </div>
+                                                <div class="projecttbh_right">
+                                                      <a href="#" class="btn btn-secondary">Edit
+                                                      </a>
+                                                      <a href="#" class="btn btn-secondary">Save
+                                                      </a>
+                                                </div>
+                                          </div>
+                                          <div id="handsontable"></div>
+                                    </div>
+
+                                    <div id="gantt_here" style='width:100%; height:100%;'></div>
+
+                              </div>
+                        </div>
+                  </div>
+
+      </section>
+
+      <div class="app_footer">
+            <p>Copyright 2019 All Right Reserved</p>
+      </div>
+      <!-- <div class="go-top"><i class="fa fa-angle-double-up" aria-hidden="true"></i></div> -->
+      <!-- JS Files -->
+      <!-- bootstrap JS -->
+      <script src="assets/js/jquery.min.js"></script>
+      <script src="assets/js/bootstrap.bundle.min.js"></script>
+      <!-- stellarnav js-->
+      <script src="assets/js/stellarnav.min.js"></script>
+
+      <!-- owl carousel -->
+      <script src="assets/js/owl.carousel.min.js"></script>
+
+      <!-- animate js -->
+      <script src="assets/js/WOW.js"></script>
+
+      <!-- handson table js -->
+      <script type="text/javascript"
+            src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
+      <!-- font aawesome kit -->
+      <!-- <script src="assets/js/font-awesome-v6.js"></script> -->
+      <script src="https://kit.fontawesome.com/c7890550ed.js" crossorigin="anonymous"></script>
+      <!-- dashboard script -->
+      <script type="text/javascript" src="assets/js/main.js"></script>
+      <script type="text/javascript" src="assets/js/dhtmlxgantt.js"></script>
+
+      <!-- custom js -->
+      <script src="assets/js/custom.js"></script>
+
+
+      <!--<script>
+            document.addEventListener('DOMContentLoaded', function () {
+                  const container = document.getElementById('handsontable');
+
+                  const hot = new Handsontable(container, {
+                        // configuration options, in the object literal notation
+                        licenseKey: "non-commercial-and-evaluation",
+                        data: [
+                              { available: true, type: 'Heading', srno: '1', activities: 'Substructure', unit: '', qty: '12', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: false, type: 'Subhead', srno: '1', activities: 'Prelims', unit: '', qty: '20', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: true, type: 'Activites', srno: '1', activities: 'Site cleaning', unit: '1.5', qty: '15', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: false, type: 'Heading', srno: '1', activities: 'Trench excavation', unit: '', qty: '26', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: false, type: 'Subhead', srno: '1', activities: 'PCC', unit: '1.6', qty: '1', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: true, type: 'Activites', srno: '1', activities: 'Prelims', unit: '', qty: '50', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: false, type: 'Heading', srno: '1', activities: 'Sub Concrete', unit: '', qty: '4', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: false, type: 'Subhead', srno: '1', activities: 'Site cleaning', unit: '2', qty: '22', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: true, type: 'Activites', srno: '1', activities: 'Substructure', unit: '', qty: '12', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: false, type: 'Heading', srno: '1', activities: 'Trench excavation', unit: '', qty: '9', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' },
+                              { available: false, type: 'Subhead', srno: '1', activities: 'Footing M20', unit: '.', qty: '8', rate: '5000', amount: '200', startdate: '21/01/2023', enddate: '01/02/2023' }
+                        ],
+                        colHeaders: ['', 'Type', 'Sr. No', 'Activities', 'Unit', 'Qty', 'Rate', 'Amount', 'Start Date', 'End Date'],
+                        height: 'auto',
+                        columns: [
+                              {
+                                    data: 'available',
+                                    type: 'checkbox'
+                              },
+                              {
+                                    data: 'type',
+                                    type: 'text'
+                              },
+                              {
+                                    data: 'srno',
+                                    type: 'numeric'
+                              },
+                              {
+                                    data: 'activities',
+                                    type: 'text'
+                              },
+                              {
+                                    data: 'unit',
+                                    type: 'numeric'
+                              },
+                              {
+                                    data: 'qty',
+                                    type: 'numeric'
+
+                              },
+                              {
+                                    data: 'rate',
+                                    type: 'numeric'
+
+                              },
+                              {
+                                    data: 'amount',
+                                    type: 'numeric'
+
+                              },
+                              // {
+                              //       data: 'Start Date'
+                              // },
+                              {
+                                    data: 'startdate',
+                                    type: 'date',
+                                    dateFormat: 'MM/DD/YYYY',
+                                    correctFormat: true,
+                                    defaultDate: '01/01/2000',
+                                    // datePicker
+                                    datePickerConfig: {
+                                          // First day of the week (0: Sunday, 1: Monday, etc)
+                                          firstDay: 0,
+                                          showWeekNumber: true,
+                                          disableDayFn(date) {
+                                                // Disable Sunday and Saturday
+                                                return date.getDay() === 0 || date.getDay() === 6;
+                                          }
+                                    }
+                              },
+                              {
+                                    data: 'enddate',
+                                    type: 'date',
+                                    dateFormat: 'MM/DD/YYYY',
+                                    correctFormat: true,
+                                    defaultDate: '01/01/2000',
+                                    // datePicker
+                                    datePickerConfig: {
+                                          // First day of the week (0: Sunday, 1: Monday, etc)
+                                          firstDay: 0,
+                                          showWeekNumber: true,
+                                          disableDayFn(date) {
+                                                // Disable Sunday and Saturday
+                                                return date.getDay() === 0 || date.getDay() === 6;
+                                          }
+                                    }
+                              }
+
+                        ],
+                        // minRows: 10,
+                        // minCols: 10,
+                        customBorders: true,
+                        dropdownMenu: true,
+                        multiColumnSorting: true,
+                        filters: true,
+                        manualRowMove: true,
+                  });
+            });
+      </script>-->
+
+      <script>
+            gantt.init("gantt_here");
+
+            gantt.parse({
+                  data: [
+                        { id: 1, text: "Project #2", start_date: "01-04-2023", duration: 18, progress: 0.4, open: true },
+                        { id: 2, text: "Task #1", start_date: "02-04-2023", duration: 8, progress: 0.6, parent: 1 },
+                        { id: 3, text: "Task #2", start_date: "11-04-2023", duration: 8, progress: 0.6, parent: 1 }
+                  ],
+                  links: [
+                        { id: 1, source: 1, target: 2, type: "1" },
+                        { id: 2, source: 2, target: 3, type: "0" }
+                  ]
+            });
+      </script>
+</body>
+
+</html>
