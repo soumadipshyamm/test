@@ -1,0 +1,97 @@
+  $(document).on("click", ".appoinementDetails", function(e) {
+            e.preventDefault();
+            let appoinementId = $(this).data('uuid');
+            // alert(appoinementId);
+            $.ajax({
+                url: APP_URL + `/ajax/get-appoinement-details`,
+                type: "GET",
+                data: {
+                    uuid: appoinementId
+                },
+                success: function(response) {
+                    console.log(response.data);
+                    if (response) {
+                        if (response.data.is_active !== 1 && response.data.is_active !== 4) {
+                            //0:pending,1:complete,2:cancle,3:reschedule,4:reject
+                            $('#listAppoinementDetailsModal').modal('show');
+                            $('#inspectionId').val(response.data.uuid);
+                            $('#inspectionType').val(response.data.inspection_type_id).change();
+                            $('#insp_customer_name').text(response.data.customers.name);
+                            $('#insp_customer_phone').text(response.data.customers.mobile_number);
+                            $('#insp_customer_time').text(new Date(response.data.insp_start_datetime)
+                                .toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true // Change to 24-hour format
+                                }) + ' - ' + new Date(response.data.insp_end_datetime)
+                                .toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true // Change to 24-hour format
+                                }));
+                            $('#insp_customer_date').text(new Date(response.data.insp_start_datetime)
+                                .toLocaleDateString());
+                            $('.referral_remove').attr('data-uuid', response.data
+                                .uuid); // Ensure data-uuid is set
+                            // $('.referral_remove').attr(response.data.customers.address);
+                        } else {
+                            $('#listAppoinementDetailsModal').modal('show');
+                            $('#inspectionId').val(response.data.uuid);
+                            $('#inspectionType').val(response.data.inspection_type_id).change();
+                            $('#insp_customer_name').text(response.data.customers.name);
+                            $('#insp_customer_phone').text(response.data.customers.mobile_number);
+                            $('#insp_customer_time').text(new Date(response.data.insp_start_datetime)
+                                .toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true // Change to 24-hour format
+                                }) + ' - ' + new Date(response.data.insp_end_datetime)
+                                .toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true // Change to 24-hour format
+                                }));
+                            $('#insp_customer_date').text(new Date(response.data.insp_start_datetime)
+                                .toLocaleDateString());
+
+                            let appointmentStatus = '';
+                            switch (response.data.is_active) {
+                                case 0:
+                                    appointmentStatus = 'Pending';
+                                    $('.appoyment-status').addClass('chip-pending').text(
+                                        appointmentStatus);
+                                    break;
+                                case 1:
+                                    appointmentStatus = 'Complete';
+                                    $('.appoyment-status').addClass('chip-completed').text(
+                                        appointmentStatus);
+                                    break;
+                                case 2:
+                                    appointmentStatus = 'Cancelled';
+                                    $('.appoyment-status').addClass('chip-cancelled').text(
+                                        appointmentStatus);
+                                    break;
+                                case 3:
+                                    appointmentStatus = 'Rescheduled';
+                                    $('.appoyment-status').addClass('chip-reschedule').text(
+                                        appointmentStatus);
+                                    break;
+                                default:
+                                    appointmentStatus = 'Unknown Status';
+                                    $('.appoyment-status').addClass('chip-unknown').text(
+                                        appointmentStatus);
+                            }
+                            $('.inspection-complete').hide();
+                            $('.inspection-complete-checkbox').hide();
+                            $('#referral-remove').hide();
+                            $('.re-schedule').hide();
+                            $('.cancel_inspection').hide();
+                        }
+                    }
+                },
+                // whereDate(['insp_start_datetime' => $date])
+                error: function(xhr) {
+                    console.error("Error fetching customer details:", xhr);
+                }
+            });
+        });
