@@ -2,6 +2,95 @@
 
 
 ***************************************************************************************************************8
+
+
+
+***************************************************************************************************************8
+***************************************************************************************************************8
+***************************************************************************************************************8
+***************************************************************************************************************8
+
+####################################
+<div class="date-nav">
+    <button class="ch-btn prev"><i class="fa-solid fa-chevron-left"></i></button>
+    <input type="text" id="datePicker" class="form-control" 
+           value="{{ \Carbon\Carbon::parse($date)->format('d M Y') }}">
+    <button class="ch-btn next"><i class="fa-solid fa-chevron-right"></i></button>
+</div>
+<div id="dataDisplay">
+    <!-- This section will display data fetched via AJAX -->
+    Loading data...
+</div>
+
+$(document).ready(function () {
+    // Initialize date picker
+    $("#datePicker").datepicker({
+        dateFormat: "dd M yy", // Format for the displayed date
+        onSelect: function (dateText) {
+            fetchData(dateText); // Fetch data when a date is selected
+        }
+    });
+
+    // Function to fetch data for a specific date
+    function fetchData(date) {
+        $.ajax({
+            url: '/ajax/get-data-by-date',
+            type: 'GET',
+            data: { date: date },
+            success: function (response) {
+                $('#dataDisplay').html(response); // Update data display
+            },
+            error: function (xhr) {
+                console.error("Error fetching data:", xhr);
+                $('#dataDisplay').html('<p class="text-danger">Failed to load data.</p>');
+            }
+        });
+    }
+
+    // Adjust date when buttons are clicked
+    function adjustDate(days) {
+        let currentDate = $("#datePicker").datepicker("getDate");
+        currentDate.setDate(currentDate.getDate() + days);
+        let formattedDate = $.datepicker.formatDate("dd M yy", currentDate);
+        $("#datePicker").datepicker("setDate", formattedDate); // Update the picker
+        fetchData(formattedDate); // Fetch data for the new date
+    }
+
+    // Previous date button
+    $(".prev").on("click", function () {
+        adjustDate(-1);
+    });
+
+    // Next date button
+    $(".next").on("click", function () {
+        adjustDate(1);
+    });
+
+    // Fetch initial data for the current date
+    fetchData($("#datePicker").val());
+});
+
+
+public function getDataByDate(Request $request)
+{
+    $date = \Carbon\Carbon::createFromFormat('d M Y', $request->input('date'))->toDateString();
+    $data = MyModel::whereDate('created_at', $date)->get();
+
+    return view('partials.data-display', compact('data'))->render();
+}
+
+
+@if($data->isEmpty())
+    <p>No data available for the selected date.</p>
+@else
+    <ul>
+        @foreach($data as $item)
+            <li>{{ $item->name }} - {{ $item->created_at }}</li>
+        @endforeach
+    </ul>
+@endif
+
+####################################
 ***************************************************************************************************************8
 
 <div class="date-picker-wrapper">
