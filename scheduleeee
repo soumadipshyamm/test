@@ -3,6 +3,83 @@
 
 ***************************************************************************************************************8
 ***************************************************************************************************************8
+
+<div class="date-picker-wrapper">
+    <button id="prevDate" class="btn btn-secondary">Previous</button>
+    <input type="date" id="datePicker" class="form-control" value="{{ now()->format('Y-m-d') }}">
+    <button id="nextDate" class="btn btn-secondary">Next</button>
+</div>
+
+$(document).ready(function () {
+    const datePicker = $('#datePicker');
+
+    // Function to fetch data for a specific date
+    function fetchData(date) {
+        $.ajax({
+            url: '/ajax/get-data-by-date', // Laravel route for AJAX
+            type: 'GET',
+            data: { date: date },
+            success: function (response) {
+                // Update the data display section with the response
+                $('#dataDisplay').html(response);
+            },
+            error: function (xhr) {
+                console.error("Error fetching data:", xhr);
+                $('#dataDisplay').html('<p class="text-danger">Failed to load data.</p>');
+            }
+        });
+    }
+
+    // Fetch initial data for the current date
+    fetchData(datePicker.val());
+
+    // Adjust date when buttons are clicked
+    function adjustDate(days) {
+        let currentDate = new Date(datePicker.val());
+        currentDate.setDate(currentDate.getDate() + days);
+        let newDate = currentDate.toISOString().split('T')[0];
+        datePicker.val(newDate);
+        fetchData(newDate); // Fetch data for the new date
+    }
+
+    // Previous date button click
+    $('#prevDate').on('click', function () {
+        adjustDate(-1);
+    });
+
+    // Next date button click
+    $('#nextDate').on('click', function () {
+        adjustDate(1);
+    });
+
+    // Fetch data when the date picker value changes
+    datePicker.on('change', function () {
+        fetchData($(this).val());
+    });
+});
+
+
+public function getDataByDate(Request $request)
+{
+    $date = $request->input('date');
+    // Fetch data based on the date (replace this with your actual data fetching logic)
+    $data = MyModel::whereDate('created_at', $date)->get();
+
+    // Return a view or JSON data
+    return view('partials.data-display', compact('data'))->render();
+}
+
+
+@if($data->isEmpty())
+    <p>No data available for the selected date.</p>
+@else
+    <ul>
+        @foreach($data as $item)
+            <li>{{ $item->name }} - {{ $item->created_at }}</li>
+        @endforeach
+    </ul>
+@endif
+
 ***************************************************************************************************************8
  <script>
             $(document).ready(function() {
