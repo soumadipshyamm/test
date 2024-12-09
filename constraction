@@ -12,7 +12,40 @@
 **************************************************************************************************
 **************************************************************************************************
 **************************************************************************************************
-**************************************************************************************************
+***************************************************
+ public function getInwardStocks(Request $request){
+        $data = [];
+        $authCompany = Auth::guard('company')->user()->company_id ?? Auth::guard('company-api')->user()->company_id;
+
+        $fetchData=InvInward::whereDate('date',$request->date)->where('projects_id',$request->project)->where('company_id',$authCompany)
+        ->orWhereHas('InvInwardStore',function($q) use($request){
+            $q->where('store_warehouses_id',$request->store);
+        })
+        ->get();
+
+
+        $fetchInInWardGoods= $fetchData->map(function($item){
+
+            return $item->invInwardGood->map(function($invGoodDetails){
+
+                return $invGoodDetails->InvInwardGoodDetails;
+            });
+        });
+
+        $flattenedArray = [];
+
+        foreach ($fetchInInWardGoods as $outer) {
+            foreach ($outer as $inner) {
+                foreach ($inner as $item) {
+                    $flattenedArray[] =  $item;
+                }
+            }
+        }
+
+
+        return $fetchData;
+    }
+***********************************************
  $data = [
             [
                 [
