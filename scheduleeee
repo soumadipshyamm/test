@@ -1,6 +1,52 @@
 
 
 
+***************************************************************************************************************8
+***************************************************************************************************************8
+***************************************************************************************************************8
+ <script>
+            $(document).ready(function() {
+                call_calendar();
+            })
+
+            function call_calendar() {
+                var calendar = $('#full_calendar').fullCalendar({
+                    defaultView: 'month',
+                    editable: true,
+                    header: {
+                        left: 'prev,next today',
+                        center: 'title',
+                        right: 'month,agendaWeek,agendaDay'
+                    },
+                    events: [
+                        @foreach ($datas as $key => $event)
+                            {
+                                title: '{{ date('h:i A', strtotime($event['insp_start_datetime'])) ?? 'Event ' . ($key + 1) }}', // Use a title from the event data or a default
+                                start: '{{ date('Y-m-d', strtotime($event['insp_start_datetime'])) }}',
+                                // start: '{{ \Carbon\Carbon::parse($event['insp_start_datetime'])->format('Y-m-d') }}',
+                            },
+                        @endforeach
+                    ],
+
+                    dayClick: function(date, jsEvent, view) {
+                        var formattedDate = date.format(); // Format the date to a string
+                        var url = "{{ route('schedule.appointment.list', ':date') }}"; // Use placeholder
+                        url = url.replace(':date', formattedDate); // Replace placeholder with actual date
+                        window.location.href = url; // Redirect to the constructed URL
+                    }
+                });
+            }
+        </script>
+***************************************************************************************************************8
+<div class="date-nav">
+                    <button class="ch-btn prev"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span>{{ \Carbon\Carbon::parse($date)->format('d M Y') }}</span>
+                    <button class="ch-btn next"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+***************************************************************************************************************8
+
+
+
 $(document).on("click", ".appoinementDetails", function(e) {
     e.preventDefault();
     let appoinementId = $(this).data('uuid');
