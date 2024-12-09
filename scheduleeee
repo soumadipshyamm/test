@@ -1,3 +1,85 @@
+
+
+
+$(document).on("click", ".appoinementDetails", function(e) {
+    e.preventDefault();
+    let appoinementId = $(this).data('uuid');
+    
+    $.ajax({
+        url: APP_URL + `/ajax/get-appoinement-details`,
+        type: "GET",
+        data: {
+            uuid: appoinementId
+        },
+        success: function(response) {
+            if (response) {
+                const data = response.data;
+                
+                // Common elements to both conditions
+                $('#listAppoinementDetailsModal').modal('show');
+                $('#inspectionId').val(data.uuid);
+                $('#inspectionType').val(data.inspection_type_id).change();
+                $('#insp_customer_name').text(data.customers.name);
+                $('#insp_customer_phone').text(data.customers.mobile_number);
+                $('#insp_customer_time').text(
+                    `${new Date(data.insp_start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })} - ${new Date(data.insp_end_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`
+                );
+                $('#insp_customer_date').text(new Date(data.insp_start_datetime).toLocaleDateString());
+                $('.referral_remove').attr('data-uuid', data.uuid);
+
+                // Check for is_active status
+                if (data.is_active !== 1 && data.is_active !== 4) {
+                    // Inspection is not complete or rejected
+                    $('.inspection-complete, .inspection-complete-checkbox, #referral-remove, .re-schedule, .cancel_inspection').show();
+                    $('.appointment-status').removeClass().addClass('appointment-status chip-unknown').text('Unknown Status');
+                } else {
+                    // Handle status cases
+                    let appointmentStatus = '';
+                    let statusClass = '';
+                    
+                    switch (data.is_active) {
+                        case 0:
+                            appointmentStatus = 'Pending';
+                            statusClass = 'chip-pending';
+                            break;
+                        case 1:
+                            appointmentStatus = 'Complete';
+                            statusClass = 'chip-completed';
+                            break;
+                        case 2:
+                            appointmentStatus = 'Cancelled';
+                            statusClass = 'chip-cancelled';
+                            break;
+                        case 3:
+                            appointmentStatus = 'Rescheduled';
+                            statusClass = 'chip-reschedule';
+                            break;
+                        case 4:
+                            appointmentStatus = 'Rejected';
+                            statusClass = 'chip-rejected';
+                            break;
+                        default:
+                            appointmentStatus = 'Unknown Status';
+                            statusClass = 'chip-unknown';
+                    }
+
+                    $('.appointment-status').removeClass().addClass(`appointment-status ${statusClass}`).text(appointmentStatus);
+                    $('.inspection-complete, .inspection-complete-checkbox, #referral-remove, .re-schedule, .cancel_inspection').hide();
+                }
+            }
+        },
+        error: function(xhr) {
+            console.error("Error fetching appointment details:", xhr);
+        }
+    });
+});
+
+
+
+*********************************************************************************************************
+
+
+
   $(document).on("click", ".appoinementDetails", function(e) {
             e.preventDefault();
             let appoinementId = $(this).data('uuid');
