@@ -170,6 +170,101 @@ public function getDataByDate(Request $request)
 @endif
 
 ***************************************************************************************************************8
+
+###############################################################
+$(document).ready(function () {
+    call_calendar();
+});
+
+function call_calendar() {
+    // Initialize FullCalendar
+    var calendar = $('#full_calendar').fullCalendar({
+        defaultView: 'month',
+        editable: false, // Disable editing by default
+        header: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'month,agendaWeek,agendaDay',
+        },
+        events: [
+            @foreach ($datas as $key => $event)
+                {
+                    title: 'Inspection {{ $key + 1 }}: {{ date('h:i A', strtotime($event['insp_start_datetime'])) }}', // Inspection title
+                    start: '{{ date('Y-m-d\TH:i:s', strtotime($event['insp_start_datetime'])) }}', // Start time
+                    description: '{{ $event["details"] ?? "No details available" }}', // Additional details
+                },
+            @endforeach
+        ],
+        eventRender: function (event, element) {
+            // Add a tooltip with inspection details
+            if (event.description) {
+                element.attr('title', event.description);
+            }
+        },
+        dayRender: function (date, cell) {
+            // Calculate total inspections for each day
+            const dayEvents = $('#full_calendar').fullCalendar('clientEvents', function (e) {
+                return moment(e.start).isSame(date, 'day');
+            });
+            if (dayEvents.length > 0) {
+                cell.append(`<div class="total-inspections">Total Inspections: ${dayEvents.length}</div>`);
+            }
+        },
+        dayClick: function (date, jsEvent, view) {
+            // Redirect to details page for the selected date
+            var formattedDate = date.format('YYYY-MM-DD'); // Format date as required
+            var url = "{{ route('schedule.appointment.list', ':date') }}"; // Placeholder route
+            url = url.replace(':date', formattedDate); // Replace placeholder with the actual date
+            window.location.href = url; // Redirect
+        },
+        eventClick: function (event) {
+            // Redirect to event-specific details page
+            var url = "{{ route('schedule.appointment.details', ':id') }}"; // Placeholder route
+            url = url.replace(':id', event.id); // Replace with actual event ID (if available)
+            window.location.href = url; // Redirect
+        },
+    });
+}
+
+222222###############################################################
+
+$(document).ready(function () {
+    call_calendar();
+});
+
+function call_calendar() {
+    var calendar = $('#full_calendar').fullCalendar({
+        defaultView: 'month',
+        editable: true,
+        header: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'month,agendaWeek,agendaDay'
+        },
+
+        // Render events with total count
+        events: [
+            @foreach ($data as $event)
+                {
+                    title: 'Total Inspections: {{ $event['total'] }}', // Display total count
+                    start: '{{ $event['date'] }}',
+                },
+            @endforeach
+        ],
+
+        // Day click action: Redirect to detailed list of inspections for that day
+        dayClick: function (date, jsEvent, view) {
+            var formattedDate = date.format(); // Format the date to a string (YYYY-MM-DD)
+            var url = "{{ route('schedule.appointment.list', ':date') }}"; // Placeholder route
+            url = url.replace(':date', formattedDate); // Replace placeholder with the actual date
+
+            window.location.href = url; // Redirect to the constructed URL
+        }
+    });
+}
+
+
+###############################################################
  <script>
             $(document).ready(function() {
                 call_calendar();
