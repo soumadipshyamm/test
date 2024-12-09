@@ -3,7 +3,44 @@
 
 ***************************************************************************************************************8
 
-
+ <div class="scheduled-list appoinementDetails" data-uuid="{{ $apmtdata->uuid }}">
+                                    <div class="time-box sc-box">
+                                        <i>Time</i>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <p>{{ \Carbon\Carbon::parse($apmtdata?->insp_start_datetime)->format('h:i A') .
+                                                '-' .
+                                                \Carbon\Carbon::parse($apmtdata?->insp_end_datetime)->format('h:i A') ??
+                                                '---' }}
+                                            </p>
+                                            <img src="assets/images/angle-right.png" alt="">
+                                        </div>
+                                    </div>
+                                    <div class="name-box sc-box">
+                                        <div class="time-info">
+                                            <i>Customer Name</i>
+                                            <p> {{ $apmtdata?->customers?->name ?? '---' }}</p>
+                                        </div>
+                                        <div class="time-status">
+                                            @php
+                                                $currentDateTime = \Carbon\Carbon::now();
+                                                $startDateTime = \Carbon\Carbon::parse($apmtdata?->insp_start_datetime);
+                                                $endDateTime = \Carbon\Carbon::parse($apmtdata?->insp_end_datetime);
+                                                $isOngoing = $currentDateTime->between($startDateTime, $endDateTime);
+                                            @endphp
+                                            @if ($status == 0)
+                                                @if ($isOngoing)
+                                                    <span class="scd-chip chip-Ongoing">Ongoing Process</span>
+                                                @endif
+                                            @else
+                                                <span class="scd-chip {{ $color }}">{{ $status }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                    <div class="type-box sc-box">
+                                        <i>Inspection Type</i>
+                                        <p>{{ $apmtdata?->inspectionType?->name ?? '---' }}</p>
+                                    </div>
+                                </div>
 
 ***************************************************************************************************************8
 ***************************************************************************************************************8
