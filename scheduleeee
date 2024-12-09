@@ -43,6 +43,267 @@
                                 </div>
 
 ***************************************************************************************************************8
+#######################################################################################
+<div class="col-lg-6 col-md-6 col-sm-12">
+                                            <div class="address-card">
+                                                <h3>Address</h3>
+                                                <div class="row">
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Building No.</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control"
+                                                                    id="building_number" name="building_number"
+                                                                    value="{{ $datas->profile->building_number ?? '' }}"
+                                                                    {{ isset($datas->profile->building_number) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel">
+                                                            <label for="">Office</label>
+                                                            <div class="form-group">
+                                                                <select name="" id=""
+                                                                    class="form-control" id="office" name="office"
+                                                                    value="{{ $datas->profile->office ?? '' }}"
+                                                                    {{ isset($datas->profile->office) ? 'readonly' : '' }}>
+                                                                    <option value="">--- Select Office ---</option>
+                                                                    {{ getOfficeList(isset($datas->profile->office) ?? '') }}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Unit Number</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control"
+                                                                    id="unit_number" name="unit_number"
+                                                                    value="{{ $datas->profile->unit_number ?? '' }}"
+                                                                    {{ isset($datas->profile->unit_number) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Country</label>
+                                                            <div class="form-group">
+                                                                <select class="form-control select_country" id="country"
+                                                                    name="country"
+                                                                    value="{{ $datas->profile->country_id ?? '' }}"
+                                                                    {{ isset($datas->profile->country_id) ? 'readonly' : '' }}>
+                                                                    <option value="">---Select Country---</option>
+                                                                    {{ getCountry('') }}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Street</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control" id="street"
+                                                                    name="street"
+                                                                    value="{{ $datas->profile->street ?? '' }}"
+                                                                    {{ isset($datas->profile->street) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">State</label>
+                                                            <div class="form-group">
+                                                                <select class="form-control select_state" id="state"
+                                                                    name="state"
+                                                                    value="{{ $datas->profile->state_id ?? '' }}"
+                                                                    {{ isset($datas->profile->state_id) ? 'readonly' : '' }}>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Zip Code</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control" id="zip_code"
+                                                                    name="zip_code"
+                                                                    value="{{ $datas->profile->zip_code ?? '' }}"
+                                                                    {{ isset($datas->profile->zip_code) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">City</label>
+                                                            <div class="form-group">
+                                                                <select name="city" id="city"
+                                                                    class="form-control select_city"
+                                                                    value="{{ $datas?->billingDitails?->city_id ?? '' }}"
+                                                                    {{ isset($datas?->billingDitails?->city_id) ? 'readonly' : '' }}>
+                                                                    <option value="">---Select City---</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel">
+                                                            <label for="">Account No.</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control" id="ac_no"
+                                                                    name="ac_no"
+                                                                    value="{{ $datas->profile->ac_no ?? '' }}"
+                                                                    {{ isset($datas->profile->ac_no) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Address</label>
+                                                            <div class="form-group">
+                                                                <textarea class="form-control " name="address" id="address" cols="1" rows="1"
+                                                                    value="{{ $datas?->profile?->address ?? '' }}" {{ isset($datas?->profile?->address) ? 'readonly' : '' }}></textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {{-- ********************************Billing Address***************************************** --}}
+                                        <div class="col-lg-6 col-md-6 col-sm-12">
+                                            <div class="address-card">
+                                                <h3>Billing Address</h3>
+                                                @if (isset($datas))
+                                                    {{-- <div class="tabconh_right"> --}}
+                                                    <a href="#" id="editBillingAddress" class=""><i
+                                                            class="fas fa-edit fa-sm editBillingAddress"
+                                                            style="color: #63E6BE;"></i></a>
+                                                    {{-- </div> --}}
+                                                @endif
+                                                <div class="row">
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Building No.</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control billing-address"
+                                                                    id="billing_building_number"
+                                                                    name="billing_building_number"
+                                                                    value="{{ $datas?->billingDitails?->building_number ?? '' }}"
+                                                                    {{ isset($datas?->billingDitails?->building_number) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Street</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control billing-address"
+                                                                    id="billing_street" name="billing_street"
+                                                                    value="{{ $datas?->billingDitails?->street ?? '' }}"
+                                                                    {{ isset($datas?->billingDitails?->street) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Unit Number</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control billing-address"
+                                                                    id="billing_unit_number" name="billing_unit_number"
+                                                                    value="{{ $datas?->billingDitails?->unit_number ?? '' }}"
+                                                                    {{ isset($datas?->billingDitails?->unit_number) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Country</label>
+                                                            <div class="form-group">
+                                                                <select name="billing_country_id" id="billing_country_id"
+                                                                    class="form-control billing-address billing_select_country"
+                                                                    {{ isset($datas?->billingDitails?->country_id) ? 'readonly' : '' }}>
+                                                                    <option value="">---Select Country---</option>
+                                                                    {{ getCountry('') }}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Zip Code</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control billing-address"
+                                                                    name="billing_zip_code" id="billing_zip_code"
+                                                                    value="{{ $datas?->billingDitails?->zip_code ?? '' }}"
+                                                                    {{ isset($datas?->billingDitails?->zip_code) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">State</label>
+                                                            <div class="form-group">
+                                                                <select name="billing_state_id" id="billing_state_id"
+                                                                    class="form-control billing-address billing_select_state"
+                                                                    {{ isset($datas?->billingDitails?->state_id) ? 'readonly' : '' }}>
+                                                                    <option value="">---Select State---</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Account No.</label>
+                                                            <div class="form-group">
+                                                                <input type="text" class="form-control billing-address"
+                                                                    name="billing_ac_no" id="billing_ac_no"
+                                                                    value="{{ $datas?->billingDitails?->ac_no ?? '' }}"
+                                                                    {{ isset($datas?->billingDitails?->ac_no) ? 'readonly' : '' }}>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel">
+                                                            <label for="">City</label>
+                                                            <div class="form-group">
+                                                                <select name="billing_city_id" id="billing_city_id"
+                                                                    class="form-control billing-address billing_select_city"
+                                                                    {{ isset($datas?->billingDitails?->city_id) ? 'readonly' : '' }}>
+                                                                    <option value="">---Select City---</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel mb-3">
+                                                            <label for="">Address</label>
+                                                            <div class="form-group">
+                                                                <textarea class="form-control billing-address" name="billing_address" id="billing_address" cols="1"
+                                                                    rows="1" value="{{ $datas?->billingDitails?->address ?? '' }}"
+                                                                    {{ isset($datas?->billingDitails) ? 'readonly' : '' }}></textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-md-6 col-sm-6">
+                                                        <div class="add-form-panel">
+                                                            <label for="">Office</label>
+                                                            <div class="form-group">
+                                                                <select name="billing_Office" id="billing_Office"
+                                                                    class="form-control billing-address"
+                                                                    value="{{ $datas?->billingDitails?->office_id ?? '' }}"
+                                                                    {{ isset($datas?->billingDitails) ? 'readonly' : '' }}>
+                                                                    <option value="">--- Select Office ---</option>
+                                                                    {{ getOfficeList($datas?->billingDitails?->office_id ?? '') }}
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="save-billing-detail"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+#######################################################################################
 ***************************************************************************************************************8
 ***************************************************************************************************************8
 ***************************************************************************************************************8
