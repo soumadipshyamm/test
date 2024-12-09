@@ -541,7 +541,7 @@ function call_calendar() {
 
 
 ###############################################################
- <script>
+QQQQQQQ <script>
             $(document).ready(function() {
                 call_calendar();
             })
@@ -575,14 +575,14 @@ function call_calendar() {
             }
         </script>
 ***************************************************************************************************************8
-<div class="date-nav">
+QQQQQQQQQ <div class="date-nav">
                     <button class="ch-btn prev"><i class="fa-solid fa-chevron-left"></i></button>
                     <span>{{ \Carbon\Carbon::parse($date)->format('d M Y') }}</span>
                     <button class="ch-btn next"><i class="fa-solid fa-chevron-right"></i></button>
                 </div>
 ***************************************************************************************************************8
 
-
+AAAAAAAAAAAAAAAAA
 
 $(document).on("click", ".appoinementDetails", function(e) {
     e.preventDefault();
@@ -661,7 +661,7 @@ $(document).on("click", ".appoinementDetails", function(e) {
 
 *********************************************************************************************************
 
-
+QQQQQQQQQQQQQQQQQQQQQQQQQQ
 
   $(document).on("click", ".appoinementDetails", function(e) {
             e.preventDefault();
