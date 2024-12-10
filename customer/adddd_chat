@@ -173,3 +173,79 @@
     });
 </script>
 @endpush
+*********************************************************************************************
+$(document).ready(function () {
+
+    // Step 1: Edit Button Click
+    $('#editProfileAddress').on('click', function () {
+        // Make inputs editable
+        $('.profile-address').prop('readonly', false);
+        $('select.profile-address').prop('disabled', false);
+    });
+
+    // Step 2: Pre-select Dropdown Values (if available)
+    function setDropdownValues() {
+        var countryId = "{{ $datas->profile->country_id ?? '' }}";
+        var stateId = "{{ $datas->profile->state_id ?? '' }}";
+        var cityId = "{{ $datas->billingDitails->city_id ?? '' }}";
+        var office = "{{ $datas->profile->office ?? '' }}";
+
+        // Set selected value for Country
+        if (countryId) {
+            $('#country').val(countryId).trigger('change');  // Trigger change to update states
+        }
+
+        // Set selected value for State
+        if (stateId) {
+            $('#state').val(stateId).trigger('change');  // Trigger change to update cities
+        }
+
+        // Set selected value for City
+        if (cityId) {
+            $('#city').val(cityId);
+        }
+
+        // Set selected value for Office
+        if (office) {
+            $('#office').val(office);
+        }
+    }
+
+    // Call function to set dropdown values
+    setDropdownValues();
+
+    // Step 3: jQuery Validation for Address Form
+    $('#saveProfileForm').on('submit', function (e) {
+        e.preventDefault();  // Prevent default form submission
+
+        var isValid = true;
+        $('.profile-address').each(function () {
+            var value = $(this).val();
+            if ($(this).prop('required') && !value) {
+                isValid = false;
+                $(this).addClass('is-invalid');
+            } else {
+                $(this).removeClass('is-invalid');
+            }
+        });
+
+        if (isValid) {
+            // Submit the form or make AJAX request
+            alert("Form is valid. Submitting...");
+            // $(this).submit(); // Uncomment this to actually submit the form
+        } else {
+            alert("Please fill out all required fields.");
+        }
+    });
+
+});
+**************************************************************************************
+ $('#editProfileAddress').on('click', function (e) {
+            e.preventDefault();
+
+            // Enable input fields for editing
+            $('.profile-address').prop('readonly', false);
+            $('.profile-address').prop('disabled', false);
+        });
+**************************************************************************************
+**************************************************************************************
