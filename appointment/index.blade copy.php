@@ -263,7 +263,214 @@ $(document).on("click", ".appoinementDetails", function(e) {
 </script>
 @endpush
 
-****************************************************************************
+*****************************only js***********************************************
+
+    @push('script')
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script> <!-- Include jQuery UI for datepicker -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+
+    <script>
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+
+        // Cache DOM elements to optimize performance
+        const $userAddFrmAppoinment = $("#userAddFrmAppoinment");
+        const $customerId = $('#customer_id');
+        const $addAppoinementModal = $('#addAppoinementModal');
+        const APP_URL = "{{ config('app.url') }}";
+
+        $(".userAddAppoinment").on('click', function() {
+            $userAddFrmAppoinment.submit();
+        });
+
+        $(".customerAddAppoinment").on('click', function(e) {
+            e.preventDefault();
+            if ($customerId.val()) {
+                $userAddFrmAppoinment.submit();
+            }
+        });
+
+        // Reusable function for appending customer details
+        function appendCustomerDetails(data) {
+            $('.customer_details').empty().append(`
+                <div>
+                    <label>Name: ${data.name || 'N/A'}</label><br>
+                    <label>Email: ${data.email || 'N/A'}</label><br>
+                    <label>Mobile Number-1: ${data.mobile_number || 'N/A'}</label><br>
+                    <label>Mobile Number-2: ${data.alternate_mobile_number || 'N/A'}</label>
+                </div>
+            `);
+        }
+
+        $('.newCustomer').on('click', function(e) {
+            e.preventDefault();
+            let formData = new FormData(document.getElementById("newCustomerAddFrm"));
+
+            $.ajax({
+                url: `${APP_URL}/customer/add`,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    $addAppoinementModal.modal('show');
+                    $customerId.val(response.data.user.uuid);
+                    appendCustomerDetails(response.data.user);
+                },
+                error: function(xhr) {
+                    console.error("Error adding customer:", xhr);
+                }
+            });
+        });
+
+        $(document).on('change', ".customerName", function() {
+            const customerName = $(this).val();
+            
+            $.ajax({
+                url: `${APP_URL}/ajax/get-customer-details`,
+                type: "GET",
+                data: { customerName: customerName },
+                success: function(response) {
+                    if (response) {
+                        $addAppoinementModal.modal('show');
+                        $customerId.val(response.uuid);
+                        appendCustomerDetails(response);
+                    }
+                },
+                error: function(xhr) {
+                    console.error("Error fetching customer details:", xhr);
+                }
+            });
+        });
+
+        function loadSelectOptions(endpoint, target, data) {
+            $.ajax({
+                type: "POST",
+                url: `${APP_URL}/ajax/${endpoint}`,
+                data: { id: data },
+                success: function(response) {
+                    const options = response.status ? response.data.map(el =>
+                        `<option value="${el.id}">${el.name}</option>`
+                    ).join('') : `<option value="">---Select---</option>`;
+                    $(target).html(options);
+                },
+                error: function() {
+                    $(target).html(`<option value="">---Select---</option>`);
+                }
+            });
+        }
+
+        // Load states and cities based on country and state selection
+        $(document).on("change", ".select_country", function() {
+            loadSelectOptions("state-by-country", ".select_state", $(this).val());
+        });
+
+        $(document).on("change", ".select_state", function() {
+            loadSelectOptions("city-by-state", ".select_city", $(this).val());
+        });
+
+        // Fetch appointment details and display modal
+        $(document).on("click", ".appoinementDetails", function(e) {
+            e.preventDefault();
+            let appointmentId = $(this).data('uuid');
+
+            $.ajax({
+                url: `${APP_URL}/ajax/get-appoinement-details`,
+                type: "GET",
+                data: { uuid: appointmentId },
+                success: function(response) {
+                    const data = response.data;
+                    if (data) {
+                        const timeStart = new Date(data.insp_start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                        const timeEnd = new Date(data.insp_end_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+                        const date = new Date(data.insp_start_datetime).toLocaleDateString();
+
+                        $('#listAppoinementDetailsModal').modal('show');
+                        $('#inspectionId').val(data.uuid);
+                        $('#insp_customer_name').text(data.customers.name);
+                        $('#insp_customer_phone').text(data.customers.mobile_number);
+                        $('#insp_customer_time').text(`${timeStart} - ${timeEnd}`);
+                        $('#insp_customer_date').text(date);
+                        
+                        updateAppointmentStatus(data.is_active);
+                    }
+                },
+                error: function(xhr) {
+                    console.error("Error fetching appointment details:", xhr);
+                }
+            });
+        });
+
+        function updateAppointmentStatus(status) {
+            const $statusChip = $('.appoyment-status');
+            const statusMap = {
+                0: { label: 'Pending', class: 'chip-pending' },
+                1: { label: 'Complete', class: 'chip-completed' },
+                2: { label: 'Cancelled', class: 'chip-cancelled' },
+                3: { label: 'Rescheduled', class: 'chip-reschedule' }
+            };
+            $statusChip.removeClass().addClass(`chip ${statusMap[status].class}`).text(statusMap[status].label);
+        }
+
+        // Function to update inspection status
+        function inspectionStatusUpdate(uuid, status) {
+            $.ajax({
+                type: "GET",
+                url: `${APP_URL}/ajax/get-inspection-status-update`,
+                data: { uuid: uuid, status: status },
+                success: function() {
+                    document.location.reload(true);
+                },
+                error: function(xhr) {
+                    console.error("Error updating inspection status:", xhr);
+                }
+            });
+        }
+
+        $(document).on('click', '.inspectionComplete, .cancel_inspection', function() {
+            inspectionStatusUpdate($('#inspectionId').val(), $(this).data('status'));
+        });
+
+        // Datepicker logic
+        $(document).ready(function() {
+            const $datePicker = $("#datePicker");
+
+            $datePicker.datepicker({
+                dateFormat: "dd M yy",
+                onSelect: function() {
+                    fetchData($datePicker.datepicker("getDate"));
+                }
+            });
+
+            function fetchData(date) {
+                const formattedDate = $.datepicker.formatDate("yy-mm-dd", date);
+                window.location.href = `${APP_URL}/schedule/appointment-list/${formattedDate}`;
+            }
+
+            function adjustDate(days) {
+                let currentDate = $datePicker.datepicker("getDate");
+                if (currentDate) {
+                    currentDate.setDate(currentDate.getDate() + days);
+                    $datePicker.datepicker("setDate", currentDate);
+                    fetchData(currentDate);
+                }
+            }
+
+            $(".prev").on("click", function() {
+                adjustDate(-1);
+            });
+
+            $(".next").on("click", function() {
+                adjustDate(1);
+            });
+        });
+    </script>
+@endpush
+
 ****************************************************************************
 ****************************************************************************
 ****************************************************************************
