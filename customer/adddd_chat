@@ -1,0 +1,175 @@
+@push('script')
+<script>
+    $.ajaxSetup({
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        }
+    });
+
+    // Utility Functions
+    function toggleReadonly(fields, readonly = true) {
+        fields.forEach(field => field.setAttribute('readonly', readonly));
+    }
+
+    function handleAjaxError(xhr, defaultMessage) {
+        console.error('Error:', xhr.responseText);
+        toastr.error(defaultMessage || 'An error occurred. Please try again.', 'Error');
+    }
+
+    function appendSaveButton(selector, className, text) {
+        if ($(`.${className}`).length === 0) {
+            const saveButton = $('<button>', {
+                class: `btn btn-primary ${className}`,
+                text: text,
+                type: 'button'
+            });
+            $(selector).append(saveButton);
+        }
+    }
+
+    // Event Listeners
+    $(document).on('click', '.customerAddAppoinment', function (e) {
+        e.preventDefault();
+        const customerId = $('#customer_id').val();
+        if (customerId) {
+            $("#userAddFrmAppoinment").submit();
+        } else {
+            $("#addNewCustomerDetailsForm").submit();
+            $("#userAddFrmAppoinment").submit();
+        }
+    });
+
+    $(document).on('click', '.addNewCustomer', function () {
+        $("#addNewCustomerDetailsForm").submit();
+    });
+
+    // Edit and Save Billing Address
+    $(document).on("click", ".editBillingAddress", function () {
+        const billingFields = document.querySelectorAll('.billing-address');
+        toggleReadonly(billingFields, false);
+        appendSaveButton('.save-billing-detail', 'save-billing-address', 'Save');
+    });
+
+    $(document).on("click", ".save-billing-address", function () {
+        const billingData = {
+            customer_id: $('#uuid').val(),
+            billing_building_number: $('#billing_building_number').val(),
+            billing_street: $('#billing_street').val(),
+            billing_unit_number: $('#billing_unit_number').val(),
+            billing_country: $('#billing_country_id').val(),
+            billing_state: $('#billing_state_id').val(),
+            billing_city: $('#billing_city_id').val(),
+            billing_zip_code: $('#billing_zip_code').val(),
+            billing_ac_no: $('#billing_ac_no').val(),
+            billing_office: $('#billing_Office').val(),
+        };
+
+        $.post(`${APP_URL}/ajax/add-customer-billing-details`, billingData)
+            .done(response => {
+                if (response.status) {
+                    toggleReadonly(document.querySelectorAll('.billing-address'));
+                    $('.save-billing-detail').empty();
+                    toastr.success('Billing address saved successfully!', 'Success');
+                } else {
+                    toastr.error('Failed to save billing address. Please try again.', 'Error');
+                }
+            })
+            .fail(xhr => handleAjaxError(xhr, 'Error saving billing address.'));
+    });
+
+    // Edit and Save Profile Address
+    $(document).on("click", ".editProfileAddress", function () {
+        const profileFields = document.querySelectorAll('.profile-address');
+        toggleReadonly(profileFields, false);
+        appendSaveButton('.save-profile-detail', 'save-profile-address', 'Save');
+    });
+
+    $(document).on("click", ".save-profile-address", function () {
+        const profileData = {
+            customer_id: $('#uuid').val(),
+            profile_building_number: $('#building_number').val(),
+            profile_street: $('#street').val(),
+            profile_unit_number: $('#unit_number').val(),
+            profile_country: $('#country').val(),
+            profile_state: $('#state').val(),
+            profile_city: $('#city').val(),
+            profile_zip_code: $('#zip_code').val(),
+            profile_ac_no: $('#ac_no').val(),
+            profile_office: $('#office').val(),
+            profile_address: $('#address').val(),
+        };
+
+        $.post(`${APP_URL}/ajax/add-customer-profile-details`, profileData)
+            .done(response => {
+                if (response.status) {
+                    toggleReadonly(document.querySelectorAll('.profile-address'));
+                    $('.save-profile-detail').empty();
+                    toastr.success('Profile address saved successfully!', 'Success');
+                } else {
+                    toastr.error('Failed to save profile address. Please try again.', 'Error');
+                }
+            })
+            .fail(xhr => handleAjaxError(xhr, 'Error saving profile address.'));
+    });
+
+    // Country, State, and City Dropdowns
+    $(document).on("change", ".select_country, .billing_select_country", function () {
+        const targetStateClass = $(this).hasClass('billing_select_country') ? '.billing_select_state' : '.select_state';
+        stateByCountry($(this).val(), targetStateClass);
+    });
+
+    $(document).on("change", ".select_state, .billing_select_state", function () {
+        const targetCityClass = $(this).hasClass('billing_select_state') ? '.billing_select_city' : '.select_city';
+        getCity($(this).val(), targetCityClass);
+    });
+
+    function stateByCountry(countryId, targetClass) {
+        $.post(`${APP_URL}/ajax/state-by-country`, { id: countryId })
+            .done(response => {
+                const options = response.status 
+                    ? response.data.map(state => `<option value="${state.id}">${state.name}</option>`).join('')
+                    : '<option value="">---Select---</option>';
+                $(targetClass).html(options);
+            })
+            .fail(() => $(targetClass).html('<option value="">---Select---</option>'));
+    }
+
+    function getCity(stateId, targetClass) {
+        $.post(`${APP_URL}/ajax/city-by-state`, { id: stateId })
+            .done(response => {
+                const options = response.status 
+                    ? response.data.map(city => `<option value="${city.id}">${city.name}</option>`).join('')
+                    : '<option value="">---Select---</option>';
+                $(targetClass).html(options);
+            })
+            .fail(() => $(targetClass).html('<option value="">---Select---</option>'));
+    }
+
+    // Fetch and Display Appointment Details
+    $(document).on('click', '.appoinementDetails', function (e) {
+        e.preventDefault();
+        const appointmentId = $(this).data('uuid');
+        $.get(`${APP_URL}/ajax/get-appoinement-details`, { uuid: appointmentId })
+            .done(response => {
+                if (response) {
+                    $('#listAppoinementDetailsModal').modal('show');
+                    // Fill modal with appointment data...
+                }
+            })
+            .fail(xhr => handleAjaxError(xhr));
+    });
+
+    // Inspection Status Update
+    function inspectionStatusUpdate(uuid, status) {
+        $.get(`${APP_URL}/ajax/get-inspection-status-update`, { uuid, status })
+            .done(() => document.location.reload(true))
+            .fail(xhr => handleAjaxError(xhr));
+    }
+
+    $(document).on('click', '.inspection_complete, .cancel_inspection', function () {
+        const uuid = $('#inspectionId').val();
+        const status = $(this).data('status');
+        inspectionStatusUpdate(uuid, status);
+    });
+</script>
+@endpush
