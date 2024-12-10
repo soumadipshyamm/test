@@ -3,3 +3,40 @@
 
 2. view in mysql
 3.
+
+
+**************************************************************************************************************
+**************************************************************************************************************
+**************************************************************************************************************
+**************************************************************************************************************
+<?php
+function bubbleSort(&$arr) {
+    $n = count($arr); // Get the number of elements in the array
+
+    // Loop through the entire array
+    for ($i = 0; $i < $n - 1; $i++) {
+        // Inner loop to compare adjacent elements
+        for ($j = 0; $j < $n - $i - 1; $j++) {
+            // Swap if the current element is greater than the next element
+            if ($arr[$j] > $arr[$j + 1]) {
+                $temp = $arr[$j];       // Store the current element in a temporary variable
+                $arr[$j] = $arr[$j + 1]; // Replace the current element with the next element
+                $arr[$j + 1] = $temp;   // Replace the next element with the stored value
+            }
+        }
+    }
+}
+
+// Example array
+$numbers = [64, 34, 25, 12, 22, 11, 90];
+echo "Original Array:\n";
+print_r($numbers);
+
+// Sort the array
+bubbleSort($numbers);
+
+echo "\nSorted Array:\n";
+print_r($numbers);
+?>
+
+**************************************************************************************************************
