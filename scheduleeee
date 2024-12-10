@@ -1,7 +1,84 @@
 
 
 
-***************************************************************************************************************8
+*********************************************
+aaaaaas
+
+.fc-event {
+    background-color: #f0f8ff; /* Light background for events */
+    border: 1px solid #ccc;
+    color: #333;
+    padding: 5px;
+}
+
+.fc-day:hover {
+    background-color: #e8f0fe; /* Highlight day on hover */
+}
+
+.fc-title {
+    font-weight: bold;
+}
+
+.view-details {
+    color: #007bff;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.fc-day-number {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+$(document).ready(function () {
+    call_calendar();
+});
+
+function call_calendar() {
+    var calendar = $('#full_calendar').fullCalendar({
+        defaultView: 'month',
+        editable: true,
+        header: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'month,agendaWeek,agendaDay'
+        },
+        events: [
+            @foreach ($inspections as $inspection)
+                {
+                    title: 'Inspection ({{ $inspection->count }})', // Display the inspection count in the event title
+                    start: '{{ $inspection->date }}',
+                    allDay: true, // Ensure the event is shown as an all-day event
+                    description: `<a href="javascript:void(0)" class="view-details" data-date="{{ $inspection->date }}">View Details</a>`, // Add the View Details link
+                },
+            @endforeach
+        ],
+        
+        eventRender: function (event, element) {
+            // Customize the appearance of the event
+            element.find('.fc-title').append('<br>' + event.description); // Add the View Details link below the title
+        },
+
+        dayClick: function (date, jsEvent, view) {
+            // Redirect to the detailed inspection list for the clicked date
+            var formattedDate = date.format(); // Format the clicked date
+            var url = "{{ route('schedule.appointment.list', ':date') }}"; // Define the dynamic route for the date
+            url = url.replace(':date', formattedDate); // Replace placeholder with the actual date
+            window.location.href = url; // Redirect to the constructed URL
+        }
+    });
+
+    // Handle the "View Details" click separately
+    $(document).on('click', '.view-details', function () {
+        var date = $(this).data('date');
+        var url = "{{ route('schedule.appointment.details', ':date') }}"; // Define the detailed view route
+        url = url.replace(':date', date); // Replace the placeholder with the date
+        window.location.href = url; // Redirect to the constructed URL
+    });
+}
+
+
+******************************************************************8
 
  <div class="scheduled-list appoinementDetails" data-uuid="{{ $apmtdata->uuid }}">
                                     <div class="time-box sc-box">
