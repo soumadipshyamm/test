@@ -1,4 +1,4 @@
-[12/10, 11:44 AM] Babu (Tapas): sudo mkdir -p /var/www/html/phpmyadmin
+ sudo mkdir -p /var/www/html/phpmyadmin
 
 wget https://files.phpmyadmin.net/phpMyAdmin/5.1.1/phpMyAdmin-5.1.1-all-languages.tar.gz
 
@@ -9,6 +9,7 @@ sudo tar -xvf phpMyAdmin-5.1.1-all-languages.tar.gz -C /var/www/html/phpmyadmin 
 ls -l /var/www/html/phpmyadmin
 
 http://server-ip/phpmyadmin/
-[12/10, 11:45 AM] Babu (Tapas): parle puro phpmyadmin k tor project er public er modhye add koris
+
+parle puro phpmyadmin k tor project er public er modhye add koris
 
 http://server-ip/public/phpmyadmin/
