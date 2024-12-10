@@ -7,7 +7,188 @@
 
 **************************************************************************************************************
 **************************************************************************************************************
+Classes: Blueprints for creating objects.
+Objects: Instances of classes.
+Encapsulation: Wrapping data and methods in a class.
+Inheritance: Ability to inherit properties and methods from another class.
+Polymorphism: Ability to call the same method on different objects and have different behaviors.
+Abstraction: Hiding the complexity and showing only the necessary details.
+Public: Methods and properties are accessible from anywhere.
+Private: Methods and properties are only accessible within the class where they are defined.
+Protected: Methods and properties are accessible within the class and by subclasses (derived classes).
+Abstract Class:
+Can have both abstract and non-abstract methods (methods with implementation).
+Can have properties (variables).
+A class can inherit only one abstract class.
+Interface:
+Can only have method declarations (no method implementations).
+A class can implement multiple interfaces.
+All methods in an interface are abstract (no need for the abstract keyword).
+ Polymorphism:Polymorphism means "many shapes" and allows one method to have different implementations in different classes. There are two types of polymorphism in PHP:
+
+Compile-time Polymorphism (Method Overloading): Same method name with different arguments (not directly supported in PHP).
+Run-time Polymorphism (Method Overriding): Same method name but with different behavior in different classes.
+
+__construct(): The constructor method is automatically called when an object is created. It is used to initialize the object (e.g., setting properties).
+
+__destruct(): The destructor method is automatically called when the object is destroyed or goes out of scope. It is used for cleanup (e.g., closing database connections).
+
+ Encapsulation:Encapsulation is the concept of wrapping the data (properties) and methods (functions) in a class, and restricting direct access to the data from outside the class. 
+This is done using access modifiers like public, private, and protected.
+
+final method: A method marked as final cannot be overridden by subclasses.
+final class: A class marked as final cannot be extended.
+
+magic
+    __construct(): Constructor.
+__destruct(): Destructor.
+__get(): Accessing undefined or inaccessible properties.
+__set(): Setting undefined or inaccessible properties.
+__call(): Handling method calls to undefined methods.
+
+
 **************************************************************************************************************
+// Abstract class
+abstract class Animal {
+    abstract public function sound(); // Abstract method
+    public function eat() { // Regular method
+        echo "Eating...\n";
+    }
+}
+
+// Interface
+interface Shape {
+    public function area();
+}
+
+class Dog extends Animal {
+    public function sound() {
+        echo "Woof!";
+    }
+}
+
+class Circle implements Shape {
+    public function area() {
+        return 3.14 * 5 * 5; // Example for a circle's area
+    }
+}
+
+*********************
+class MyClass {
+    public function __construct() {
+        echo "Object created.\n";
+    }
+
+    public function __destruct() {
+        echo "Object destroyed.\n";
+    }
+}
+
+$obj = new MyClass(); // Object created
+unset($obj); // Object destroyed
+*********************
+Encapsulation
+
+class BankAccount {
+    private $balance;
+
+    public function __construct($balance) {
+        $this->balance = $balance;
+    }
+
+    public function deposit($amount) {
+        $this->balance += $amount;
+    }
+
+    public function getBalance() {
+        return $this->balance;
+    }
+}
+
+$account = new BankAccount(1000);
+$account->deposit(500);
+echo $account->getBalance(); // Outputs: 1500
+
+
+**************************************************************************************************************
+12121 is a palindrome.
+
+<?php
+function isPalindrome($string) {
+    // Remove spaces, punctuation, and convert to lowercase
+    $cleanString = strtolower(preg_replace("/[^A-Za-z0-9]/", "", $string));
+
+    // Reverse the cleaned string
+    $reversedString = strrev($cleanString);
+
+    // Compare the cleaned string with its reverse
+    return $cleanString === $reversedString;
+}
+
+// Test the function
+$input = "A man, a plan, a canal: Panama";
+if (isPalindrome($input)) {
+    echo "'$input' is a palindrome.\n";
+} else {
+    echo "'$input' is not a palindrome.\n";
+}
+?>
+
+**************************************************************************************************************
+Fibonacci Series: 0 1 1 2 3 5 8 13 21 34
+
+<?php
+function fibonacci($n) {
+    $a = 0; // First Fibonacci number
+    $b = 1; // Second Fibonacci number
+
+    echo "Fibonacci Series: ";
+    for ($i = 0; $i < $n; $i++) {
+        echo $a . " "; // Print the current Fibonacci number
+        $next = $a + $b; // Calculate the next Fibonacci number
+        $a = $b; // Update the first number
+        $b = $next; // Update the second number
+    }
+}
+
+$n = 10; // Number of terms
+fibonacci($n);
+?>
+
+**************************************************************************************************************
+1
+11
+111
+1111
+<?php
+$rows = 4; // Number of rows
+
+for ($i = 1; $i <= $rows; $i++) {
+    for ($j = 1; $j <= $i; $j++) {
+        echo "1"; // Print '1'
+    }
+    echo "\n"; // Move to the next line after each row
+}
+?>
+
+**************************************************************************************************************
+101010
+101010
+101010
+101010
+<?php
+$rows = 4;  // Number of rows
+$columns = 6; // Number of columns
+
+for ($i = 0; $i < $rows; $i++) {
+    for ($j = 0; $j < $columns; $j++) {
+        // Alternate between 1 and 0
+        echo ($j % 2 == 0) ? "1" : "0";
+    }
+    echo "\n"; // Move to the next line after each row
+}
+?>
+
 **************************************************************************************************************
 <?php
 function bubbleSort(&$arr) {
