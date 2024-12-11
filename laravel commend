@@ -263,3 +263,70 @@ class BackupAndMigrate extends Command
     }
 }
 
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\Process\Process;
+
+class BackupDatabase extends Command
+{
+    /**
+     * The name and signature of the console command.
+     *
+     * @var string
+     */
+    protected $signature = 'backup:database {filename?}';
+
+    /**
+     * The console command description.
+     *
+     * @var string
+     */
+    protected $description = 'Backup the database as a file';
+
+    /**
+     * Execute the console command.
+     *
+     * @return int
+     */
+    public function handle()
+    {
+        // Get the database configuration
+        $dbHost = env('DB_HOST', '127.0.0.1');
+        $dbPort = env('DB_PORT', '3306');
+        $dbName = env('DB_DATABASE', 'laravel');
+        $dbUser = env('DB_USERNAME', 'root');
+        $dbPass = env('DB_PASSWORD', '');
+
+        // Generate the backup filename
+        $filename = $this->argument('filename') ?? 'backup_' . date('Y_m_d_His') . '.sql';
+        $backupPath = storage_path("app/{$filename}");
+
+        // Prepare the command
+        $command = sprintf(
+            'mysqldump -h%s -P%s -u%s -p%s %s > %s',
+            escapeshellarg($dbHost),
+            escapeshellarg($dbPort),
+            escapeshellarg($dbUser),
+            escapeshellarg($dbPass),
+            escapeshellarg($dbName),
+            escapeshellarg($backupPath)
+        );
+
+        // Execute the command
+        $process = Process::fromShellCommandline($command);
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            $this->info("Database backup completed successfully: {$filename}");
+        } else {
+            $this->error('Failed to back up the database.');
+            $this->error($process->getErrorOutput());
+        }
+
+        return 0;
+    }
+}
