@@ -37,3 +37,75 @@ class BackupAndMigrate extends Command
         $this->info('Migrations executed successfully.');
     }
 }
+
+
+hbhhhhhhhhhhhhhhhhhhhhhhjnnnnjnjnnnnnnnnnbbnnnnnnnjj
+<?php
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+
+class BackupAndMigrate extends Command
+{
+    protected $signature = 'backup-and-migrate';
+    protected $description = 'Backup SQLite database, create a new one, and run migrations';
+
+    public function handle()
+    {
+        // Step 1: Create a SQLite database if it doesn't exist
+        $databasePath = database_path('database.sqlite');
+        if (!file_exists($databasePath)) {
+            File::put($databasePath, '');
+            $this->info('SQLite database created.');
+        }
+
+        // Step 2: Backup existing data
+        $backupPath = storage_path('backups');
+        if (!is_dir($backupPath)) {
+            mkdir($backupPath, 0755, true);
+        }
+
+        $backupFile = $backupPath . '/backup_' . date('Y_m_d_H_i_s') . '.sql';
+
+        // Get list of all tables in the SQLite database
+        $tables = DB::select('SELECT name FROM sqlite_master WHERE type="table"');
+
+        foreach ($tables as $table) {
+            $tableName = $table->name;
+
+            // Skip internal SQLite tables
+            if ($tableName == 'sqlite_sequence' || $tableName == 'migrations') {
+                continue;
+            }
+
+            $data = DB::table($tableName)->get();
+            $sql = "INSERT INTO $tableName VALUES ";
+
+            foreach ($data as $row) {
+                $sql .= "(" . implode(',', array_map(fn($value) => $this->formatValue($value), (array)$row)) . "),";
+            }
+
+            $sql = rtrim($sql, ',') . ";";
+            file_put_contents($backupFile, $sql, FILE_APPEND);
+        }
+
+        $this->info('Backup created at: ' . $backupFile);
+
+        // Step 3: Run migrations
+        $this->call('migrate');
+        $this->info('Migrations executed successfully.');
+    }
+
+    // Helper function to handle SQL formatting
+    private function formatValue($value)
+    {
+        if (is_null($value)) {
+            return 'NULL';
+        }
+        if (is_numeric($value)) {
+            return $value;
+        }
+        return "'" . addslashes($value) . "'";
+    }
+}
