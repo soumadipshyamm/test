@@ -330,3 +330,85 @@ class BackupDatabase extends Command
         return 0;
     }
 }
+
+
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+
+class BackupDatabase extends Command
+{
+    // Command signature
+    protected $signature = 'db:backup 
+                            {--path= : The file path where the backup will be saved} 
+                            {--log= : Log file path for the backup process}';
+
+    // Command description
+    protected $description = 'Backup the database to a file and log the process';
+
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
+    public function handle()
+    {
+        $this->info('Starting database backup...');
+
+        // Get database configuration from the .env file
+        $dbHost = env('DB_HOST');
+        $dbPort = env('DB_PORT', 3306);
+        $dbName = env('DB_DATABASE');
+        $dbUser = env('DB_USERNAME');
+        $dbPass = env('DB_PASSWORD');
+
+        // Determine file path for the backup
+        $filePath = $this->option('path') ?? storage_path('backups/' . $dbName . '_' . date('Y-m-d_H-i-s') . '.sql');
+        $logPath = $this->option('log') ?? storage_path('logs/db_backup.log');
+
+        // Ensure the backup directory exists
+        $backupDirectory = dirname($filePath);
+        if (!is_dir($backupDirectory)) {
+            mkdir($backupDirectory, 0755, true);
+        }
+
+        // Set up logging
+        $logger = Log::build([
+            'driver' => 'single',
+            'path' => $logPath,
+        ]);
+
+        // Create the mysqldump command
+        $dumpCommand = sprintf(
+            'mysqldump --host=%s --port=%d --user=%s --password=%s %s > %s',
+            escapeshellarg($dbHost),
+            escapeshellarg($dbPort),
+            escapeshellarg($dbUser),
+            escapeshellarg($dbPass),
+            escapeshellarg($dbName),
+            escapeshellarg($filePath)
+        );
+
+        // Execute the command
+        $this->info('Executing backup command...');
+        $output = null;
+        $resultCode = null;
+        exec($dumpCommand, $output, $resultCode);
+
+        // Log and handle the result
+        if ($resultCode === 0) {
+            $message = "Backup successful! File saved to: {$filePath}";
+            $this->info($message);
+            $logger->info($message);
+        } else {
+            $error = "Backup failed with error code {$resultCode}. Check the mysqldump command and permissions.";
+            $this->error($error);
+            $logger->error($error);
+        }
+    }
+}
+
