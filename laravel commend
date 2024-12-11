@@ -187,4 +187,79 @@ class BackupAndMigrate extends Command
     }
 }
 
+'connections' => [
+    'sqlite' => [
+        'driver' => 'sqlite',
+        'url' => env('DATABASE_URL'),
+        'database' => database_path('database.sqlite'),
+        'prefix' => '',
+        'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+    ],
+],
+
+
+<?php
+
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+
+class BackupAndMigrate extends Command
+{
+    protected $signature = 'backup-and-migrate';
+    protected $description = 'Backup SQLite database, create a new one, and run migrations';
+
+    public function handle()
+    {
+        // Step 1: Create a SQLite database
+        $databasePath = database_path('database.sqlite');
+        if (!file_exists($databasePath)) {
+            touch($databasePath);
+            $this->info('SQLite database created at: ' . $databasePath);
+        } else {
+            $this->info('SQLite database already exists at: ' . $databasePath);
+        }
+
+        // Step 2: Backup existing data
+        $this->info('Starting database backup...');
+        $backupPath = storage_path('backups');
+        if (!is_dir($backupPath)) {
+            mkdir($backupPath, 0755, true);
+        }
+
+        $backupFile = $backupPath . '/backup_' . date('Y_m_d_H_i_s') . '.sql';
+
+        try {
+            DB::connection()->getPdo(); // Check if DB is accessible
+            $tables = DB::select('SHOW TABLES'); // MySQL only; adapt for other DBs
+
+            $databaseName = env('DB_DATABASE');
+            $sqlDump = '';
+
+            foreach ($tables as $table) {
+                $tableName = $table->{"Tables_in_$databaseName"};
+                $data = DB::table($tableName)->get();
+
+                $sqlDump .= "TRUNCATE TABLE $tableName;\n";
+
+                foreach ($data as $row) {
+                    $values = implode(',', array_map(fn($value) => "'" . addslashes($value) . "'", (array)$row));
+                    $sqlDump .= "INSERT INTO $tableName VALUES ($values);\n";
+                }
+            }
+
+            file_put_contents($backupFile, $sqlDump);
+            $this->info('Backup created successfully at: ' . $backupFile);
+        } catch (\Exception $e) {
+            $this->error('Failed to backup the database: ' . $e->getMessage());
+            return;
+        }
+
+        // Step 3: Run migrations
+        $this->info('Running migrations...');
+        $this->call('migrate', ['--force' => true]);
+        $this->info('Migrations executed successfully.');
+    }
+}
 
