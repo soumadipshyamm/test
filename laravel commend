@@ -128,3 +128,7 @@ protected $commands = [\App\Console\Commands\BackupAndMigrate::class,
 run command
 php artisan db:backup --path=storage/backups/my_backup.sql --log=storage/logs/backup.log
 php artisan migrate:fresh
+
+******************************************************************
+******************************************************************
+
