@@ -7,56 +7,55 @@ composer require spatie/laravel-backup
 
 class BackupAndMigrate extends Command
 {
-// Command signature
-// protected $signature = 'db:backup
-// {--path= : The file path where the backup will be saved}
-// {--log= : Log file path for the backup process}';
-protected $signature = 'migrate:fresh';
-// Command description
-protected $description = 'Backup the database to a file and log the process';
+    protected $signature = 'migrate:fresh
+                            {--path= : The file path where the backup will be saved}
+                            {--log= : Log file path for the backup process}';
 
-public function __construct()
-{
-parent::__construct();
-}
-public function handle()
-{
-$dbName = env('DB_DATABASE');
-$filePath = $this->option('path') ?? storage_path('backups/' . $dbName . '_' . date('Y-m-d_H-i-s') . '.sql');
+    // Command description
+    protected $description = 'Backup the database to a file and log the process';
 
-// Ensure backup directory exists
-File::ensureDirectoryExists(dirname($filePath));
+    public function __construct()
+    {
+        parent::__construct();
+    }
+    public function handle()
+    {
+        $dbName = env('DB_DATABASE');
+        $filePath = $this->option('path') ?? storage_path('backups/' . $dbName . '_' . date('Y-m-d_H-i-s') . '.sql');
 
-// Use Laravel's database export
-DB::unprepared('SET foreign_key_checks = 0');
-$tables = DB::select('SHOW TABLES');
-$sqlStatements = [];
+        // Ensure backup directory exists
+        File::ensureDirectoryExists(dirname($filePath));
 
-foreach ($tables as $table) {
-$tableName = get_object_vars($table)['Tables_in_' . $dbName];
-$createTable = DB::select("SHOW CREATE TABLE `{$tableName}`")[0]->{'Create Table'};
-$tableData = DB::table($tableName)->get();
+        // Use Laravel's database export
+        DB::unprepared('SET foreign_key_checks = 0');
+        $tables = DB::select('SHOW TABLES');
+        $sqlStatements = [];
 
-$sqlStatements[] = "DROP TABLE IF EXISTS `{$tableName}`;";
-$sqlStatements[] = $createTable . ";";
+        foreach ($tables as $table) {
+            $tableName = get_object_vars($table)['Tables_in_' . $dbName];
+            $createTable = DB::select("SHOW CREATE TABLE `{$tableName}`")[0]->{'Create Table'};
+            $tableData = DB::table($tableName)->get();
 
-foreach ($tableData as $row) {
-$insertValues = [];
-foreach ($row as $value) {
-$insertValues[] = is_null($value) ? 'NULL' : "'" . addslashes($value) . "'";
-}
-$sqlStatements[] = "INSERT INTO `{$tableName}` VALUES (" . implode(',', $insertValues) . ");";
-}
-}
+            $sqlStatements[] = "DROP TABLE IF EXISTS `{$tableName}`;";
+            $sqlStatements[] = $createTable . ";";
 
-DB::unprepared('SET foreign_key_checks = 1');
+            foreach ($tableData as $row) {
+                $insertValues = [];
+                foreach ($row as $value) {
+                    $insertValues[] = is_null($value) ? 'NULL' : "'" . addslashes($value) . "'";
+                }
+                $sqlStatements[] = "INSERT INTO `{$tableName}` VALUES (" . implode(',', $insertValues) . ");";
+            }
+        }
 
-// Write to file
-file_put_contents($filePath, implode("\n", $sqlStatements));
-$this->call('migrate:fresh');
-$this->info("Backup created at: {$filePath}");
-$this->info('Migrations Fresh executed successfully.');
-}
+        DB::unprepared('SET foreign_key_checks = 1');
+
+        // Write to file
+        file_put_contents($filePath, implode("\n", $sqlStatements));
+        // $this->call('migrate:fresh');
+        $this->info("Backup created at: {$filePath}");
+        $this->info('Migrations Fresh executed successfully.');
+    }
 }
 
 
