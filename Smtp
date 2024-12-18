@@ -1,0 +1,214 @@
+To integrate **Laravel Job Queues** for sending emails asynchronously, we need to:
+
+1. **Create a Job**: Send email processing logic is moved to a queued job.
+2. **Dispatch the Job**: Jobs are dispatched when you process the `materialrequestSendToVendor` method.
+3. **Configure Queue**: Ensure your queue is set up and running.
+
+---
+
+### **Step 1: Create a Job**
+
+Run the following Artisan command to create a job:
+
+```bash
+php artisan make:job SendMaterialRequestMailJob
+```
+
+---
+
+**Update `SendMaterialRequestMailJob.php`:**
+
+```php
+<?php
+
+namespace App\Jobs;
+
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\MaterialRequestMail;
+
+class SendMaterialRequestMailJob implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public $vendorEmail;
+    public $mailData;
+
+    /**
+     * Create a new job instance.
+     *
+     * @param string $vendorEmail
+     * @param array $mailData
+     */
+    public function __construct($vendorEmail, $mailData)
+    {
+        $this->vendorEmail = $vendorEmail;
+        $this->mailData = $mailData;
+    }
+
+    /**
+     * Execute the job.
+     */
+    public function handle()
+    {
+        Mail::to($this->vendorEmail)->send(new MaterialRequestMail($this->mailData));
+    }
+}
+```
+
+---
+
+### **Step 2: Update Controller to Dispatch the Job**
+
+Here’s the updated `materialrequestSendToVendor` method:
+
+```php
+use App\Jobs\SendMaterialRequestMailJob;
+
+public function materialrequestSendToVendor(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
+
+    // Validate incoming request
+    $validator = Validator::make($request->all(), [
+        'type' => 'required|integer',
+        'vendor_id' => 'required|array',
+        'quotes_details_id' => 'nullable|array',
+        'quotes_id' => 'required|array',
+        'material_request_details_id' => 'nullable|array',
+        'materials_id' => 'nullable|array',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), []);
+    }
+
+    DB::beginTransaction();
+    try {
+        $type = $request->input('type');
+        $vendorIds = $request->input('vendor_id');
+        $quotesIdList = $request->input('quotes_id');
+        $quotesDetailsIdList = $request->input('quotes_details_id', []);
+        $materialRequestDetailsIdList = $request->input('material_request_details_id', []);
+        $materialsIdList = $request->input('materials_id', []);
+
+        $quoteDetails = [];
+
+        foreach ($vendorIds as $vendorId) {
+            foreach ($quotesIdList as $index => $quoteId) {
+                $record = QuotesMaterialSendVendor::create([
+                    'vendors_id' => $vendorId,
+                    'materials_id' => $materialsIdList[$index] ?? null,
+                    'quotes_details_id' => $quotesDetailsIdList[$index] ?? null,
+                    'quotes_id' => $quoteId,
+                    'material_request_details_id' => $materialRequestDetailsIdList[$index] ?? null,
+                    'type' => $type,
+                    'company_id' => $authCompany,
+                ]);
+
+                $quoteDetails[] = $record;
+
+                // Prepare email data
+                $vendor = Vendor::find($vendorId);
+                if ($vendor && $vendor->email) {
+                    $mailData = [
+                        'vendorName' => $vendor->name,
+                        'quoteId' => $quoteId,
+                        'materialsId' => $materialsIdList[$index] ?? 'N/A',
+                        'companyName' => $authCompany,
+                        'message' => 'You have received a new material request.',
+                    ];
+
+                    // Dispatch job to send email
+                    SendMaterialRequestMailJob::dispatch($vendor->email, $mailData);
+                }
+            }
+        }
+
+        DB::commit();
+
+        $quoteDetailResource = QuotesMaterialRequestSendVendorResource::collection($quoteDetails);
+
+        return $this->responseJson(true, 200, 'Quote Details Updated and Emails Queued Successfully', $quoteDetailResource);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        logger("Error: {$e->getMessage()} in {$e->getFile()} on line {$e->getLine()}");
+        return $this->responseJson(false, 500, 'An error occurred while processing the request.', []);
+    }
+}
+```
+
+---
+
+### **Step 3: Configure Queue**
+
+#### **Queue Driver**:
+Update your `.env` file to use the `database` queue driver or a preferred one:
+
+```dotenv
+QUEUE_CONNECTION=database
+```
+
+#### **Run Migrations**:
+Run the queue table migration to store queued jobs:
+
+```bash
+php artisan queue:table
+php artisan migrate
+```
+
+#### **Run the Queue Worker**:
+Start the Laravel queue worker to process queued jobs:
+
+```bash
+php artisan queue:work
+```
+
+---
+
+### **Step 4: Email Template (Blade)**
+
+The Blade template remains the same (`resources/views/emails/material_request.blade.php`):
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>New Material Request</title>
+</head>
+<body>
+    <h3>Hello {{ $data['vendorName'] }},</h3>
+    <p>{{ $data['message'] }}</p>
+    <p><strong>Quote ID:</strong> {{ $data['quoteId'] }}</p>
+    <p><strong>Material ID:</strong> {{ $data['materialsId'] }}</p>
+    <p><strong>Company:</strong> {{ $data['companyName'] }}</p>
+    <br>
+    <p>Thank you,</p>
+    <p>Your Company</p>
+</body>
+</html>
+```
+
+---
+
+### Final Notes:
+1. **Queue Driver**: You can use `database`, `redis`, or other supported drivers. For production, `redis` is highly recommended.
+2. **Email Delays**: If needed, you can add delays to the job:
+   ```php
+   SendMaterialRequestMailJob::dispatch($vendor->email, $mailData)->delay(now()->addMinutes(2));
+   ```
+3. **Job Retries**: Define retries in `SendMaterialRequestMailJob`:
+   ```php
+   public $tries = 3;
+   ```
+
+### Benefits:
+1. **Improved Performance**: Sending emails happens in the background without delaying the API response.
+2. **Scalability**: Jobs can scale independently.
+3. **Fault Tolerance**: Failed jobs can be retried or logged for debugging.
+
+Let me know if you need further explanations or help setting up queues! 🚀
