@@ -1,3 +1,19 @@
+
+$vendor = Vendor::find($vendorId); // Assuming the Vendor model exists
+            if ($vendor && $vendor->email) {
+                // Prepare data for the email
+                $emailData = [
+                    'vendor' => $vendor,
+                    'type' => $type,
+                    'quotes' => $quoteDetails, // You can pass specific details here
+                ];
+
+                // Send email using the mail class
+                Mail::to($vendor->email)->send(new VendorQuoteNotification($emailData));
+            }
+
+***********************
+
 To integrate **Laravel Job Queues** for sending emails asynchronously, we need to:
 
 1. **Create a Job**: Send email processing logic is moved to a queued job.
