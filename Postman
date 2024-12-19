@@ -1,3 +1,11 @@
+1.*************************************************************************************
+*postman->script->post-response*
+var jsonData= pm.response.json();
+pm.environment.set("token",jsonData.data.token);
+console.log("token saved"+ pm.environment.get("token"));
+
+2.*******************************************************************************
+
 Setting up automatic token management after login in **Postman** is essential for testing APIs that require authentication, such as OAuth 2.0 or other token-based systems. Here's a step-by-step guide on how to handle tokens automatically after logging in:
 
 ---
