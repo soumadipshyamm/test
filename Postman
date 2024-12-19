@@ -1,0 +1,145 @@
+Setting up automatic token management after login in **Postman** is essential for testing APIs that require authentication, such as OAuth 2.0 or other token-based systems. Here's a step-by-step guide on how to handle tokens automatically after logging in:
+
+---
+
+### **Step-by-Step Guide: Automatically Setting Token in Postman**
+
+#### **1. Set Up Your Login Request**
+You need to create a login request that retrieves the authentication token. This token will be used for subsequent API requests.
+
+1. **Open Postman** and create a new request.
+2. Set the method to **POST** (or the appropriate method for your login endpoint).
+3. Enter the login endpoint URL (e.g., `https://example.com/api/login`).
+4. **Add required parameters** for login (username, password, etc.) in the **Body** tab:
+   - Select **raw** and then **JSON** if the API expects JSON:
+     ```json
+     {
+       "username": "your-username",
+       "password": "your-password"
+     }
+     ```
+5. Click **Send** to test the request. The response should include a token (e.g., an access token or JWT).
+
+#### **2. Extract Token Using Postman Tests (Save Token)**
+Once the login request successfully returns a token, you can extract it and save it as an environment variable.
+
+1. Go to the **Tests** tab of your login request.
+2. Add the following script to extract and save the token from the response:
+
+   ```javascript
+   // Parse the response body to extract the token
+   var jsonData = pm.response.json();
+   
+   // Assuming the token is in jsonData.token or jsonData.access_token
+   pm.environment.set("authToken", jsonData.token || jsonData.access_token);
+
+   console.log("Token saved: " + pm.environment.get("authToken"));
+   ```
+
+3. **Run the login request again**, and verify that the token is being saved in the environment. You can check this by navigating to the **Environment** section (top-right of Postman).
+
+#### **3. Use the Saved Token in Subsequent Requests**
+Now that the token is saved, you can use it automatically in future requests that require authorization.
+
+1. Create a new request (or edit an existing request) that requires a token.
+2. Go to the **Authorization** tab of that request.
+3. Set the **Type** to **Bearer Token**.
+4. In the **Token** field, reference the environment variable where the token is stored:
+   ```plaintext
+   {{authToken}}
+   ```
+
+#### **4. Automate the Login and Token Handling**
+To automate the token handling process, you can set up a **Pre-request Script** that checks if the token is missing or expired before making a request. This script will automatically log in and retrieve a new token when needed.
+
+1. Open a request that requires authentication.
+2. Go to the **Pre-request Script** tab.
+3. Add the following code to check for an existing token and, if necessary, send the login request to get a new one:
+
+   ```javascript
+   // Check if token exists
+   var token = pm.environment.get("authToken");
+
+   // Check if token is not set or empty
+   if (!token) {
+       console.log("Token is missing. Requesting a new token...");
+
+       // Send the login request to get a new token
+       pm.sendRequest({
+           url: 'https://example.com/api/login', // Change to your login URL
+           method: 'POST',
+           header: {
+               'Content-Type': 'application/json'
+           },
+           body: {
+               mode: 'raw',
+               raw: JSON.stringify({
+                   "username": "your-username",
+                   "password": "your-password"
+               })
+           }
+       }, function (err, response) {
+           var jsonData = response.json();
+
+           // Save the new token in the environment
+           pm.environment.set("authToken", jsonData.token || jsonData.access_token);
+
+           console.log("New token saved: " + pm.environment.get("authToken"));
+       });
+   }
+   ```
+
+4. Run the request, and Postman will automatically log in and update the token if needed.
+
+---
+
+### **5. Optional: Set Token Expiry Handling**
+You can manage token expiry by checking the expiration time before each request and refreshing the token if it has expired.
+
+1. In your **Pre-request Script**, add logic to handle the expiration time:
+   ```javascript
+   var tokenExpiry = pm.environment.get("tokenExpiry");
+
+   if (!tokenExpiry || (new Date()).getTime() > tokenExpiry) {
+       console.log("Token expired. Fetching a new one...");
+
+       // Request a new token
+       pm.sendRequest({
+           url: 'https://example.com/api/login',
+           method: 'POST',
+           header: {
+               'Content-Type': 'application/json'
+           },
+           body: {
+               mode: 'raw',
+               raw: JSON.stringify({
+                   "username": "your-username",
+                   "password": "your-password"
+               })
+           }
+       }, function (err, response) {
+           var jsonData = response.json();
+
+           // Save the token and its expiry time
+           pm.environment.set("authToken", jsonData.token || jsonData.access_token);
+           pm.environment.set("tokenExpiry", (new Date()).getTime() + 3600 * 1000); // Example: 1-hour token expiry
+
+           console.log("New token saved: " + pm.environment.get("authToken"));
+       });
+   }
+   ```
+
+This will ensure that your token is automatically refreshed once it expires.
+
+---
+
+### **6. Testing and Running in Postman Collection**
+If you want to run a collection of requests:
+- Set up your login request and other requests.
+- Use the environment variable `{{authToken}}` in the Authorization headers.
+- Add a **Pre-request Script** to any collection that uses authentication, ensuring the token is checked before each request.
+
+---
+
+### **Conclusion**
+By following these steps, you can automate the process of retrieving and using tokens in Postman. This is particularly useful for workflows requiring frequent authentication or running collections of API requests.
