@@ -648,7 +648,180 @@ $(document).on("click", ".appoinementDetails", function(e) {
     }
 }
 
-****************************************************************************
+******************************************
+    
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Agreement</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .form-title {
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+        }
+
+        .editable-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            min-height: 30px;
+            background-color: #f8f9fa;
+        }
+
+        .table-bordered th, .table-bordered td {
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        .logo {
+            max-height: 60px;
+        }
+
+        .section-title {
+            background-color: #007bff;
+            color: white;
+            padding: 5px 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container my-5">
+        <!-- Header Section -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <img src="https://via.placeholder.com/150x60" alt="Logo" class="logo">
+            <h1 class="form-title">Services Agreement <br> For Wood Destroying Organisms</h1>
+        </div>
+
+        <!-- Service Address and Billing Section -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="section-title">Service Address and Structures</div>
+                <div class="mb-3">
+                    <label for="serviceName" class="form-label">Name</label>
+                    <div class="editable-box" contenteditable="true"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="serviceAddress" class="form-label">Address</label>
+                    <div class="editable-box" contenteditable="true"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="serviceCity" class="form-label">City/State/Zip</label>
+                    <div class="editable-box" contenteditable="true"></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="section-title">Billing Address</div>
+                <div class="mb-3">
+                    <label for="billingName" class="form-label">Name</label>
+                    <div class="editable-box" contenteditable="true"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="billingAddress" class="form-label">Address</label>
+                    <div class="editable-box" contenteditable="true"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="billingCity" class="form-label">City/State/Zip</label>
+                    <div class="editable-box" contenteditable="true"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Plans Section -->
+        <div class="mb-4">
+            <div class="section-title">Service Plans</div>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Plan</th>
+                        <th>Yearly Renewal</th>
+                        <th>On Monthly Renewal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Drywood and Subterranean Termite Service</td>
+                        <td><input type="text" class="form-control"></td>
+                        <td><input type="text" class="form-control"></td>
+                    </tr>
+                    <tr>
+                        <td>Drywood Termite Only Service</td>
+                        <td><input type="text" class="form-control"></td>
+                        <td><input type="text" class="form-control"></td>
+                    </tr>
+                    <tr>
+                        <td>Subterranean Termite Only Service</td>
+                        <td><input type="text" class="form-control"></td>
+                        <td><input type="text" class="form-control"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- One-Time Services Section -->
+        <div class="mb-4">
+            <div class="section-title">One-Time Services</div>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Description</th>
+                        <th>Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Fumigation</td>
+                        <td><div class="editable-box" contenteditable="true"></div></td>
+                        <td><input type="text" class="form-control"></td>
+                    </tr>
+                    <tr>
+                        <td>Termite Warranty</td>
+                        <td><div class="editable-box" contenteditable="true"></div></td>
+                        <td><input type="text" class="form-control"></td>
+                    </tr>
+                    <tr>
+                        <td>Wood Repairs</td>
+                        <td><div class="editable-box" contenteditable="true"></div></td>
+                        <td><input type="text" class="form-control"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Payment and Terms Section -->
+        <div>
+            <div class="section-title">Payment and Terms</div>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Total Initial</th>
+                        <th>Total Yearly Renewal</th>
+                        <th>Total Monthly Renewal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><input type="text" class="form-control"></td>
+                        <td><input type="text" class="form-control"></td>
+                        <td><input type="text" class="form-control"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+    **********************************
 ****************************************************************************
 ****************************************************************************
 ****************************************************************************
