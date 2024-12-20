@@ -563,6 +563,91 @@ $(document).on("click", ".appoinementDetails", function(e) {
         }
     }
 ****************************************************************************
+
+
+    public function add(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
+
+    // Validate the request input
+    $validator = Validator::make($request->all(), [
+        'data' => 'required|array',
+        'data.*.quotes_id' => 'required|integer',
+        'data.*.materials_id' => 'nullable|integer',
+        'data.*.material_requests_id' => 'nullable|integer',
+        'data.*.material_request_details_id' => 'nullable|integer',
+        'data.*.date' => 'required|date',
+        'data.*.remarkes' => 'nullable|string',
+        'data.*.img' => 'nullable|image',
+        'data.*.qty' => 'nullable|numeric',
+        'data.*.request_qty' => 'nullable|numeric',
+        'data.*.price' => 'nullable|numeric',
+        'data.*.id' => 'nullable|integer',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), []);
+    }
+
+    DB::beginTransaction();
+
+    try {
+        $quoteDetails = [];
+        $entries = $request->input('data', []); // Multiple entries for batch processing
+
+        foreach ($entries as $entry) {
+            // Extract image if exists
+            $img = isset($entry['img']) ? getImgUpload($entry['img'], 'upload') : null;
+
+            // Update if ID exists
+            if (!empty($entry['id'])) {
+                $existingQuoteDetail = QuotesDetails::find($entry['id']);
+
+                if (!$existingQuoteDetail) {
+                    return $this->responseJson(false, 404, 'Quote Detail not found for ID ' . $entry['id'], []);
+                }
+
+                // Update existing quote detail
+                $existingQuoteDetail->update([
+                    'materials_id' => $entry['materials_id'] ?? $existingQuoteDetail->materials_id,
+                    'material_requests_id' => $entry['material_requests_id'] ?? $existingQuoteDetail->material_requests_id,
+                    'material_request_details_id' => $entry['material_request_details_id'] ?? $existingQuoteDetail->material_request_details_id,
+                    'date' => $entry['date'] ?? $existingQuoteDetail->date,
+                    'qty' => $entry['qty'] ?? $existingQuoteDetail->qty,
+                    'request_qty' => $entry['request_qty'] ?? $existingQuoteDetail->request_qty,
+                    'price' => $entry['price'] ?? $existingQuoteDetail->price,
+                    'remarkes' => $entry['remarkes'] ?? $existingQuoteDetail->remarkes,
+                    'img' => $img ?? $existingQuoteDetail->img,
+                ]);
+
+                $quoteDetails[] = $existingQuoteDetail;
+            } else {
+                // Create new quote detail
+                $quoteDetails[] = QuotesDetails::create([
+                    'company_id' => $authCompany,
+                    'quotes_id' => $entry['quotes_id'],
+                    'materials_id' => $entry['materials_id'] ?? null,
+                    'material_requests_id' => $entry['material_requests_id'] ?? null,
+                    'material_request_details_id' => $entry['material_request_details_id'] ?? null,
+                    'date' => $entry['date'],
+                    'qty' => $entry['qty'] ?? 0,
+                    'request_qty' => $entry['request_qty'] ?? 0,
+                    'price' => $entry['price'] ?? 0.0,
+                    'remarkes' => $entry['remarkes'] ?? null,
+                    'img' => $img,
+                ]);
+            }
+        }
+
+        DB::commit();
+        return $this->responseJson(true, 200, 'Quote Details Processed Successfully', $quoteDetails);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        Log::error('Failed to process quote details: ' . $e->getMessage());
+        return $this->responseJson(false, 500, 'Failed to process quote details', []);
+    }
+}
+
 ****************************************************************************
 ****************************************************************************
 ****************************************************************************
