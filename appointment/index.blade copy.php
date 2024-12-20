@@ -822,6 +822,160 @@ $(document).on("click", ".appoinementDetails", function(e) {
 </html>
 
     **********************************
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Services Agreement</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .form-section {
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+
+        .form-header {
+            background-color: #0056b3;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            display: block;
+            margin: 0 auto;
+        }
+
+        .dynamic-textbox {
+            border: 1px solid #333;
+            padding: 5px;
+            width: 100%;
+            resize: none;
+        }
+
+        .custom-checkbox {
+            margin-left: 5px;
+        }
+
+        .custom-label {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container mt-4">
+    <!-- Header Section -->
+    <div class="form-header">
+        <img src="https://your-logo-url.com/logo.png" alt="Moxie Pest Control Logo" class="logo mb-2" width="150">
+        <h3>Services Agreement for Wood Destroying Organisms</h3>
+    </div>
+
+    <!-- Service Address and Billing -->
+    <div class="form-section">
+        <h5>Service Address and Structures</h5>
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <label for="serviceAddress" class="form-label">Service Address</label>
+                <input type="text" class="form-control" id="serviceAddress" placeholder="Enter Service Address">
+            </div>
+            <div class="col-md-6">
+                <label for="billingAddress" class="form-label">Billing Address</label>
+                <input type="text" class="form-control" id="billingAddress" placeholder="Enter Billing Address">
+            </div>
+        </div>
+
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label for="officeInfo" class="form-label">Office Information</label>
+                <textarea class="form-control dynamic-textbox" id="officeInfo" placeholder="Office Name, Office City, etc..."></textarea>
+            </div>
+            <div class="col-md-4">
+                <label for="licenseInfo" class="form-label">License Info</label>
+                <textarea class="form-control dynamic-textbox" id="licenseInfo" placeholder="License Number, etc..."></textarea>
+            </div>
+            <div class="col-md-4">
+                <label for="billingName" class="form-label">Billing Name</label>
+                <input type="text" class="form-control" id="billingName" placeholder="Enter Billing Name">
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Plans -->
+    <div class="form-section">
+        <h5>Service Plans</h5>
+        <div class="mb-3">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="servicePlan1" value="option1">
+                <label class="form-check-label" for="servicePlan1">Drywood and Subterranean Termite Service</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="servicePlan2" value="option2">
+                <label class="form-check-label" for="servicePlan2">Drywood Only Service</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" id="servicePlan3" value="option3">
+                <label class="form-check-label" for="servicePlan3">Subterranean Only Service</label>
+            </div>
+        </div>
+
+        <label class="form-label">Yearly Renewal</label>
+        <input type="text" class="form-control mb-3" placeholder="Enter Renewal Terms">
+    </div>
+
+    <!-- One Time Services -->
+    <div class="form-section">
+        <h5>One Time Services</h5>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="service1" value="fumigation">
+                    <label class="form-check-label" for="service1">Fumigation</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="service2" value="termiteWarranty">
+                    <label class="form-check-label" for="service2">Termite Warranty</label>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="service3" value="wdoReport">
+                    <label class="form-check-label" for="service3">WDO Inspection Report</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="service4" value="woodRepair">
+                    <label class="form-check-label" for="service4">Wood Repair</label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment and Terms -->
+    <div class="form-section">
+        <h5>Payment and Terms</h5>
+        <textarea class="form-control dynamic-textbox" placeholder="Editable dynamic text box for payment terms"></textarea>
+    </div>
+
+    <!-- Submit Button -->
+    <div class="text-center">
+        <button type="submit" class="btn btn-primary">Submit Agreement</button>
+    </div>
+</div>
+
+<!-- Bootstrap 5 JS and dependencies -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
+
+    
 ****************************************************************************
 ****************************************************************************
 ****************************************************************************
