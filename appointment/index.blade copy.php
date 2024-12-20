@@ -472,6 +472,96 @@ $(document).on("click", ".appoinementDetails", function(e) {
 @endpush
 
 ****************************************Quorts************************************
+     public function add(Request $request)
+    {
+        $authCompany = Auth::guard('company-api')->user()->company_id;
+        $validator = Validator::make($request->all(), [
+            // 'quotes_id' => 'required',
+            // 'materials_id' => 'required',
+            // 'material_requests_id' => 'required',
+            // 'material_request_details_id' => 'required',
+            // 'date' => 'required',
+            // 'remarkes' => 'required',
+            // 'img' => 'required|image',
+            // 'qty' => 'required|numeric',
+            // 'request_qty' => 'required|numeric',
+            // 'price' => 'required|numeric',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), []);
+        }
+        // dd($request->all());
+        DB::beginTransaction();
+        try {
+            $quoteDetail = [];
+            $datas = $request->all();
+            // dd($datas);
+            if (isset($datas['img'])) {
+                $remarkes = $datas['remarkes'];
+                $img = $request->img ? getImgUpload($request->img, 'upload') : null;
+                $existingQuoteDetail = $datas['id'] != null ? QuotesDetails::where('id', $datas['id'])->first() : null;
+                if ($existingQuoteDetail?->id != null) {
+                    $quoteDetail = $existingQuoteDetail->update([
+                        'date' => null,
+                        'remarkes' => $remarkes,
+                        'img' => $img ?? null
+                    ]);
+                } else {
+                    // dd($img);
+                    $quoteDetail = QuotesDetails::create([
+                        'company_id' => $authCompany,
+                        'quotes_id' => $datas['quotes_id'],
+                        'date' => $datas['date'],
+                        'remarkes' => $remarkes,
+                        'activities_id' => $datas['activities_id']->id,
+                        'materials_id' => null,
+                        'material_requests_id' => null,
+                        'material_request_details_id' => null,
+                        'img' => $img ?? null
+                    ]);
+                }
+            } else {
+                // dd($datas);
+                foreach ($datas as $value) {
+                    if (!empty($value['id'])) {
+                        $quoteDetailItem = QuotesDetails::find($value['id']);
+                        if (!$quoteDetailItem) {
+                            return $this->responseJson(false, 404, 'Quote Detail not found', []);
+                        }
+                        $quoteDetail[] = $quoteDetailItem;
+                        // Update existing quote detail
+                        $quoteDetailItem->update([
+                            'materials_id' => $value['materials'],
+                            'material_requests_id' => $value['material_requests_id'],
+                            'material_request_details_id' => $value['material_request_details_id'],
+                            'date' => $value['date'],
+                            'request_qty' => $value['request_qty'],
+                            'price' => $value['price'],
+                        ]);
+                    } else {
+                        // Create new quote detail
+                        $quoteDetail[] = QuotesDetails::create([
+                            'quotes_id' => $value['quotes_id'],
+                            'materials_id' => $value['materials'],
+                            'material_requests_id' => $value['material_requests_id'],
+                            'material_request_details_id' => $value['material_request_details_id'],
+                            'date' => $value['date'],
+                            'qty' => $value['qty'],
+                            'request_qty' => $value['request_qty'],
+                            'price' => $value['price'],
+                            'company_id' => $authCompany,
+                        ]);
+                    }
+                }
+            }
+            DB::commit();
+            return $this->responseJson(true, 200, 'Quote Detail Added Successfully', $quoteDetail);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Failed to add quote detail: ' . $e->getMessage());
+            return $this->responseJson(false, 500, 'Failed to add quote detail', []);
+        }
+    }
 ****************************************************************************
 ****************************************************************************
 ****************************************************************************
