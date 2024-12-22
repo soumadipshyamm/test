@@ -4,6 +4,420 @@
 ########################
 ########################
 ########################
+@extends('layout.app')
+
+@push('styles')
+    <style>
+        .section-title {
+            background-color: #007bff;
+            color: white;
+            padding: 5px 10px;
+            font-weight: bold;
+        }
+    </style>
+@endpush
+
+@section('content')
+    <section class="userlist_sec">
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    @include('layout.partials.headbar')
+                    <div class="usertab_con">
+                        <div class="tabcon_head">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <h3 class="user_title">Agreements</h3>
+                                </div>
+                                <div class="col-md-9">
+                                    <div class="tabconh_right">
+                                        <form action="{{ route('agreement.add') }}" method="POST">
+                                            @csrf
+                                            <div class="search_sec">
+
+                                                <div>
+                                                    <select name="select_customer" id="select_customer"
+                                                        class="form-control">
+                                                        <option value="">---Select Customer---</option>
+                                                        {{ getCustomer('') }}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <select name="select_office" id="select_office" class="form-control">
+                                                        <option value="">---Select Office---</option>
+                                                        {{ getOfficeList('') }}
+                                                    </select>
+                                                </div>
+                                                <div class="action_btn">
+                                                    <button type="submit" class="btn btn-primary">
+                                                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                                                    </button>
+                                                </div>
+
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        @if (isset($customerDetails))
+                            @dd($customerDetails, $officeDetails, $pricingGuide, $controlPricing, $woodRepair, $woodRepairTotal)
+                        @endif
+                        <div class="tab-content" id="pills-tabContent">
+                            <div class="tab-pane fade show active" id="pills-user" role="tabpanel"
+                                aria-labelledby="pills-user-tab">
+                                {{-- <form action="{{ route('agreement.add') }}" class="formSubmit fileUpload" id="addFrm"
+                                    enctype="multipart/form-data"> --}}
+                                <input type="hidden" name="id" id="id">
+                                <div class="modal-body">
+                                    <div class="addnumodal">
+                                        <div class="d-flex justify-content-between align-items-center mb-4">
+                                            <div class="col-md-4">
+                                                <div class=" d-flex flex-wrap justify-content-center">
+
+                                                    <img src="{{ asset('assets/images/moxie-logo.png') }}" alt="Logo"
+                                                        class="logo">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class=" d-flex flex-wrap justify-content-center">
+                                                    <h3 class="form-title">Services Agreement For Wood Destroying
+                                                        Organisms</h3>
+                                                </div>
+                                            </div>
+                                            {{-- <div class="row"> --}}
+                                            <div class="col-md-4">
+                                                <div class="d-flex flex-wrap justify-content-end ">
+                                                    <p>Name:{{ $userDetailsFetc?->profile->office ?? '' }}</p>
+                                                    <p>Address:</p>
+                                                    <p>State:</p>
+                                                    <p>City:</p>
+                                                    <p>Zip:</p>
+                                                    <p>Phone:</p>
+                                                    <p>Email:</p>
+                                                    <p>License:</p>
+                                                </div>
+                                            </div>
+                                            {{-- </div> --}}
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-lg-6 col-md-6 col-sm-12">
+                                                <div class="address-card">
+                                                    <div class="section-title"><b>Address</b></div>
+                                                    <div class="row">
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">Name</label>
+                                                                <div class="form-group">
+                                                                    <input type="text" class="form-control">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">Zip Code</label>
+                                                                <div class="form-group">
+                                                                    <input type="text" class="form-control">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">State</label>
+                                                                <div class="form-group">
+                                                                    <select name="" id=""
+                                                                        class="form-control">
+                                                                        <option value="">California</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">Address</label>
+                                                                <div class="form-group">
+                                                                    <textarea class="form-control" name="" id="" rows="1" cols="10"></textarea>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">City</label>
+                                                                <div class="form-group">
+                                                                    <input type="text" class="form-control">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="col-lg-6 col-md-6 col-sm-12">
+                                                <div class="address-card">
+                                                    <div class="section-title"><b>Billing Address</b></div>
+                                                    <div class="row">
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">Name</label>
+                                                                <div class="form-group">
+                                                                    <input type="text" class="form-control">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">Zip Code</label>
+                                                                <div class="form-group">
+                                                                    <input type="text" class="form-control">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">State</label>
+                                                                <div class="form-group">
+                                                                    <select name="" id=""
+                                                                        class="form-control">
+                                                                        <option value="">California</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">Address</label>
+                                                                <div class="form-group">
+                                                                    <textarea class="form-control" name="" id="" rows="1" cols="10"></textarea>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel mb-3">
+                                                                <label for="">City</label>
+                                                                <div class="form-group">
+                                                                    <input type="text" class="form-control">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-6 col-sm-6">
+                                                            <div class="add-form-panel">
+                                                                <label for="">Invoice Number</label>
+                                                                <div class="form-group">
+                                                                    <input type="text" class="form-control">
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        <!-- Service Plans Section -->
+                                        <div class="mb-4">
+                                            <div class="section-title"><b>Service Plans</b></div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">Drywood and
+                                                        Subterranean Termite Service</label>
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan2"
+                                                        value="option2">
+                                                    <label class="form-check-label" for="servicePlan2">Drywood Only
+                                                        Service</label>
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan3"
+                                                        value="option3">
+                                                    <label class="form-check-label" for="servicePlan3">Subterranean
+                                                        Only Service</label>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan4">Initial</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan4">Yearly
+                                                        Renewal</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan4">OR Monthly
+                                                        Renewal</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                            </div>
+                                            <p>"Monthly payment plans Require a 24 month minimum. Unless the
+                                                structure(s) is "free of drywood termite infestations" at the time of
+                                                inspection service plans must be coupled with an initial local treatment
+                                                or fumigation.</p>
+                                        </div>
+                                        <hr>
+                                        <!-- One-Time Services Section -->
+                                        <div class="mb-4">
+                                            <div class="section-title"><b>One-Time Services</b></div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">Fumigation</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">Termite
+                                                        Warranty</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                    <label class="form-check-label" for="servicePlan1">Type of
+                                                        Tile</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">Boric Acid
+                                                        Preventative treatment</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">One-Time or
+                                                        initial Local treat</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">Wood
+                                                        Repairs</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">WDO Inspection
+                                                        Report</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">Insulation</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">Other</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="checkbox" id="servicePlan1"
+                                                        value="option1">
+                                                    <label class="form-check-label" for="servicePlan1">Termite bundled
+                                                        discount</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        <!-- Payment and Terms Section -->
+                                        <div class="row">
+                                            <div class="section-title"><b>Description of Services and Vendor for
+                                                    Repairs (if applicable)</b></div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan1">Description</label>
+                                                    <textarea name="" id="" class="form-control" rows="3" cols="135"></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        <div>
+                                            <div class="section-title"><b>Payment and Terms</b></div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan4"> Total
+                                                        Initial</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan4">Total Yearly
+                                                        Renewal</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan4">OR Monthly
+                                                        Renewal</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan1">Editable
+                                                        Dynamic Text Box 1</label>
+                                                    <textarea name="" id="" class="form-control" rows="3" cols="135"></textarea>
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan4"> Initial
+                                                        Here</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan1">Editable
+                                                        Dynamic Text Box 2</label>
+                                                    <textarea name="" id="" class="form-control" rows="3" cols="135"></textarea>
+                                                </div>
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan4"> Initial
+                                                        Here</label>
+                                                    <input class="form-control" type="text" id="servicePlan4">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <div class="form-check form-check-inline">
+                                                    <label class="form-check-label" for="servicePlan1">Editable
+                                                        Dynamic Text Box 3</label>
+                                                    <textarea name="" id="" class="form-control" rows="3" cols="135"></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <h5>Customer Signature</h5>
+                                                <div class="form-check form-check-inline">
+                                                    <label class="" for="">Editable
+                                                        Dynamic Text Box 4</label><br>
+                                                    <textarea name="" id="" class="form-control" rows="3" cols="135"></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary"
+                                        data-bs-dismiss="modal">CANCEL</button>
+                                    {{-- <button type="submit" class="btn btn-primary">Save</button> --}}
+                                </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+@endsection
+
+@push('script')
+    <script></script>
+@endpush
+
 #######################
 
 $(document).on("click", ".editBillingAddress", function() {
