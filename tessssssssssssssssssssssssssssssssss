@@ -1,1 +1,57 @@
-xcvbhnj
+  document.getElementById('download_report').addEventListener('click', async function() {
+            const {
+                jsPDF
+            } = window.jspdf;
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const pdfWidth = 220; // A4 width in mm
+            const pdfHeight = 297; // A4 height in mm (corrected to standard A4 height)
+            const margin = 10; // Margin to ensure borders are not clipped
+            const contentDivs = document.querySelectorAll('.mainBody');
+
+            // Apply styles to each element in the NodeList
+            contentDivs.forEach(div => {
+                div.style.fontSize = '1.65rem';
+                div.style.border = 'none';
+            });
+
+            for (const div of contentDivs) {
+                const canvas = await html2canvas(div, {
+                    scale: 1,
+                    useCORS: true,
+                    backgroundColor: null,
+                    logging: true,
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = pdfWidth - margin * 2;
+                const imgHeight = (canvas.height * imgWidth / canvas.width);
+
+                // Check if the image exceeds the page height
+                if (imgHeight > pdfHeight - margin * 2) {
+                    let remainingHeight = imgHeight;
+                    let positionY = margin;
+
+                    // Add pages while the remaining height is greater than the page height
+                    while (remainingHeight > pdfHeight - margin * 2) {
+                        pdf.addImage(imgData, 'PNG', margin, positionY, imgWidth, pdfHeight - margin * 2);
+                        remainingHeight -= (pdfHeight - margin * 2);
+                        positionY = pdfHeight - margin; // Move to the bottom of the page
+                        // pdf.addPage(); // Add a new page
+                    }
+                    alert(margin + '/' + positionY + '/' + imgWidth + '/' + remainingHeight);
+                    // Add the remaining part of the image
+                    pdf.addImage(imgData, 'PNG', margin, positionY, imgWidth, remainingHeight);
+                } else {
+                    // If it fits on one page, just add it normally
+                    pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+                }
+            }
+
+            pdf.save("pdf");
+
+            // Reset styles after capturing
+            contentDivs.forEach(div => {
+                div.style.fontSize = '';
+                div.style.border = '1px solid #002947';
+            });
+        });
