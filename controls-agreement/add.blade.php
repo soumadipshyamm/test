@@ -71,17 +71,19 @@
                             id="pills-tabContent">
                             <div class="tab-pane fade show active" id="pills-user" role="tabpanel"
                                 aria-labelledby="pills-user-tab">
-                                <form action="" class="formSubmit fileUpload" id="addAgremmetForm"
-                                    enctype="multipart/form-data">
+                                <form action="{{ route('agreement.add') }}" class="formSubmit fileUpload"
+                                    id="addAgremmetForm" method="post" enctype="multipart/form-data">
+                                    @csrf
                                     <input type="hidden" name="agreement_id" id="agreement_id" value="">
 
                                     <div class="modal-body mainBody">
                                         <div class="addnumodal">
-                                            {{-- **************************************************************** --}}
+                                            {{-- ***********************Header ***************************************** --}}
                                             <div class="d-flex justify-content-between align-items-center mb-4">
                                                 <div class="col-md-4">
                                                     <div class=" d-flex flex-wrap justify-content-center ">
-                                                        <a href="javascript:void(0)" class="upload-img"><img
+                                                        <a href="javascript:void(0)" class="upload-img"> <img
+                                                                class="no_img"
                                                                 src="{{ asset('assets/images/no_img.jpg') }}"
                                                                 alt="" style="height: 100px; width:250px"></a>
                                                     </div>
@@ -101,10 +103,10 @@
                                                         </div>
                                                     </div>
                                                 </div>
-
+                                                {{-- ***********************Office Details ***************************************** --}}
                                                 <div class="col-md-4">
                                                     <input type="hidden" name="office[office_id]" id="office_id"
-                                                        value="{{ isset($officeDetails) ? $officeDetails?->uuid : '' }}">
+                                                        class="office_id">
                                                     <div class="d-flex flex-wrap  ">
                                                         <div class="col-md-6 p-1">
                                                             <div class="form-group Name ">
@@ -124,7 +126,7 @@
                                                                         style="color: #f70707;"></i></span>
                                                                 <input type="text" name="office[office_address]"
                                                                     id="office_address" placeholder="Address"
-                                                                    class="form-control Address"
+                                                                    class="form-control office_address"
                                                                     value="{{ isset($officeDetails) ? $officeDetails?->address : '' }}">
                                                             </div>
                                                         </div>
@@ -195,7 +197,7 @@
                                                         <div class="section-title"><b>Address</b></div>
                                                         <div class="row">
                                                             <input type="hidden" name="customer[uuid]"
-                                                                id="uuid"
+                                                                id="uuid" class="uuid"
                                                                 value="{{ $customerDetails->uuid ?? '' }}">
                                                             <div class="col-md-6 col-sm-6">
                                                                 <div class="add-form-panel mb-3">
@@ -299,16 +301,17 @@
                                                         <div class="section-title"><b>Billing Address</b></div>
                                                         <div class="row">
                                                             <input type="hidden" name="customer_bill[uuid]"
-                                                                id="uuid"
+                                                                id="uuid" class="billing_uuid"
                                                                 value="{{ $customerDetails->billingDitails?->uuid ?? '' }}">
                                                             <div class="col-md-6 col-sm-6">
                                                                 <div class="add-form-panel mb-3">
-                                                                    <label for="">Building No. :<i
-                                                                            class="fas fa-times"
-                                                                            style="color: #f70707;"></i></label>
+                                                                    <label for="">Building No. :<span
+                                                                            class="addres_bill_cancle"> <i
+                                                                                class="fas fa-times"
+                                                                                style="color: #f70707;"></i></span></label>
                                                                     <div class="form-group">
                                                                         <input type="text"
-                                                                            class="form-control billing-address"
+                                                                            class="form-control billing-address billing_building_number"
                                                                             id="billing_building_number"
                                                                             name="customer_bill[billing_building_number]"
                                                                             value="{{ $customerDetails?->billingDitails?->building_number ?? '' }}"
@@ -324,7 +327,7 @@
                                                                                 style="color: #f70707;"></i></span></label>
                                                                     <div class="form-group">
                                                                         <input type="text"
-                                                                            class="form-control billing-address"
+                                                                            class="form-control billing-address billing_street"
                                                                             id="billing_street"
                                                                             name="customer_bill[billing_street]"
                                                                             value="{{ $customerDetails?->billingDitails?->street ?? '' }}"
@@ -340,7 +343,7 @@
                                                                                 style="color: #f70707;"></i></span></label>
                                                                     <div class="form-group">
                                                                         <input type="text"
-                                                                            class="form-control billing-address"
+                                                                            class="form-control billing-address billing_unit_number"
                                                                             id="billing_unit_number"
                                                                             name="customer_bill[billing_unit_number]"
                                                                             value="{{ $customerDetails?->billingDitails?->unit_number ?? '' }}"
@@ -375,7 +378,7 @@
                                                                                 style="color: #f70707;"></i></span></label>
                                                                     <div class="form-group">
                                                                         <input type="text"
-                                                                            class="form-control billing-address"
+                                                                            class="form-control billing-address billing_zip_code"
                                                                             name="customer_bill[billing_zip_code]"
                                                                             id="billing_zip_code"
                                                                             value="{{ $customerDetails?->billingDitails?->zip_code ?? '' }}"
@@ -408,7 +411,7 @@
                                                                                 style="color: #f70707;"></i></span></label>
                                                                     <div class="form-group">
                                                                         <input type="text"
-                                                                            class="form-control billing-address"
+                                                                            class="form-control billing-address billing_ac_no"
                                                                             name="customer_bill[billing_ac_no]"
                                                                             id="billing_ac_no"
                                                                             value="{{ $customerDetails?->billingDitails?->ac_no ?? '' }}"
@@ -705,11 +708,16 @@
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-secondary"
                                             data-bs-dismiss="modal">CANCEL</button>
-                                        <button type="submit" class="btn btn-primary addAgremmet saveAndUpload"
-                                            id="saveAndUpload">Save</button>
-                                        <a href="javascript:;" class="dwn" id="download_report">
+                                        <a href="javascript:void(0)" class="btn btn-primary  saveAndNext"
+                                            id="saveAndNext">Save & Next -></a>
+
+                                        <a href="javascript:void(0)" class="btn btn-primary addAgremmet saveAndUpload"
+                                            id="saveAndUpload">Save & PDF</a>
+                                        {{-- <button type="submit" class="btn btn-primary addAgremmet saveAndUpload"
+                                            id="saveAndUpload">Save & PDF</button> --}}
+                                        {{-- <a href="javascript:;" class="dwn" id="download_report">
                                             Download PDF
-                                        </a>
+                                        </a> --}}
                                     </div>
                                 </form>
                             </div>
@@ -732,11 +740,21 @@
             setDropdownValues();
             setbillingDropdownValues();
             $('.one-time-service-input').prop('disabled', true);
+            $('.search_form').hide();
+            $('.saveAndUpload').hide();
         });
         // ********************************************************
-        $(".addAgremmet").on('click', function(e) {
+        // $(".addAgremmet").on('click', function(e) {
+        //     generatePDF();
+        // });
+        // ********************************************************
 
-            $("#addAgremmetForm").submit();
+        $(".saveAndNext").on('click', function(e) {
+            $('.office_cancle').hide();
+            $('.addres_bill_cancle').hide();
+            $('.saveAndNext').hide();
+            $('.search_form').show();
+            $('.saveAndUpload').show();
         });
         // ***********************************************************************************
         // $(".searchCustomerOffice").on('click', function(e) {
@@ -752,7 +770,8 @@
                 $('<input>').attr({
                     type: 'text',
                     id: 'fileInput',
-                    name: 'title'
+                    name: 'title',
+
                 }).on('input', function() {
                     // Update the h3 tag with the input value
                     const inputValue = $(this).val();
@@ -807,7 +826,6 @@
             let id = $(this).siblings("input");
             id.closest('div').remove();
             console.log(id);
-            findOfficeNameClassExists();
             // alert("cancel");
         });
 
@@ -974,51 +992,9 @@
             document.getElementById(deleteBtnId).style.display = 'none';
         }
         // **************************Make a pdf use canva*******************************************
-
-        // document.getElementById('download_report').addEventListener('click', async function() {
-        //     // const loaderModal = document.getElementById('loaderModal');
-        //     // loaderModal.style.display = 'block'; // Show modal
-
-        //     const {
-        //         jsPDF
-        //     } = window.jspdf;
-        //     const pdf = new jsPDF('p', 'mm', 'a4');
-        //     const pdfWidth = 210; // A4 width in mm
-        //     const pdfHeight = 420; // A4 height in mm
-        //     const margin = 10; // Margin to ensure borders are not clipped
-        //     const contentDivs = document.querySelectorAll('.mainBody');
-
-        //     let pageNumber = 1;
-
-        //     // Apply styles to each element in the NodeList
-        //     contentDivs.forEach(div => {
-        //         div.style.fontSize = '1.65rem';
-        //         div.style.border = 'none';
-        //     });
-
-        //     const canvas = await html2canvas(contentDivs[0], { // Use the first element for canvas
-        //         scale: 1, // High resolution
-        //         useCORS: true, // Handle cross-origin images
-        //         backgroundColor: null, // Ensure transparency
-        //         logging: true, // Enable logging for debugging
-        //     });
-
-        //     // Reset styles after capturing
-        //     contentDivs.forEach(div => {
-        //         div.style.fontSize = '';
-        //         div.style.border = '1px solid #002947';
-        //     });
-
-        //     const imgData = canvas.toDataURL('image/png');
-        //     const imgWidth = pdfWidth - margin * 2;
-        //     const imgHeight = (canvas.height * imgWidth / canvas.width);
-
-        //     pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
-        //     pdf.save("pdf");
-        //     loaderModal.style.display = 'none'; // Hide modal
-        // });
-
-        document.getElementById('download_report').addEventListener('click', async function() {
+        document.getElementById('saveAndUpload').addEventListener('click', async function() {
+            // alert("aaaaaaaaaa")
+            $("#fileInput").hide();
             const {
                 jsPDF
             } = window.jspdf;
@@ -1058,7 +1034,7 @@
                         positionY = pdfHeight - margin; // Move to the bottom of the page
                         // pdf.addPage(); // Add a new page
                     }
-                    alert(margin + '/' + positionY + '/' + imgWidth + '/' + remainingHeight);
+                    // alert(margin + '/' + positionY + '/' + imgWidth + '/' + remainingHeight);
                     // Add the remaining part of the image
                     pdf.addImage(imgData, 'PNG', margin, positionY, imgWidth, remainingHeight);
                 } else {
@@ -1074,7 +1050,12 @@
                 div.style.fontSize = '';
                 div.style.border = '1px solid #002947';
             });
+
+            $("#addAgremmetForm").submit();
+
+
         });
+
         // ********************************************************************************
         $(document).on("click", '.searchCustomerOffice', function() {
             const officeId = $('.select_office').val();
@@ -1088,32 +1069,100 @@
                     customerId: customerId
                 },
                 success: function(response) {
+                    console.log(response);
+                    // ***********************Header ************************************
+                    if (response.officeDetails.logo) {
+                        $('.no_img').hide();
+                        const img = $('<img>').attr({
+                            src: response.officeDetails.logo_path,
+                            class: 'office-logo',
+                            alt: 'Office Logo'
+                        });
+                        $('.upload-img').after(img);
+                    }
 
-                    // console.log(response);
 
 
+                    // ***********************Office Details ************************************
 
-                    // alert("aaaaaaaaaaaaaaaaaaaaaaaaa")
+                    $('.office_id').val(response.officeDetails.uuid);
+                    if ($('.office_name').length > 0) {
+                        $('.office_name').val(response.officeDetails.name);
+                    }
+                    if ($('.office_address').length > 0) {
+                        $('.office_address').val(response.officeDetails.address);
+                    }
+                    if ($('.office_city').length > 0) {
+                        $('.office_city').val(response.officeDetails.city);
+                    }
+                    if ($('.office_zip').length > 0) {
+                        $('.office_zip').val(response.officeDetails.zip_code);
+                    }
+                    if ($('.office_phone').length > 0) {
+                        $('.office_phone').val(response.officeDetails.phone_number);
+                    }
+                    if ($('.office_mail').length > 0) {
+                        $('.office_mail').val(response.officeDetails.email);
+                    }
+                    if ($('.office_license').length > 0) {
+                        $('.office_license').val(response.officeDetails.license_number);
+                    }
+                    // ***********************Customer Details ************************************
+                    if ($('.uuid').length > 0) {
+                        $('.uuid').val(response.customerDetails.uuid);
+                    }
+                    if ($('.cust_name').length > 0) {
+                        $('.cust_name').val(response.customerDetails.name);
+                    }
+                    if ($('.cust_country').length > 0) {
+                        $('.cust_country').val(response.customerDetails.profile.country_id);
+                    }
+                    if ($('.cust_zip_code').length > 0) {
+                        $('.cust_zip_code').val(response.customerDetails.profile.zip_code);
+                    }
+                    if ($('.cust_state').length > 0) {
+                        $('.cust_state').val(response.customerDetails.profile.state_id);
+                    }
+                    if ($('.cust_addres').length > 0) {
+                        $('.cust_addres').val(response.customerDetails.profile.address);
+                    }
+                    if ($('.cust_city').length > 0) {
+                        $('.cust_city').val(response.customerDetails.profile.city_id);
+                    }
+
+                    // // ***********************Billing Details ************************************
+                    if ($('.billing_uuid').length > 0) {
+                        $('.billing_uuid').val(response.billingDetails.uuid);
+                    }
+                    if ($('.billing_building_number').length > 0) {
+                        $('.billing_building_number').val(response.billingDetails.building_number);
+                    }
+                    if ($('.billing_street').length > 0) {
+                        $('.billing_street').val(response.billingDetails.street);
+                    }
+                    if ($('.billing_unit_number').length > 0) {
+                        $('.billing_unit_number').val(response.billingDetails.unit_number);
+                    }
+                    if ($('.billing_select_country').length > 0) {
+                        $('.billing_select_country').val(response.billingDetails.country_id);
+                    }
+                    if ($('.billing_zip_code').length > 0) {
+                        $('.billing_zip_code').val(response.billingDetails.zip_code);
+                    }
+                    if ($('.billing_select_state').length > 0) {
+                        $('.billing_select_state').val(response.billingDetails.state_id);
+                    }
+                    if ($('.billing_ac_no').length > 0) {
+                        $('.billing_ac_no').val(response.billingDetails.ac_no);
+                    }
                 }
             });
 
         });
-        function findOfficeNameClassExists() {
-            if ($('.office_name').length > 0) {
-                alert("The class 'office_name' exists.");
-            } else {
-                alert("The class 'office_name' does not exist.");
-            }
-        }
-
-        // Call the function to check if the class exists
 
 
         // ********************************************************************************
     </script>
 </body>
 
-
 </html>
-
-
