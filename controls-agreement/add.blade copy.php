@@ -1,3 +1,76 @@
+
+document.getElementById('download_report').addEventListener('click', async function() { 
+    const loaderModal = document.getElementById('loaderModal');
+    console.log('Showing loader modal...');
+    loaderModal.style.display = 'block'; // Show modal
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+    const margin = 10; // Margin to ensure borders are not clipped
+    const contentDivs = document.querySelectorAll('.mainBody');
+
+    console.log('PDF page dimensions:', pdfWidth, pdfHeight);
+
+    // Apply temporary styles
+    contentDivs.forEach(div => {
+        div.style.fontSize = '1.65rem';
+        div.style.border = 'none';
+    });
+
+    for (const div of contentDivs) {
+        const canvas = await html2canvas(div, {
+            scale: 2, // Increase scale for better quality
+            useCORS: true, // Handle cross-origin images
+            backgroundColor: null, // Transparent background
+        });
+
+        console.log('Canvas dimensions:', canvas.width, canvas.height);
+
+        const imgData = canvas.toDataURL('image/png');
+        const imgWidth = pdfWidth - margin * 2;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+        console.log('Image dimensions:', imgWidth, imgHeight);
+
+        let yPosition = margin; // Start position on the page
+        let remainingHeight = imgHeight;
+
+        // Handle content overflow across pages
+        while (remainingHeight > 0) {
+            const renderHeight = Math.min(remainingHeight, pdfHeight - margin * 2);
+            console.log('Adding image at Y position:', yPosition, 'with height:', renderHeight);
+
+            pdf.addImage(imgData, 'PNG', margin, yPosition, imgWidth, renderHeight);
+
+            remainingHeight -= renderHeight;
+
+            if (remainingHeight > 0) {
+                console.log('Adding new page for remaining content...');
+                pdf.addPage(); // Add a new page for remaining content
+                yPosition = margin; // Reset position for the new page
+            }
+        }
+    }
+
+    // Reset styles after capturing
+    contentDivs.forEach(div => {
+        div.style.fontSize = '';
+        div.style.border = '1px solid #002947';
+    });
+
+    // Save the PDF
+    pdf.save("report.pdf");
+
+    console.log('Hiding loader modal...');
+    loaderModal.style.display = 'none'; // Hide modal
+});
+
+
+
+
+
 1.****************************aaaaaa
 document.getElementById('download_report').addEventListener('click', async function() { 
     const loaderModal = document.getElementById('loaderModal');
