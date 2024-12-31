@@ -1,4 +1,46 @@
 
+// toster.js
+
+function showToast(message, type = 'info', duration = 3000) {
+    // Ensure that the 'type' matches available toast types like success, error, warning, info
+    if (!['success', 'error', 'warning', 'info'].includes(type)) {
+        console.error(`Invalid toast type: ${type}`);
+        return;
+    }
+
+    // Assuming you use a library like toastr.js for toast notifications
+    toastr.options = {
+        closeButton: true,
+        progressBar: true,
+        timeOut: duration,
+        positionClass: "toast-top-right", // Change this based on your preference
+    };
+
+    // Trigger the corresponding toast
+    switch (type) {
+        case 'success':
+            toastr.success(message);
+            break;
+        case 'error':
+            toastr.error(message);
+            break;
+        case 'warning':
+            toastr.warning(message);
+            break;
+        case 'info':
+            toastr.info(message);
+            break;
+    }
+}
+
+// Export the function if you're using modules
+export { showToast };
+
+
+
+
+
+
 document.getElementById('download_report').addEventListener('click', async function() { 
     const loaderModal = document.getElementById('loaderModal');
     console.log('Showing loader modal...');
