@@ -2,6 +2,135 @@
 **************************************************
 **************************************************
 **************************************************
+
+Building on your previous code, here’s how you can ensure **real-time message updates** are displayed correctly for all participants in the chat room:
+
+### Update Your Code
+
+#### **1. Real-Time Message Emission**
+When a new message is sent, the sender should emit the `chat message` event with the necessary data.
+
+```javascript
+function sendChatMessage(roomName, message) {
+    socket.emit('chat message', {
+        roomName: roomName,
+        message: message
+    });
+
+    // Optionally, display the sender's message immediately
+    displayMessage({
+        user: 'Admin', // Adjust this as per your logic
+        message: message
+    });
+}
+```
+
+#### **2. Real-Time Message Reception**
+All participants in the room should listen for incoming messages using the `socket.on('chat message')` event.
+
+```javascript
+socket.on('chat message', function(data) {
+    displayMessage(data);
+});
+```
+
+#### **3. Display Messages in the Chat History**
+Update your `displayMessage` function to handle real-time rendering of the message in the chat UI.
+
+```javascript
+function displayMessage(data) {
+    let html = `
+        <li class="clearfix">
+            <div class="message ${(data.user === 'Admin') ? 'float-right my-message' : 'other-message'}">
+                ${data.message}
+            </div>
+        </li>`;
+    $("#messages").append(html);
+
+    // Scroll to the bottom when a new message is added
+    const chatHistoryDiv = $('.chat-history');
+    chatHistoryDiv.scrollTop(chatHistoryDiv[0].scrollHeight);
+}
+```
+
+#### **4. Join a Chat Room Dynamically**
+When a user selects a chat from the list, clear the message history and join the appropriate room.
+
+```javascript
+$(document).on("click", ".chat-list li", function() {
+    $("#messages").html('');  // Clear previous messages
+    $(".chat-list li").removeClass("active");
+    $(this).addClass("active");
+
+    let id = $(this).attr("data-id");
+    let room = $(this).attr("data-room");
+    roomName = room;
+
+    // Fetch user details and join the room
+    $.ajax({
+        url: "{{ route('admin.chat.user.details') }}",
+        method: "POST",
+        data: { id: id },
+        success: function(response) {
+            $(".userDet .name").text(response.first_name);
+            $(".userDet .phone").text(response.mobile_number);
+
+            // Join the chat room
+            socket.emit('join room', room);
+        },
+        error: function(xhr, status, error) {
+            console.error('Error fetching data:', error);
+        }
+    });
+});
+```
+
+#### **5. Server-Side Emission for `chat message`**
+
+Make sure your Socket.IO server broadcasts messages to the correct room. Add this logic to your server:
+
+```javascript
+io.on('connection', (socket) => {
+    console.log(`User connected: ${socket.id}`);
+
+    // Handle 'join room' event
+    socket.on('join room', (room) => {
+        socket.join(room);
+        console.log(`User joined room: ${room}`);
+    });
+
+    // Handle 'chat message' event
+    socket.on('chat message', (data) => {
+        const { roomName, message } = data;
+
+        // Broadcast the message to all participants in the room
+        socket.to(roomName).emit('chat message', {
+            user: 'Customer', // Example user type
+            message: message,
+            time: new Date().toLocaleTimeString()
+        });
+    });
+});
+```
+
+#### **6. Auto-Join the First Chat Room on Page Load**
+Trigger the first chat in the list to ensure it auto-selects when the page loads.
+
+```javascript
+$(document).ready(function() {
+    $(".chat-list li:first-child").trigger('click');
+});
+```
+
+### Summary
+
+- **Real-Time Sending**: The `sendChatMessage` function emits the message to the server.
+- **Real-Time Receiving**: The `socket.on('chat message')` listens for new messages and displays them in the UI.
+- **Room Management**: Users dynamically join rooms based on their selected chat.
+- **Scroll Management**: The chat history auto-scrolls to the latest message.
+
+This implementation ensures that messages appear in real-time for all participants in the chat room, following the structure of your previous code.
+
 **************************************************
 
 
