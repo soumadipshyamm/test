@@ -3,6 +3,71 @@
 **************************************************
 **************************************************
 **************************************************
+
+
+$(document).on('submit', "#chatForm", function(e) {
+    e.preventDefault();
+    let message = $("#message-input").val().trim();
+    if (message !== '') {
+        sendChatMessage(roomName, message);
+        $("#message-input").val('');
+    }
+});
+
+function sendChatMessage(roomName, message) {
+    socket.emit('chat message', {
+        roomName: roomName,
+        message: message,
+        user: 'Admin' // Identify the sender
+    });
+}
+
+
+let socket = io('https://socket.caborbit.com/', {
+    query: {
+        userType: 'super-admin',
+        superAdminId: superAdminId
+    }
+});
+
+socket.on('connect', () => {
+    console.log(`Connected as Super Admin ${superAdminId}`);
+});
+
+socket.on('chat message', function(data) {
+    displayMessage(data);
+});
+
+// Submit form to send a message
+$(document).on('submit', "#chatForm", function(e) {
+    e.preventDefault();
+    let message = $("#message-input").val();
+    if (message.trim() !== "") {
+        sendChatMessage(roomName, message);
+        $("#message-input").val('');  // Clear the input field
+    }
+});
+
+// Function to send chat message
+function sendChatMessage(roomName, message) {
+    socket.emit('chat message', {
+        roomName: roomName,
+        message: message
+    });
+}
+
+// Displaying the message in real time
+function displayMessage(data) {
+    let html = `<li class="clearfix">
+                    <div class="message ${(data.user === 'Admin') ? 'float-right my-message' : 'other-message'}">${data.message}</div>
+                </li>`;
+    $("#messages").append(html);
+    
+    // Auto-scroll to the bottom when new messages arrive
+    const chatHistoryDiv = $('.chat-history');
+    chatHistoryDiv.scrollTop(chatHistoryDiv[0].scrollHeight);
+}
+
 **************************************************
 
 
