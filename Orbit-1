@@ -4,6 +4,448 @@
 **************************************************
 **************************************************
 **************************************************
+
+
+
+@extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
+<script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+@push('styles')
+    <link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" />
+    <style>
+        .input-group .input-group-text {
+            padding: .75rem;
+        }
+
+        .card {
+            background: #232d45;
+            transition: .5s;
+            border-bottom: 1px solid #303c57;
+            border-radius: 0;
+            margin-bottom: 30px;
+            /* border-radius: .55rem; */
+            position: relative;
+            width: 100%;
+            /* box-shadow: 0 1px 2px 0 rgb(0 0 0 / 10%); */
+        }
+
+        .chat-app .people-list {
+            width: 280px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            padding: 20px;
+            z-index: 7
+        }
+
+        .chat-app .chat {
+            margin-left: 280px;
+            border-left: 1px solid #303c57
+        }
+
+        .people-list {
+            -moz-transition: .5s;
+            -o-transition: .5s;
+            -webkit-transition: .5s;
+            transition: .5s
+        }
+
+        .people-list .chat-list li {
+            padding: 10px 15px;
+            list-style: none;
+            border-radius: 3px
+        }
+
+        .people-list .chat-list li:hover {
+            background: #efefef;
+            cursor: pointer
+        }
+
+        .people-list .chat-list li.active {
+            background: #3e4860
+        }
+
+        .people-list .chat-list li .name {
+            font-size: 15px
+        }
+
+        .people-list .chat-list img {
+            width: 45px;
+            border-radius: 50%
+        }
+
+        .people-list img {
+            float: left;
+            border-radius: 50%
+        }
+
+        .people-list .about {
+            float: left;
+            padding-left: 8px
+        }
+
+        .people-list .status {
+            color: #999;
+            font-size: 13px
+        }
+
+        .chat .chat-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #303c57
+        }
+
+        .chat .chat-header img {
+            float: left;
+            border-radius: 40px;
+            width: 40px
+        }
+
+        .chat .chat-header .chat-about {
+            float: left;
+            padding-left: 10px
+        }
+
+        .chat .chat-history {
+            padding: 20px;
+            border-bottom: 1px solid #303c57
+        }
+
+        .chat .chat-history ul {
+            padding: 0
+        }
+
+        .chat .chat-history ul li {
+            list-style: none;
+            margin-bottom: 15px
+        }
+
+        .chat .chat-history ul li:last-child {
+            margin-bottom: 0px
+        }
+
+        .chat .chat-history .message-data {
+            margin-bottom: 15px
+        }
+
+        .chat .chat-history .message-data img {
+            border-radius: 40px;
+            width: 40px
+        }
+
+        .chat .chat-history .message-data-time {
+            color: #868da7;
+            padding-left: 6px
+        }
+
+        .chat .chat-history .message {
+            color: #444;
+            padding: 5px 10px;
+            line-height: 26px;
+            font-size: 16px;
+            border-radius: 7px;
+            display: inline-block;
+            position: relative;
+            overflow-wrap: anywhere;
+        }
+
+        /* .chat .chat-history .message:after {
+                                bottom: 100%;
+                                left: 7%;
+                                border: solid transparent;
+                                content: " ";
+                                height: 0;
+                                width: 0;
+                                position: absolute;
+                                pointer-events: none;
+                                border-bottom-color: #fff;
+                                border-width: 10px;
+                                margin-left: -10px
+                            } */
+
+        .chat .chat-history .other-message {
+            background: #c9d9ff
+        }
+
+        /* .chat .chat-history .other-message:after {
+                                bottom: 100%;
+                                left: 20px;
+                                border: solid transparent;
+                                content: " ";
+                                height: 0;
+                                width: 0;
+                                position: absolute;
+                                pointer-events: none;
+                                border-bottom-color: #efefef;
+                                border-width: 10px;
+                                margin-left: -10px
+                            } */
+
+        .chat .chat-history .my-message {
+            background: #e8f1f3;
+            text-align: right
+        }
+
+        .chat .chat-history .my-message:after {
+            border-bottom-color: #e8f1f3;
+            right: 6px;
+            left: auto;
+        }
+
+        .chat .chat-message {
+            padding: 20px
+        }
+
+        .online,
+        .offline,
+        .me {
+            margin-right: 2px;
+            font-size: 8px;
+            vertical-align: middle
+        }
+
+        .online {
+            color: #86c541
+        }
+
+        .offline {
+            color: #e47297
+        }
+
+        .me {
+            color: #1d8ecd
+        }
+
+        .float-right {
+            float: right
+        }
+
+        .clearfix:after {
+            visibility: hidden;
+            display: block;
+            font-size: 0;
+            content: " ";
+            clear: both;
+            height: 0
+        }
+
+        .chat-app .chat-history {
+            height: 62vh;
+            width: 100%;
+            overflow-y: auto;
+            overflow-x: auto
+        }
+
+        @media only screen and (max-width: 767px) {
+            .chat-app .people-list {
+                height: 465px;
+                width: 100%;
+                overflow-x: auto;
+                background: #fff;
+                left: -400px;
+                display: none
+            }
+
+            .chat-app .people-list.open {
+                left: 0
+            }
+
+            .chat-app .chat {
+                margin: 0
+            }
+
+            .chat-app .chat .chat-header {
+                border-radius: 0.55rem 0.55rem 0 0
+            }
+
+            .chat-app .chat-history {
+                height: 300px;
+                overflow-x: auto
+            }
+        }
+
+        @media only screen and (min-width: 768px) and (max-width: 992px) {
+            .chat-app .chat-list {
+                height: 650px;
+                overflow-x: auto
+            }
+
+            .chat-app .chat-history {
+                height: 600px;
+                overflow-x: auto
+            }
+        }
+
+        @media only screen and (min-device-width: 768px) and (max-device-width: 1024px) and (orientation: landscape) and (-webkit-min-device-pixel-ratio: 1) {
+            .chat-app .chat-list {
+                height: 480px;
+                overflow-x: auto
+            }
+
+            .chat-app .chat-history {
+                height: calc(100vh - 350px);
+                overflow-x: auto
+            }
+        }
+
+        .chat-list {
+            color: #e1dcdc;
+        }
+
+        .chat-about,
+        .chat-about h6 {
+            color: #e1dcdc;
+        }
+    </style>
+@endpush
+
+@section('content')
+    <div class="container">
+        <div class="row clearfix">
+            <div class="col-lg-12">
+                <div class="card chat-app">
+                    <div id="plist" class="people-list">
+                        <ul class="list-unstyled chat-list mt-2 mb-0">
+                            @foreach ($chats as $chat)
+                                <li class="clearfix" data-id="{{ $chat->user_id }}" data-room="{{ $chat->roomName }}">
+                                    <div class="col-lg-4 userImg">
+                                        <img src="{{ $chat?->user?->profile_picture ?? 'https://bootdey.com/img/Content/avatar/avatar2.png' }}"
+                                            alt="avatar">
+                                    </div>
+                                    <div class="about">
+                                        <div class="name">{{ $chat->user?->first_name . ' ' . $chat->user?->last_name }}
+                                        </div>
+                                    </div>
+                                    <div class="status"><i class="fa fa-circle online"></i>
+                                        {{ $chat?->user?->mobile_number ?? '' }}</div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                    <div class="chat">
+                        <div class="chat-header clearfix">
+                            <div class="row">
+                                <div class="col-lg-6 userDet">
+                                    <a href="javascript:void(0);">
+                                        <img src="https://bootdey.com/img/Content/avatar/avatar2.png" alt="avatar">
+                                    </a>
+                                    <div class="chat-about">
+                                        <h6 class="m-b-0 name"></h6>
+                                        <small class="phone"></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-history">
+                            <ul class="m-b-0" id="messages"></ul>
+                        </div>
+                        <div class="chat-message clearfix">
+                            <form id="chatForm">
+                                <div class="input-group mb-0">
+                                    <div class="input-group-prepend">
+                                        <button class="input-group-text" type="submit"><i class="fa fa-send"></i></button>
+                                    </div>
+                                    <input type="text" class="form-control" placeholder="Enter text here..."
+                                        id="message-input">
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection
+
+@push('scripts')
+    <script>
+        let superAdminId = 1; // Example: Retrieve authenticated super admin ID
+        let roomName = '';
+        let socket = io('https://socket.caborbit.com/', {
+            //let socket = io('https://socket.shyamfuture.in', {
+            // let socket = io('http://13.127.84.232:3001/', {
+            query: {
+                userType: 'super-admin',
+                superAdminId: superAdminId
+            }
+        });
+        socket.on('connect', () => {
+            console.log(`Connected as Super Admin ${superAdminId}`);
+        });
+        socket.on('disconnect', () => {
+            console.log('Disconnected from Socket.io server');
+        });
+        socket.on('previous messages', (messages) => {
+            console.log(messages);
+            messages.forEach(message => {
+                displayMessage(message);
+            });
+        });
+
+        function createChatRoom(customerId) {
+            socket.emit('create room', customerId);
+        }
+
+        function displayMessage(data) {
+            let currentTime = data.time ? data.time : '';
+            let html = `<li class="clearfix">
+                    <div class="message ${(data.user === 'Admin') ? 'float-right my-message' : 'other-message'}">${data.message}</div>
+                </li>`;
+            $("#messages").append(html);
+            const chatMessageDiv = $('.chat-history');
+            // Additional code skipped for brevity
+        }
+
+        $(document).on('submit', "#chatForm", function(e) {
+            e.preventDefault()
+            sendChatMessage(roomName, $("#message-input").val())
+            $("#message-input").val('')
+        })
+
+        function sendChatMessage(roomName, message) {
+            socket.emit('chat message', {
+                roomName: roomName,
+                message: message
+            });
+        }
+        // Event listener to receive chat messages from customers
+        socket.on('chat message', function(data) {
+            displayMessage(data);
+            // Handle displaying the message in your UI
+        });
+
+        $(document).on("click", ".chat-list li", function() {
+            $("#messages").html('');
+            $(".chat-list li").removeClass("active");
+            $(this).addClass("active");
+            let id = $(this).attr("data-id");
+            let room = $(this).attr("data-room");
+            $.ajax({
+                url: "{{ route('admin.chat.user.details') }}",
+                method: "POST",
+                data: {
+                    'id': id
+                },
+                success: function(response) {
+                    $(".userDet .name").text(response.first_name);
+                    $(".userDet .phone").text(response.mobile_number);
+                    roomName = room; // Replace with actual room ID
+                    socket.emit('join room', room);
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error fetching data:', error);
+                    // Handle error scenario
+                }
+            });
+        });
+
+        $(document).ready(function() {
+            $(".chat-list li:first-child").trigger('click');
+        });
+
+
+
+    </script>
+@endpush
+
 **************************************************
 
 public function getPayoutWeeklyList(array $filterConditions, $start = null, $limit = null, $order = 'week_no', $dir = 'asc')
