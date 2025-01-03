@@ -1,6 +1,23 @@
 **************************************************
 **************************************************
 **************************************************
+setInterval(() => {
+    socket.emit('fetch previous messages', roomName); // Emit a custom event to request previous messages
+}, 1000);
+socket.on('fetch previous messages', (roomName) => {
+    // Fetch previous messages from the database
+    const query = 'SELECT * FROM messages WHERE room = ? ORDER BY timestamp ASC';
+    db.query(query, [roomName], (err, results) => {
+        if (err) {
+            console.error('Database error:', err);
+            return;
+        }
+        socket.emit('previous messages', results);
+    });
+});
+
+
+
 **************************************************
 
 Building on your previous code, here’s how you can ensure **real-time message updates** are displayed correctly for all participants in the chat room:
