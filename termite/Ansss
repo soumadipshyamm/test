@@ -1,3 +1,137 @@
+
+<form action="{{ route('controls-agreement.update', $agreement->id) }}" method="POST">
+    @csrf
+    @method('PUT')
+
+    <div class="mb-4">
+        <h5 class="section-title mb-3"><b>One-Time Services</b></h5>
+        <div class="mb-3 d-flex flex-wrap">
+            <!-- Fumigation -->
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" 
+                       id="fumigationCheck" 
+                       name="services[fumigation][0]" 
+                       value="fumigation" 
+                       {{ isset($formData['fumigation']) ? 'checked' : '' }}>
+                <label class="form-check-label" for="fumigationCheck">Fumigation</label>
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="fumigationInput" 
+                       name="services[fumigation][fumigation_cost]" 
+                       value="{{ $formData['fumigation']['fumigation_cost'] ?? '' }}">
+            </div>
+
+            <!-- Termite Warranty -->
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" 
+                       id="termiteWarrantyCheck" 
+                       name="services[termite_warranty][0]" 
+                       value="termite_warranty" 
+                       {{ isset($formData['termite_warranty']) ? 'checked' : '' }}>
+                <label class="form-check-label" for="termiteWarrantyCheck">Termite Warranty</label>
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="termiteWarrantyCost" 
+                       name="services[termite_warranty][termite_warranty_cost]" 
+                       value="{{ $formData['termite_warranty']['termite_warranty_cost'] ?? '' }}">
+                <label class="form-check-label" for="tileType">Type of Tile</label>
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="tileType" 
+                       name="services[termite_warranty][tile_type]" 
+                       value="{{ $formData['termite_warranty']['tile_type'] ?? '' }}">
+            </div>
+
+            <!-- Boric Acid -->
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" 
+                       id="boricAcidCheck" 
+                       name="services[boric_acid][0]" 
+                       value="boric_acid" 
+                       {{ isset($formData['boric_acid']) ? 'checked' : '' }}>
+                <label class="form-check-label" for="boricAcidCheck">Boric Acid Preventative Treatment</label>
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="boricAcidCost" 
+                       name="services[boric_acid][boric_acid_cost]" 
+                       value="{{ $formData['boric_acid']['boric_acid_cost'] ?? '' }}">
+            </div>
+
+            <!-- Local Treat -->
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" 
+                       id="localTreatCheck" 
+                       name="services[local_treat][0]" 
+                       value="local_treat" 
+                       {{ isset($formData['local_treat']) ? 'checked' : '' }}>
+                <label class="form-check-label" for="localTreatCheck">One-Time or Initial Local Treat</label>
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="localTreatCost" 
+                       name="services[local_treat][local_treat_cost]" 
+                       value="{{ $formData['local_treat']['local_treat_cost'] ?? '' }}">
+            </div>
+
+            <!-- Wood Repairs -->
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" 
+                       id="woodRepairsCheck" 
+                       name="services[wood_repairs][0]" 
+                       value="wood_repairs" 
+                       {{ isset($formData['wood_repairs']) ? 'checked' : '' }}>
+                <label class="form-check-label" for="woodRepairsCheck">Wood Repairs</label>
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="woodRepairsCost" 
+                       name="services[wood_repairs][wood_repairs_cost]" 
+                       value="{{ $formData['wood_repairs']['wood_repairs_cost'] ?? '' }}">
+            </div>
+
+            <!-- WDO Inspection -->
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" 
+                       id="wdoInspectionCheck" 
+                       name="services[wdo_inspection][0]" 
+                       value="wdo_inspection" 
+                       {{ isset($formData['wdo_inspection']) ? 'checked' : '' }}>
+                <label class="form-check-label" for="wdoInspectionCheck">WDO Inspection Report</label>
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="wdoInspectionCost" 
+                       name="services[wdo_inspection][wdo_inspection_cost]" 
+                       value="{{ $formData['wdo_inspection']['wdo_inspection_cost'] ?? '' }}">
+            </div>
+
+            <!-- Other -->
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" 
+                       id="otherCheck" 
+                       name="services[other][0]" 
+                       value="other" 
+                       {{ isset($formData['other']) ? 'checked' : '' }}>
+                <label class="form-check-label" for="otherCheck">Other</label>
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="otherDescription" 
+                       name="services[other][other_description]" 
+                       value="{{ $formData['other']['other_description'] ?? '' }}" 
+                       placeholder="Description">
+                <input class="form-control one-time-service-input" 
+                       type="text" 
+                       id="otherCost" 
+                       name="services[other][other_cost]" 
+                       value="{{ $formData['other']['other_cost'] ?? '' }}" 
+                       placeholder="Cost">
+            </div>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Submit</button>
+</form>
+
+
+
+
 {#1567 ▼ // resources\views/pages/controls-agreement/update.blade.php
   +"fumigation": {#1566 ▼
     +"0": "fumigation"
