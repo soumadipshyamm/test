@@ -1,1 +1,33 @@
-
+{#1567 ▼ // resources\views/pages/controls-agreement/update.blade.php
+  +"fumigation": {#1566 ▼
+    +"0": "fumigation"
+    +"fumigation_cost": "11111"
+  }
+  +"termite_warranty": {#1568 ▼
+    +"0": "termite_warranty"
+    +"termite_warranty_cost": "111111111"
+    +"tile_type": "11111111111111111"
+  }
+  +"boric_acid": {#1569 ▼
+    +"0": "boric_acid"
+    +"boric_acid_cost": "111111111111111"
+  }
+  +"local_treat": {#1570 ▼
+    +"0": "local_treat"
+    +"local_treat_cost": "111111111111111111"
+  }
+  +"wood_repairs": {#1574 ▼
+    +"0": "wood_repairs"
+    +"wood_repairs_cost": "1111111111"
+  }
+  +"wdo_inspection": {#1572 ▼
+    +"0": "wdo_inspection"
+    +"wdo_inspection_cost": "11111111111111111"
+  }
+  +"other": {#1563 ▼
+    +"0": "other"
+    +"other_description": "1111111111"
+    +"other_cost": "1111111111111"
+  }
+  +"description": "Repellendus Dolore"
+}
