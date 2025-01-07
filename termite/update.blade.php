@@ -88,7 +88,9 @@
                             $billingDitails = json_decode($datas->customer_billing);
                             $service_plans = json_decode($datas->service_plan);
                             $one_time_services = json_decode($datas->one_time_service);
+                            $dynamic_text_boxs = json_decode($datas->dynamic_text_box);
                         @endphp
+                        {{-- @dd($officeDetails) --}}
                         {{-- ********************************************************************************** --}}
                         <div class="tab-contentUncaught TypeError: Failed to execute 'getComputedStyle' on 'Window': parameter 1 is not of type 'Element'. pdf-section "
                             id="pills-tabContent">
@@ -515,7 +517,7 @@
                                                 {{-- ************************************************************ --}}
                                             </div>
                                             {{-- ******************************** Service Plans Section***************************************** --}}
-                                            {{-- @dd($datas->service_plan) --}}
+                                            {{-- @dd($service_plans) --}}
                                             <div class="mb-4">
                                                 <h5 class="section-title mb-3 "><b>Service Plans</b></h5>
                                                 <div class="mb-3 ">
@@ -523,7 +525,8 @@
                                                         <input
                                                             class="form-check-input check-service-plan drywood_and_subterranean_termite_service"
                                                             type="checkbox" id="servicePlan1"
-                                                            name="service_plan[type]"
+                                                            name="service_plan[type][]"
+                                                            data-keys="{{ isset($service_plans->drywood_and_subterranean_termite_service) ? json_encode($service_plans->drywood_and_subterranean_termite_service) : '' }}"
                                                             {{ isset($service_plans->drywood_and_subterranean_termite_service) ? 'checked' : '' }}
                                                             value="drywood_and_subterranean_termite_service">
                                                         <label class="form-check-label" for="servicePlan1">Drywood and
@@ -533,26 +536,25 @@
                                                         <input
                                                             class="form-check-input check-service-plan drywood_only_service"
                                                             type="checkbox" id="servicePlan2"
-                                                            name="service_plan[type]" value="drywood_only_service"
+                                                            name="service_plan[type][]" value="drywood_only_service"
+                                                            data-keys="{{ isset($service_plans->drywood_only_service) ? json_encode($service_plans->drywood_only_service) : '' }}"
                                                             {{ isset($service_plans->drywood_only_service) ? 'checked' : '' }}>
                                                         <label class="form-check-label" for="servicePlan2">Drywood
-                                                            Only
-                                                            Service</label>
+                                                            Only Service</label>
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <input
                                                             class="form-check-input check-service-plan subterranean_only_service"
                                                             type="checkbox" id="servicePlan3"
-                                                            name="service_plan[type]"
+                                                            name="service_plan[type][]"
                                                             value="subterranean_only_service"
+                                                            data-keys="{{ isset($service_plans->subterranean_only_service) ? json_encode($service_plans->subterranean_only_service) : '' }}"
                                                             {{ isset($service_plans->subterranean_only_service) ? 'checked' : '' }}>
                                                         <label class="form-check-label"
-                                                            for="servicePlan3">Subterranean
-                                                            Only Service</label>
+                                                            for="servicePlan3">Subterranean Only Service</label>
                                                     </div>
                                                 </div>
-                                                <div class="service-plan-detail">
-                                                </div>
+                                                <div class="service-plan-detail"></div>
                                                 <p>"Monthly payment plans Require a 24 month minimum. Unless the
                                                     structure(s) is "free of drywood termite infestations" at the time
                                                     of
@@ -560,145 +562,156 @@
                                                     treatment
                                                     or fumigation.</p>
                                             </div>
-
                                             {{-- ********************************One-Time Services Section***************************************** --}}
-                                            {{-- @dd($one_time_services) --}}
-
+                                            {{-- @dd($one_time_services->fumigation->fumigation_cost) --}}
                                             <div class="mb-4">
                                                 <h5 class="section-title mb-3"><b>One-Time Services</b></h5>
                                                 <div class="mb-3 d-flex flex-wrap ">
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="fumigationCheck" name="services[fumigation][]"
-                                                            value="fumigation">
+                                                            value="fumigation"
+                                                            {{ isset($one_time_services->fumigation) ? 'checked' : '' }}>
                                                         <label class="form-check-label"
                                                             for="fumigationCheck">Fumigation</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="fumigationInput"
                                                             name="services[fumigation][fumigation_cost]"
-                                                            class="service-cost" value="">
+                                                            value="{{ isset($one_time_services->fumigation->fumigation_cost) ? $one_time_services->fumigation->fumigation_cost : '' }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="termiteWarrantyCheck"
                                                             name="services[termite_warranty][]"
-                                                            value="termite_warranty">
+                                                            value="termite_warranty"
+                                                            {{ isset($one_time_services->termite_warranty) ? 'checked' : '' }}>
                                                         <label class="form-check-label"
                                                             for="termiteWarrantyCheck">Termite
                                                             Warranty</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="termiteWarrantyCost"
                                                             name="services[termite_warranty][termite_warranty_cost]"
-                                                            class="service-cost">
+                                                            value="{{ isset($one_time_services->termite_warranty->termite_warranty_cost) ? $one_time_services->termite_warranty->termite_warranty_cost : '' }}">
                                                         <label class="form-check-label" for="tileType">Type of
                                                             Tile</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="tileType"
                                                             name="services[termite_warranty][tile_type]"
-                                                            class="tile-type">
+                                                            class="tile-type"
+                                                            value="{{ isset($one_time_services->termite_warranty->tile_type) ? $one_time_services->termite_warranty->tile_type : '' }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="boricAcidCheck" name="services[boric_acid][]"
-                                                            value="boric_acid">
+                                                            value="boric_acid"
+                                                            {{ isset($one_time_services->boric_acid) ? 'checked' : '' }}>
                                                         <label class="form-check-label" for="boricAcidCheck">Boric
                                                             Acid
                                                             Preventative treatment</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="boricAcidCost"
                                                             name="services[boric_acid][boric_acid_cost]"
-                                                            class="service-cost">
+                                                            value="{{ isset($one_time_services->boric_acid->boric_acid_cost) ? $one_time_services->boric_acid->boric_acid_cost : '' }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="localTreatCheck" name="services[local_treat][]"
-                                                            value="local_treat">
+                                                            value="local_treat"
+                                                            {{ isset($one_time_services->local_treat) ? 'checked' : '' }}>
                                                         <label class="form-check-label" for="localTreatCheck">One-Time
                                                             or
                                                             initial Local treat</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="localTreatCost"
                                                             name="services[local_treat][local_treat_cost]"
-                                                            class="service-cost">
+                                                            value="{{ isset($one_time_services->local_treat->local_treat_cost) ? $one_time_services->local_treat->local_treat_cost : '' }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="woodRepairsCheck" name="services[wood_repairs][]"
-                                                            value="wood_repairs">
+                                                            value="wood_repairs"
+                                                            {{ isset($one_time_services->wood_repairs) ? 'checked' : '' }}>
                                                         <label class="form-check-label" for="woodRepairsCheck">Wood
                                                             Repairs</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="woodRepairsCost"
                                                             name="services[wood_repairs][wood_repairs_cost]"
-                                                            class="service-cost">
+                                                            value="{{ isset($one_time_services->wood_repairs->wood_repairs_cost) ? $one_time_services->wood_repairs->wood_repairs_cost : '' }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="wdoInspectionCheck" name="services[wdo_inspection][]"
-                                                            value="wdo_inspection">
+                                                            value="wdo_inspection"
+                                                            {{ isset($one_time_services->wdo_inspection) ? 'checked' : '' }}>
                                                         <label class="form-check-label" for="wdoInspectionCheck">WDO
                                                             Inspection Report</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="wdoInspectionCost"
                                                             name="services[wdo_inspection][wdo_inspection_cost]"
-                                                            class="service-cost">
+                                                            value="{{ isset($one_time_services->wdo_inspection->wdo_inspection_cost) ? $one_time_services->wdo_inspection->wdo_inspection_cost : '' }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="insulationCheck" name="services[insulation][]"
-                                                            value="insulation">
+                                                            value="insulation"
+                                                            {{ isset($one_time_services->insulation) ? 'checked' : '' }}>
                                                         <label class="form-check-label"
                                                             for="insulationCheck">Insulation</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="insulationCost"
                                                             name="services[insulation][insulation_cost]"
-                                                            class="service-cost">
+                                                            value="{{ isset($one_time_services->insulation->insulation_cost) ? $one_time_services->insulation->insulation_cost : '' }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
-                                                            id="otherCheck" name="services[other][]" value="other">
+                                                            id="otherCheck" name="services[other][]" value="other"
+                                                            {{ isset($one_time_services->other) ? 'checked' : '' }}>
                                                         <label class="form-check-label" for="otherCheck">Other</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="otherDescription"
                                                             name="services[other][other_description]"
-                                                            class="other-description">
+                                                            class="other-description"
+                                                            value="{{ isset($one_time_services->other->other_description) ? $one_time_services->other->other_description : '' }}">
                                                         <label class="form-check-label" for="otherCost">$</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="otherCost"
-                                                            name="services[other][other_cost]" class="service-cost">
+                                                            name="services[other][other_cost]"
+                                                            value="{{ isset($one_time_services->other->other_cost) ? $one_time_services->other->other_cost : '' }}">
                                                     </div>
+
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="termiteDiscountCheck"
                                                             name="services[termite_discount][]"
-                                                            value="termite_discount">
+                                                            value="termite_discount"
+                                                            {{ isset($one_time_services->termite_discount) ? 'checked' : '' }}>
+
                                                         <label class="form-check-label"
                                                             for="termiteDiscountCheck">Termite
                                                             bundled discount</label>
-                                                        <input class="form-control one-time-service-input"
+                                                        <input class="form-control one-time-service-input service-cost"
                                                             type="text" id="termiteDiscountCost"
                                                             name="services[termite_discount][termite_discount_cost]"
-                                                            class="service-cost">
+                                                            value="{{ isset($one_time_services->termite_discount->termite_discount_cost) ? $one_time_services->termite_discount->termite_discount_cost : '' }}">
                                                     </div>
                                                 </div>
                                             </div>
-
                                             {{-- ********************************Description Section***************************************** --}}
+                                            {{-- @dd($one_time_services) --}}
                                             <div class="row">
                                                 <div class="section-title mb-3"><b>Description of Services and Vendor
-                                                        for
-                                                        Repairs (if applicable)</b></div>
+                                                        for Repairs (if applicable)</b></div>
                                                 <div class="mb-3">
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label"
                                                             for="servicePlan1">Description</label>
                                                         <textarea name="services[description]" id="description_services" class="form-control" rows="3"
-                                                            cols="100"></textarea>
+                                                            cols="100"> {{ isset($one_time_services->description) ? $one_time_services->description : '' }}</textarea>
                                                     </div>
                                                 </div>
                                             </div>
-
                                             {{-- ********************************Payment and Terms Section***************************************** --}}
+                                            {{-- @dd($datas) --}}
                                             <div class="row">
                                                 <div class="section-title mb-3"><b>Payment and Terms</b></div>
                                                 <div class="mb-3">
@@ -706,7 +719,8 @@
                                                         <label class="form-check-label" for="totalInitial">Total
                                                             Initial</label>
                                                         <input class="form-control" type="text" id="totalInitial"
-                                                            name="payment[total_initial]">
+                                                            name="payment[total_initial]"
+                                                            value="{{ $datas->total_initial }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="totalYearlyRenewal">Total
@@ -714,17 +728,20 @@
                                                             Renewal</label>
                                                         <input class="form-control" type="text"
                                                             id="totalYearlyRenewal"
-                                                            name="payment[total_yearly_renewal]">
+                                                            name="payment[total_yearly_renewal]"
+                                                            value="{{ $datas->total_yearly_renewal }}">
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="monthlyRenewal">Monthly
                                                             Renewal</label>
                                                         <input class="form-control" type="text"
-                                                            id="monthlyRenewal" name="payment[monthly_renewal]">
+                                                            id="monthlyRenewal" name="payment[monthly_renewal]"
+                                                            value="{{ $datas->total_monthly_renewal }}">
                                                     </div>
                                                 </div>
                                             </div>
                                             {{-- ******************************** Editable Dynamic Text Box Section***************************************** --}}
+                                            {{-- @dd($dynamic_text_boxs) --}}
                                             <div class="row">
                                                 <div class="section-title mb-3"><b>Editable Dynamic</b></div>
                                                 <div class="mb-3">
@@ -732,14 +749,15 @@
                                                         <label class="form-check-label" for="dynamicTextBox1">Editable
                                                             Dynamic
                                                             Text Box 1</label>
-                                                        <textarea name="dynamicTextBox[dynamic_text_box_one]" id="dynamicTextBox1" class="form-control" rows="3"
-                                                            cols="100"></textarea>
+                                                        <textarea name="dynamicTextBox[dynamic_text_box_one]['text_here_one']" id="dynamicTextBox1" class="form-control"
+                                                            rows="3" cols="100">{{ isset($dynamic_text_boxs->dynamic_text_box_one->text_here_one) ? $dynamic_text_boxs->dynamic_text_box_one->text_here_one : '' }}</textarea>
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="initialHere1">Initial
                                                             Here</label>
                                                         <input class="form-control" type="text" id="initialHere1"
-                                                            name="dynamicTextBox[dynamic_text_box_one][initial_here_one]">
+                                                            name="dynamicTextBox[dynamic_text_box_one][initial_here_one]"
+                                                            value="{{ $dynamic_text_boxs?->dynamic_text_box_one?->initial_here_one ?? '' }}">
                                                     </div>
                                                 </div>
                                                 <div class="mb-3">
@@ -747,14 +765,15 @@
                                                         <label class="form-check-label" for="dynamicTextBox2">Editable
                                                             Dynamic
                                                             Text Box 2</label>
-                                                        <textarea name="dynamicTextBox[dynamic_text_box_two]" id="dynamicTextBox2" class="form-control" rows="3"
-                                                            cols="100"></textarea>
+                                                        <textarea name="dynamicTextBox[dynamic_text_box_two]['text_here_two']" id="dynamicTextBox2" class="form-control"
+                                                            rows="3" cols="100">{{ isset($dynamic_text_boxs->dynamic_text_box_two->text_here_two) ? $dynamic_text_boxs->dynamic_text_box_two->text_here_two : '' }}</textarea>
                                                     </div>
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="initialHere2">Initial
                                                             Here</label>
                                                         <input class="form-control" type="text" id="initialHere2"
-                                                            name="dynamicTextBox[dynamic_text_box_two][initial_here_two]">
+                                                            name="dynamicTextBox[dynamic_text_box_two][initial_here_two]"
+                                                            value="{{ $dynamic_text_boxs?->dynamic_text_box_two?->initial_here_two ?? '' }}">
                                                     </div>
                                                 </div>
                                                 <div class="mb-3">
@@ -763,7 +782,7 @@
                                                             Dynamic
                                                             Text Box 3</label>
                                                         <textarea name="dynamicTextBox[dynamic_text_box_three]" id="dynamicTextBox3" class="form-control" rows="3"
-                                                            cols="100"></textarea>
+                                                            cols="100">{{ isset($dynamic_text_boxs->dynamic_text_box_three) ? $dynamic_text_boxs->dynamic_text_box_three : '' }}</textarea>
                                                     </div>
                                                 </div>
                                                 <div class="mb-3">
@@ -773,7 +792,7 @@
                                                             Dynamic
                                                             Text Box 4</label><br>
                                                         <textarea name="dynamicTextBox[dynamic_text_box_four]" id="dynamicTextBox4" class="form-control" rows="3"
-                                                            cols="100"></textarea>
+                                                            cols="100">{{ isset($dynamic_text_boxs->dynamic_text_box_four) ? $dynamic_text_boxs->dynamic_text_box_four : '' }}</textarea>
                                                     </div>
                                                 </div>
                                             </div>
@@ -783,8 +802,8 @@
                                     <div class="modal-footer">
                                         <button type="button" class="btn btn-danger cancle-page"
                                             data-bs-dismiss="modal">CANCEL</button>
-                                        <a href="javascript:void(0)" class="btn btn-info  saveAndNext"
-                                            id="saveAndNext">Save & Next -></a>
+                                        {{-- <a href="javascript:void(0)" class="btn btn-info  saveAndNext"
+                                            id="saveAndNext">Save & Next -></a> --}}
                                         <a href="javascript:void(0)" class="btn btn-primary addAgremmet saveAndUpload"
                                             id="saveAndUpload">Save & PDF</a>
                                     </div>
@@ -803,6 +822,7 @@
     <script type="text/javascript" src="https://html2canvas.hertzen.com/dist/html2canvas.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.3/moment.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script src="{{ asset('assets/js/common.js') }}"></script>
     <script>
         $.ajaxSetup({
@@ -819,6 +839,11 @@
         });
         // ********************************************************
         $(document).ready(function() {
+            editTitle({{ $datas->title }});
+            $('.section-title').css('background-color', `{{ $datas?->offices?->color }}` ?? '#3c1ad6');
+            $('.search_form').hide();
+            $('.office_cancle').hide();
+            $('.addres_bill_cancle').hide();
             setDropdownValues();
             setbillingDropdownValues();
         });
@@ -833,24 +858,33 @@
         });
         // *****************************Header**************************************************
         $(document).on("click", ".add-heading", function() {
-            // let id = $(this).siblings("h3.form-title.head-title");
+            editTitle();
+        });
+
+        $(document).ready(function() {
+            editTitle("{{ $datas->title }}");
+        });
+
+        function editTitle(title_value = '') {
             $(".edit-title").hide();
             $(".title-save").show();
-            $(".head-title").replaceWith(
-                $('<input>').attr({
-                    type: 'text',
-                    id: 'fileInput',
-                    name: 'title',
-                }).on('input', function() {
-                    // Update the h3 tag with the input value
-                    const inputValue = $(this).val();
-                    if (!$('.head-title').length) {
-                        $(this).after('<h3 class="head-title"></h3>');
-                    }
-                    $('.head-title').text(inputValue);
-                })
-            );
-        });
+
+            const $input = $('<input>').attr({
+                type: 'text',
+                id: 'fileInput',
+                name: 'title',
+                value: title_value
+            }).on('input', function() {
+                const inputValue = $(this).val();
+                if (!$('.head-title').length) {
+                    $(this).after('<h3 class="head-title"></h3>');
+                }
+                $('.head-title').text(inputValue);
+            });
+
+            $(".head-title").replaceWith($input);
+        }
+
         $(document).on("click", ".title-save", function() {
             $("#fileInput").hide();
             $(".edit-title").show();
@@ -897,41 +931,62 @@
         });
         // *************************Service Plans***************************************************
 
-        $(document).on("click", ".check-service-plan", function() {
-            let id = $(this).attr("id");
-            let label = $("label[for='" + id + "']").html();
-            let val = $("#" + id).val();
-            let appData = ` <div class="mb-3 ${id }">
-                        <div>
-                        ${label}
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <label class="form-check-label" for="${id}">Initial</label>
-                            <input class="form-control initial_${val}" type="text" id="${id}" name="service_plan[initial]" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <label class="form-check-label" for="${id}">Yearly
-                                Renewal</label>
-                            <input class="form-control yearly_${val}" type="text" id="${id}" name="service_plan[yearly]" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <label class="form-check-label" for="${id}">Monthly
-                                Renewal</label>
-                            <input class="form-control monthly_${val}" type="text" id="${id}" name="service_plan[monthly]" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-                        </div>
-                        </div>`;
-            if ($(this).is(':checked')) {
+        $(document).ready(function() {
+            // Initialize service plan details for checked checkboxes
+            $('.check-service-plan:checked').each(function() {
+                addServicePlanDetail($(this));
+            });
+
+            // Handle checkbox click events
+            $(document).on("click", ".check-service-plan", function() {
+                if ($(this).is(':checked')) {
+                    addServicePlanDetail($(this));
+                } else {
+                    removeServicePlanDetail($(this).attr("id"));
+                }
+            });
+
+            // Function to add service plan detail
+            function addServicePlanDetail($checkbox) {
+                let id = $checkbox.attr("id");
+                let label = $("label[for='" + id + "']").html();
+                let datakeys = $checkbox.data("keys");
+
+                // Constructing the HTML for the service plan details
+                let appData = `
+            <div class="mb-3 ${id}">
+                <div>${label}</div>
+                <div class="form-check form-check-inline">
+                    <label class="form-check-label" for="${id}_initial">Initial</label>
+                    <input class="form-control service-plan initial_${id}" type="text" id="${id}_initial" name="service_plan[initial]" value="${datakeys.initial || ''}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                </div>
+                <div class="form-check form-check-inline">
+                    <label class="form-check-label" for="${id}_yearly">Yearly Renewal</label>
+                    <input class="form-control service-plan yearly_${id}" type="text" id="${id}_yearly" name="service_plan[yearly]" value="${datakeys.yearly || ''}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                </div>
+                <div class="form-check form-check-inline">
+                    <label class="form-check-label" for="${id}_monthly">Monthly Renewal</label>
+                    <input class="form-control service-plan monthly_${id}" type="text" id="${id}_monthly" name="service_plan[monthly]" value="${datakeys.monthly || ''}" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                </div>
+            </div>`;
+
+                // Append the constructed HTML to the service plan detail section
                 $('.service-plan-detail').append(appData);
-            } else {
+            }
+
+            // Function to remove service plan detail
+            function removeServicePlanDetail(id) {
                 $('.service-plan-detail').find(`.${id}`).remove();
             }
         });
 
-        $(document).on("input", ".form-control", function() {
+        // ***************************service-plan**********************************************
+        $(document).on("input", ".service-plan", function() {
             let totalInitial = 0;
             let totalYearlyRenewal = 0;
             let monthlyRenewal = 0;
-            $(".form-control").each(function() {
+
+            $(".service-plan").each(function() {
                 let classList = $(this).attr('class').split(/\s+/);
                 $.each(classList, function(index, item) {
                     if (item.startsWith('initial_')) {
@@ -943,14 +998,22 @@
                     }
                 }.bind(this));
             });
-            $("#totalInitial").val(totalInitial.toFixed(2));
-            $("#totalYearlyRenewal").val(totalYearlyRenewal.toFixed(2));
-            $("#monthlyRenewal").val(monthlyRenewal.toFixed(2));
+
+            $("#totalInitial").val(totalInitial);
+            $("#totalYearlyRenewal").val(totalYearlyRenewal);
+            $("#monthlyRenewal").val(monthlyRenewal);
         });
-        // *************************************************************************
+        // ***********************One-Time Services**************************************************
         $('.form-check-input').on('change', function() {
             // Find the closest input field to the checkbox
             $(this).closest('.form-check').find('.form-control').prop('disabled', !this.checked);
+        });
+        $(document).ready(function() {
+            // Find the closest input field to the checkbox
+            $('.form-check-input').each(function() {
+                const inputField = $(this).closest('.form-check').find('.form-control');
+                inputField.prop('disabled', !this.checked || !inputField.val());
+            });
         });
         // *************************Country ,state,city***************************
         $(document).on("change", ".cust_country", function() {
@@ -1032,10 +1095,13 @@
                 // alert(stateId)
                 getCity(stateId, "#cust_city");
             }
-            if (cityId) {
-                // alert(cityId)
-                $('#cust_city').val(cityId).trigger('change'); // Trigger change to ensure any dependent logic is executed
-            }
+            setTimeout(function() {
+                if (cityId) {
+                    // alert(cityId)
+                    $('#cust_city').val(cityId).trigger(
+                        'change'); // Trigger change to ensure any dependent logic is executed
+                }
+            }, 1000);
         }
 
         function setbillingDropdownValues() {
@@ -1053,11 +1119,12 @@
                 getCity(billingstateId, "#billing_city_id");
             }
             // // Set selected value for City
-            // setTimeout(function() {
-            if (billingcityId) {
-                $('#billing_city_id').val(billingcityId).trigger(
-                    'change'); // Trigger change to ensure any dependent logic is executed
-            }
+            setTimeout(function() {
+                if (billingcityId) {
+                    $('#billing_city_id').val(billingcityId).trigger(
+                        'change'); // Trigger change to ensure any dependent logic is executed
+                }
+            }, 1000);
         }
         // ******************************************************************************
         function deleteImage(index) {
@@ -1070,6 +1137,7 @@
         }
         // **************************Make a pdf use canva  with submit a form**************
         document.getElementById('saveAndUpload').addEventListener('click', async function() {
+            // alert("jhgfdsdfghjk")
             if ($('#fileInput').length > 0) {
                 $('#fileInput').hide();
                 const {
@@ -1108,14 +1176,12 @@
                     fontSize: '',
                     border: '1px solid #002947'
                 }));
+                document.getElementById('addAgremmetForm').submit();
+
             } else {
                 const headTitleElement = document.querySelector('.head-title');
                 if (headTitleElement) {
-                    const validationMessage = document.createElement('div');
-                    validationMessage.className = 'validation-message';
-                    validationMessage.style.color = 'red';
-                    validationMessage.textContent = 'Please Enter Title';
-                    headTitleElement.insertAdjacentElement('afterend', validationMessage);
+                    showToast("Please Enter Title", "warning");
                 }
             }
         });
@@ -1229,8 +1295,6 @@
                 }
             });
         });
-        // ********************************************************************************
-
         // ********************************************************************************
     </script>
 </body>
