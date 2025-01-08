@@ -1,4 +1,114 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datepicker Validation</title>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+</head>
+<body>
+    <form id="scheduleForm">
+        <label for="datePicker">Select Date:</label>
+        <input type="text" id="datePicker" name="datePicker" required>
+
+        <label for="timePicker">Select Time:</label>
+        <select id="timePicker" name="timePicker" disabled>
+            <!-- Time options will be dynamically added -->
+        </select>
+
+        <button type="submit" id="submitBtn" disabled>Submit</button>
+        <p id="error" style="color: red; display: none;"></p>
+    </form>
+
+    <script>
+        $(document).ready(function () {
+            // Predefined list of booked slots in "YYYY-MM-DD HH:mm" format
+            const bookedSlots = [
+                "2025-01-08 10:00",
+                "2025-01-08 12:00",
+                "2025-01-08 15:00"
+            ];
+
+            // Generate time slots (24-hour format) dynamically
+            function generateTimeSlots(selectedDate) {
+                const now = new Date();
+                const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
+                const timePicker = $("#timePicker");
+
+                timePicker.empty(); // Clear previous options
+
+                // Generate time slots in 30-minute intervals
+                for (let i = 0; i < 24; i++) {
+                    ["00", "30"].forEach((minutes) => {
+                        const timeSlot = `${i.toString().padStart(2, "0")}:${minutes}`;
+                        const fullDateTime = `${selectedDate} ${timeSlot}`;
+
+                        const slotDateTime = new Date(`${selectedDate}T${timeSlot}:00`); // Convert to Date object
+
+                        // Check if slot is valid (1 hour later) and not booked
+                        if (
+                            slotDateTime > oneHourLater &&
+                            !bookedSlots.includes(fullDateTime)
+                        ) {
+                            timePicker.append(new Option(timeSlot, timeSlot));
+                        }
+                    });
+                }
+
+                // Enable or disable time picker and submit button
+                if (timePicker.children().length > 0) {
+                    timePicker.prop("disabled", false);
+                    $("#submitBtn").prop("disabled", false);
+                } else {
+                    timePicker.prop("disabled", true);
+                    $("#submitBtn").prop("disabled", true);
+                }
+            }
+
+            // Initialize jQuery UI Datepicker
+            $("#datePicker").datepicker({
+                dateFormat: "yy-mm-dd", // Set the format to match the bookedSlots
+                minDate: 0, // Prevent selecting past dates
+                onSelect: function (dateText) {
+                    generateTimeSlots(dateText); // Update time slots when a date is selected
+                }
+            });
+
+            // Form submission
+            $("#scheduleForm").on("submit", function (e) {
+                e.preventDefault(); // Prevent form submission
+
+                const selectedDate = $("#datePicker").val();
+                const selectedTime = $("#timePicker").val();
+
+                if (!selectedDate || !selectedTime) {
+                    showError("Please select a valid date and time.");
+                } else {
+                    showError(""); // Clear errors
+                    alert(`Booking confirmed for ${selectedDate} ${selectedTime}`);
+                }
+            });
+
+            // Show or hide error messages
+            function showError(message) {
+                const errorElement = $("#error");
+                if (message) {
+                    errorElement.text(message).show();
+                } else {
+                    errorElement.hide();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
+
 // Function to handle title editing
 function editTitle(title_value = '') {
     // Hide edit button, show save button
