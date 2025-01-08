@@ -1,4 +1,80 @@
 
+// Function to handle title editing
+function editTitle(title_value = '') {
+    // Hide edit button, show save button
+    $(".edit-title").hide();
+    $(".title-save").show();
+
+    // Check if the input already exists; if so, update the value
+    const existingInput = $("#fileInput");
+    if (existingInput.length) {
+        existingInput.val(title_value);
+        return;
+    }
+
+    // Create a new input field
+    const $input = $('<input>')
+        .attr({
+            type: 'text',
+            id: 'fileInput',
+            name: 'title',
+            value: title_value
+        })
+        .on('input', function () {
+            const inputValue = $(this).val();
+            // Update the preview dynamically
+            if (!$('.head-title').length) {
+                $(this).after('<h3 class="head-title"></h3>');
+            }
+            $('.head-title').text(inputValue);
+        });
+
+    // Replace the <h3> with the input field
+    if ($(".head-title").length) {
+        $(".head-title").replaceWith($input);
+    } else {
+        $(".title-container").append($input); // Append input if no <h3> exists
+    }
+}
+
+// On document ready, initialize the title display
+$(document).ready(function () {
+    const title = "{{ $datas->title }}";
+    if (title) {
+        // Set the initial title in <h3>
+        $(".title-container").html(`<h3 class="head-title">${title}</h3>`);
+    } else {
+        // If no title exists, allow input directly
+        editTitle();
+    }
+});
+
+// On "Edit Title" button click
+$(document).on("click", ".add-heading", function () {
+    const currentTitle = $(".head-title").text();
+    editTitle(currentTitle);
+});
+
+// On "Save Title" button click
+$(document).on("click", ".title-save", function () {
+    const inputValue = $("#fileInput").val();
+    if (inputValue.trim() !== '') {
+        // Replace input field with updated <h3>
+        $("#fileInput").replaceWith(`<h3 class="head-title">${inputValue}</h3>`);
+    } else {
+        alert("Title cannot be empty."); // Show error if title is empty
+    }
+
+    // Show edit button, hide save button
+    $(".edit-title").show();
+    $(".title-save").hide();
+});
+
+
+
+
+
+
 <form action="{{ route('controls-agreement.update', $agreement->id) }}" method="POST">
     @csrf
     @method('PUT')
