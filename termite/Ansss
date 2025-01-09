@@ -1,353 +1,92 @@
+ public function customerCreate(Request $request)
+    {
+        // Validate the incoming request data
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+            'mobile_number' => 'required|string|max:15',
+            'profile_address' => 'nullable|string|max:255',
+            'zip_code' => 'nullable|string|max:10',
+            'city' => 'nullable|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
+            'alternate_mobile_number' => 'nullable|string|max:15',
+            'building_number' => 'nullable|string|max:10',
+            'street' => 'nullable|string|max:255',
+            'unit_number' => 'nullable|string|max:10',
+            'office' => 'nullable|string|max:100',
+            'referral_type' => 'nullable|string|max:50',
+            'ac_no' => 'nullable|string|max:20',
+            'billing_zip_code' => 'nullable|string|max:10',
+            'billing_city' => 'nullable|string|max:100',
+            'billing_state' => 'nullable|string|max:100',
+            'billing_country' => 'nullable|string|max:100',
+            'billing_building_number' => 'nullable|string|max:10',
+            'billing_street' => 'nullable|string|max:255',
+            'billing_unit_number' => 'nullable|string|max:10',
+            'billing_office' => 'nullable|string|max:100',
+            'billing_ac_no' => 'nullable|string|max:20',
+            'billing_bank_name' => 'nullable|string|max:100',
+            'billing_ifsc_code' => 'nullable|string|max:15',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Datepicker Validation</title>
-    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
-    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
-    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
-</head>
-<body>
-    <form id="scheduleForm">
-        <label for="datePicker">Select Date:</label>
-        <input type="text" id="datePicker" name="datePicker" required>
+        try {
+            DB::beginTransaction();
+            // Prepare data for user creation
+            if ($request->has('id') && $request->id !== null) {
+                $userData = $request->merge(['user_type' => 5])->except(['_token', '_method']);
+                $user = $this->User->update($userData, $request->id);
+            }else{
+                $userData = $request->merge(['user_type' => 5])->except(['_token', '_method', 'id']);
+                $user = $this->User->create($userData);
+            }
 
-        <label for="timePicker">Select Time:</label>
-        <select id="timePicker" name="timePicker" disabled>
-            <!-- Time options will be dynamically added -->
-        </select>
+            if (!$user) {
+                throw new \Exception('User creation failed.');
+            }
 
-        <button type="submit" id="submitBtn" disabled>Submit</button>
-        <p id="error" style="color: red; display: none;"></p>
-    </form>
+            if ($request->has('id') && $request->id !== null) {
+            // Prepare data for profile creation
+                $profileData = $request->except(['_token', '_method']);
+                $profile = $this->Profile->update($profileData, $request->id);
+            }else{
+                $profileData = $request->merge(['user_id' => $user->id])->except(['_token', '_method', 'id']);
+                $profile = $this->Profile->create($profileData);
+            }
 
-    <script>
-        $(document).ready(function () {
-            // Predefined list of booked slots in "YYYY-MM-DD HH:mm" format
-            const bookedSlots = [
-                "2025-01-08 10:00",
-                "2025-01-08 12:00",
-                "2025-01-08 15:00"
-            ];
-
-            // Generate time slots (24-hour format) dynamically
-            function generateTimeSlots(selectedDate) {
-                const now = new Date();
-                const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
-                const timePicker = $("#timePicker");
-
-                timePicker.empty(); // Clear previous options
-
-                // Generate time slots in 30-minute intervals
-                for (let i = 0; i < 24; i++) {
-                    ["00", "30"].forEach((minutes) => {
-                        const timeSlot = `${i.toString().padStart(2, "0")}:${minutes}`;
-                        const fullDateTime = `${selectedDate} ${timeSlot}`;
-
-                        const slotDateTime = new Date(`${selectedDate}T${timeSlot}:00`); // Convert to Date object
-
-                        // Check if slot is valid (1 hour later) and not booked
-                        if (
-                            slotDateTime > oneHourLater &&
-                            !bookedSlots.includes(fullDateTime)
-                        ) {
-                            timePicker.append(new Option(timeSlot, timeSlot));
-                        }
-                    });
+            // Check if billing information is provided
+            if ($this->hasBillingInfo($request)) {
+                if ($request->has('id') && $request->id !== null) {
+                $billingData = $request->except(['_token', '_method']);
+                $billing = $this->Billing->update($billingData, $request->id);
+                }else{
+                    $billingData = $request->merge(['user_id' => $user->id])->except(['_token', '_method', 'id']);
+                    $billing = $this->Billing->create($billingData);
                 }
-
-                // Enable or disable time picker and submit button
-                if (timePicker.children().length > 0) {
-                    timePicker.prop("disabled", false);
-                    $("#submitBtn").prop("disabled", false);
-                } else {
-                    timePicker.prop("disabled", true);
-                    $("#submitBtn").prop("disabled", true);
+                if (!$billing) {
+                    throw new \Exception('Billing information creation failed.');
                 }
             }
 
-            // Initialize jQuery UI Datepicker
-            $("#datePicker").datepicker({
-                dateFormat: "yy-mm-dd", // Set the format to match the bookedSlots
-                minDate: 0, // Prevent selecting past dates
-                onSelect: function (dateText) {
-                    generateTimeSlots(dateText); // Update time slots when a date is selected
-                }
-            });
-
-            // Form submission
-            $("#scheduleForm").on("submit", function (e) {
-                e.preventDefault(); // Prevent form submission
-
-                const selectedDate = $("#datePicker").val();
-                const selectedTime = $("#timePicker").val();
-
-                if (!selectedDate || !selectedTime) {
-                    showError("Please select a valid date and time.");
-                } else {
-                    showError(""); // Clear errors
-                    alert(`Booking confirmed for ${selectedDate} ${selectedTime}`);
-                }
-            });
-
-            // Show or hide error messages
-            function showError(message) {
-                const errorElement = $("#error");
-                if (message) {
-                    errorElement.text(message).show();
-                } else {
-                    errorElement.hide();
-                }
-            }
-        });
-    </script>
-</body>
-</html>
-
-
-
-
-// Function to handle title editing
-function editTitle(title_value = '') {
-    // Hide edit button, show save button
-    $(".edit-title").hide();
-    $(".title-save").show();
-
-    // Check if the input already exists; if so, update the value
-    const existingInput = $("#fileInput");
-    if (existingInput.length) {
-        existingInput.val(title_value);
-        return;
+            DB::commit();
+            return $this->responseJson(true, 200, "success", new UserResource($user));
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->responseJson(false, 500, 'Creation failed: ' . $e->getMessage());
+        }
     }
-
-    // Create a new input field
-    const $input = $('<input>')
-        .attr({
-            type: 'text',
-            id: 'fileInput',
-            name: 'title',
-            value: title_value
-        })
-        .on('input', function () {
-            const inputValue = $(this).val();
-            // Update the preview dynamically
-            if (!$('.head-title').length) {
-                $(this).after('<h3 class="head-title"></h3>');
-            }
-            $('.head-title').text(inputValue);
-        });
-
-    // Replace the <h3> with the input field
-    if ($(".head-title").length) {
-        $(".head-title").replaceWith($input);
-    } else {
-        $(".title-container").append($input); // Append input if no <h3> exists
+    // Helper function to check if billing information is provided
+    private function hasBillingInfo(Request $request)
+    {
+        return $request->filled('billing_building_number') &&
+            $request->filled('billing_unit_number') &&
+            $request->filled('billing_country') &&
+            $request->filled('billing_state') &&
+            $request->filled('billing_city') &&
+            $request->filled('billing_zip_code') &&
+            $request->filled('billing_ac_no') &&
+            $request->filled('billing_office');
     }
-}
-
-// On document ready, initialize the title display
-$(document).ready(function () {
-    const title = "{{ $datas->title }}";
-    if (title) {
-        // Set the initial title in <h3>
-        $(".title-container").html(`<h3 class="head-title">${title}</h3>`);
-    } else {
-        // If no title exists, allow input directly
-        editTitle();
-    }
-});
-
-// On "Edit Title" button click
-$(document).on("click", ".add-heading", function () {
-    const currentTitle = $(".head-title").text();
-    editTitle(currentTitle);
-});
-
-// On "Save Title" button click
-$(document).on("click", ".title-save", function () {
-    const inputValue = $("#fileInput").val();
-    if (inputValue.trim() !== '') {
-        // Replace input field with updated <h3>
-        $("#fileInput").replaceWith(`<h3 class="head-title">${inputValue}</h3>`);
-    } else {
-        alert("Title cannot be empty."); // Show error if title is empty
-    }
-
-    // Show edit button, hide save button
-    $(".edit-title").show();
-    $(".title-save").hide();
-});
-
-
-
-
-
-
-<form action="{{ route('controls-agreement.update', $agreement->id) }}" method="POST">
-    @csrf
-    @method('PUT')
-
-    <div class="mb-4">
-        <h5 class="section-title mb-3"><b>One-Time Services</b></h5>
-        <div class="mb-3 d-flex flex-wrap">
-            <!-- Fumigation -->
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" 
-                       id="fumigationCheck" 
-                       name="services[fumigation][0]" 
-                       value="fumigation" 
-                       {{ isset($formData['fumigation']) ? 'checked' : '' }}>
-                <label class="form-check-label" for="fumigationCheck">Fumigation</label>
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="fumigationInput" 
-                       name="services[fumigation][fumigation_cost]" 
-                       value="{{ $formData['fumigation']['fumigation_cost'] ?? '' }}">
-            </div>
-
-            <!-- Termite Warranty -->
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" 
-                       id="termiteWarrantyCheck" 
-                       name="services[termite_warranty][0]" 
-                       value="termite_warranty" 
-                       {{ isset($formData['termite_warranty']) ? 'checked' : '' }}>
-                <label class="form-check-label" for="termiteWarrantyCheck">Termite Warranty</label>
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="termiteWarrantyCost" 
-                       name="services[termite_warranty][termite_warranty_cost]" 
-                       value="{{ $formData['termite_warranty']['termite_warranty_cost'] ?? '' }}">
-                <label class="form-check-label" for="tileType">Type of Tile</label>
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="tileType" 
-                       name="services[termite_warranty][tile_type]" 
-                       value="{{ $formData['termite_warranty']['tile_type'] ?? '' }}">
-            </div>
-
-            <!-- Boric Acid -->
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" 
-                       id="boricAcidCheck" 
-                       name="services[boric_acid][0]" 
-                       value="boric_acid" 
-                       {{ isset($formData['boric_acid']) ? 'checked' : '' }}>
-                <label class="form-check-label" for="boricAcidCheck">Boric Acid Preventative Treatment</label>
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="boricAcidCost" 
-                       name="services[boric_acid][boric_acid_cost]" 
-                       value="{{ $formData['boric_acid']['boric_acid_cost'] ?? '' }}">
-            </div>
-
-            <!-- Local Treat -->
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" 
-                       id="localTreatCheck" 
-                       name="services[local_treat][0]" 
-                       value="local_treat" 
-                       {{ isset($formData['local_treat']) ? 'checked' : '' }}>
-                <label class="form-check-label" for="localTreatCheck">One-Time or Initial Local Treat</label>
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="localTreatCost" 
-                       name="services[local_treat][local_treat_cost]" 
-                       value="{{ $formData['local_treat']['local_treat_cost'] ?? '' }}">
-            </div>
-
-            <!-- Wood Repairs -->
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" 
-                       id="woodRepairsCheck" 
-                       name="services[wood_repairs][0]" 
-                       value="wood_repairs" 
-                       {{ isset($formData['wood_repairs']) ? 'checked' : '' }}>
-                <label class="form-check-label" for="woodRepairsCheck">Wood Repairs</label>
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="woodRepairsCost" 
-                       name="services[wood_repairs][wood_repairs_cost]" 
-                       value="{{ $formData['wood_repairs']['wood_repairs_cost'] ?? '' }}">
-            </div>
-
-            <!-- WDO Inspection -->
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" 
-                       id="wdoInspectionCheck" 
-                       name="services[wdo_inspection][0]" 
-                       value="wdo_inspection" 
-                       {{ isset($formData['wdo_inspection']) ? 'checked' : '' }}>
-                <label class="form-check-label" for="wdoInspectionCheck">WDO Inspection Report</label>
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="wdoInspectionCost" 
-                       name="services[wdo_inspection][wdo_inspection_cost]" 
-                       value="{{ $formData['wdo_inspection']['wdo_inspection_cost'] ?? '' }}">
-            </div>
-
-            <!-- Other -->
-            <div class="form-check form-check-inline">
-                <input class="form-check-input" type="checkbox" 
-                       id="otherCheck" 
-                       name="services[other][0]" 
-                       value="other" 
-                       {{ isset($formData['other']) ? 'checked' : '' }}>
-                <label class="form-check-label" for="otherCheck">Other</label>
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="otherDescription" 
-                       name="services[other][other_description]" 
-                       value="{{ $formData['other']['other_description'] ?? '' }}" 
-                       placeholder="Description">
-                <input class="form-control one-time-service-input" 
-                       type="text" 
-                       id="otherCost" 
-                       name="services[other][other_cost]" 
-                       value="{{ $formData['other']['other_cost'] ?? '' }}" 
-                       placeholder="Cost">
-            </div>
-        </div>
-    </div>
-
-    <button type="submit" class="btn btn-primary">Submit</button>
-</form>
-
-
-
-
-{#1567 ▼ // resources\views/pages/controls-agreement/update.blade.php
-  +"fumigation": {#1566 ▼
-    +"0": "fumigation"
-    +"fumigation_cost": "11111"
-  }
-  +"termite_warranty": {#1568 ▼
-    +"0": "termite_warranty"
-    +"termite_warranty_cost": "111111111"
-    +"tile_type": "11111111111111111"
-  }
-  +"boric_acid": {#1569 ▼
-    +"0": "boric_acid"
-    +"boric_acid_cost": "111111111111111"
-  }
-  +"local_treat": {#1570 ▼
-    +"0": "local_treat"
-    +"local_treat_cost": "111111111111111111"
-  }
-  +"wood_repairs": {#1574 ▼
-    +"0": "wood_repairs"
-    +"wood_repairs_cost": "1111111111"
-  }
-  +"wdo_inspection": {#1572 ▼
-    +"0": "wdo_inspection"
-    +"wdo_inspection_cost": "11111111111111111"
-  }
-  +"other": {#1563 ▼
-    +"0": "other"
-    +"other_description": "1111111111"
-    +"other_cost": "1111111111111"
-  }
-  +"description": "Repellendus Dolore"
-}
