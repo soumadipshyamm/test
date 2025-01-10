@@ -1,69 +1,116 @@
-array:7 [ // app\Http\Controllers\API\ReportController.php:299
-  0 => array:16 [
-    "id" => 2
-    "uuid" => "19987875-35f1-4cf2-8aac-df942724320b"
-    "projects_id" => 1
-    "sub_projects_id" => 1
-    "materials_id" => 2
-    "material_requests_id" => 2
-    "activities_id" => 3
-    "date" => "2024-06-20"
-    "qty" => 2
-    "remarks" => "testtt"
-    "company_id" => 1
-    "is_active" => 1
-    "created_at" => "2024-06-19T12:34:46.000000Z"
-    "updated_at" => "2024-06-19T12:34:46.000000Z"
-    "request_id" => "26562102"
-    "materialrequests" => array:15 [
-      "id" => 2
-      "uuid" => "28fbab54-12c8-4fb2-9200-9081643cfd6e"
-      "name" => "2024-06-19"
-      "date" => "2024-06-19"
-      "details" => null
-      "remarks" => null
-      "projects_id" => 1
-      "sub_projects_id" => 1
-      "user_id" => 1
-      "company_id" => 1
-      "is_active" => 1
-      "created_at" => "2024-06-19T12:34:11.000000Z"
-      "updated_at" => "2024-06-19T12:34:11.000000Z"
-      "request_id" => null
-      "hasquotes_details" => array:2 [
-        0 => array:19 [
-          "id" => 23
-          "uuid" => "0605a822-24f0-4ffc-b219-047e7c3a7186"
-          "quotes_id" => 57
-          "materials_id" => 2
-          "material_request_details_id" => 2
-          "material_requests_id" => 2
-          "request_no" => "574462"
-          "qty" => "2"
-          "request_qty" => null
-          "price" => null
-          "date" => "2024-06-20"
-          "img" => null
-          "remarkes" => null
-          "company_id" => 1
-          "is_active" => 1
-          "created_at" => "2024-07-31T10:53:13.000000Z"
-          "updated_at" => "2024-07-31T10:53:13.000000Z"
-          "deleted_at" => null
-          "quotes" => array:14 [
-            "id" => 57
-            "uuid" => "2a58bf77-1712-48be-90bf-55613dc4ff92"
-            "request_no" => "043351"
-            "name" => "2024-07-31"
-            "date" => "2024-07-31"
-            "details" => null
-            "remarks" => null
-            "projects_id" => 7
-            "store_id" => null
-            "user_id" => 1
-            "company_id" => 1
-            "is_active" => 1
-            "created_at" => "2024-07-31T10:51:23.000000Z"
-            "updated_at" => "2024-07-31T10:51:23.000000Z"
-          ]
-        ]
+   public function teamsAdd(Request $request)
+    {
+        $authCompany = Auth::guard('company-api')->user()->company_id;
+        $validatedData ='';
+        if ($request->updateId) {
+            $validatedData = $request->validate([
+                'company_user_role' => 'required',
+                // 'updateId' => 'sometimes|required',
+                'name' => 'required',
+                'email' => 'required|email|unique:company_users,email,' . $request->updateId,
+                // 'password' => 'required_if:updateId,!=,null',
+                'phone' => 'required',
+                'address' => 'required',
+                // 'designation' => 'required',
+                // 'img' => 'mimes:jpeg,jpg,png',
+            ]);
+        }else{
+            $validatedData = $request->validate([
+                'company_user_role' => 'required',
+                'name' => 'required',
+                'email' => 'required|email|unique:company_users,email',
+                'password' => 'required',
+                'phone' => 'required',
+                'address' => 'required',
+                // 'designation' => 'required',
+                // 'img' => 'mimes:jpeg,jpg,png',
+            ]);
+        }
+
+        if ($$validatedData->fails()) {
+            return $this->responseJson(false, 422, $$validatedData->errors()->first(), "");
+        }
+
+        DB::beginTransaction();
+        try {
+            if ($request->updateId) {
+                $id = $request->updateId;
+                $fetchUserId = CompanyUser::find($id);
+                if ($request->hasFile('profile_images')) {
+                    deleteFile($id, 'company_users', 'profile_images', 'profile_image');
+                    $isUpdated = CompanyUser::where('id', $id)->update([
+                        'name' => $request->name,
+                        'phone' => $request->phone,
+                        // 'email' => $request->email,
+                        // 'password' => $request->password ? Hash::make($request->password) : $fetchUserId->password,
+                        'country' => $request->country,
+                        'state' => $request->state,
+                        'city' => $request->city,
+                        'dob' => $request->dob,
+                        'address' => $request->address,
+                        'designation' => $request->designation,
+                        'aadhar_no' => $request->aadhar_no,
+                        'pan_no' => $request->pan_no,
+                        'company_role_id' => $request->company_user_role,
+                        'reporting_person' => $request->reporting_person,
+                        'profile_images' => getImgUpload($request->img, 'profile_image'),
+                    ]);
+                    $message = 'User Updaed Successfully';
+                } else {
+
+                    // $id = uuidtoid($request->uuid, 'company_users');
+                    $id = $request->updateId;
+                    $isUpdated = CompanyUser::where('id', $id)->update([
+                        'name' => $request->name,
+                        'phone' => $request->phone,
+                        // 'email' => $request->email,
+                        // 'password' => $request->password ? Hash::make($request->password) : $fetchUserId->password,
+                        'country' => $request->country,
+                        'state' => $request->state,
+                        'city' => $request->city,
+                        'dob' => $request->dob,
+                        'address' => $request->address,
+                        'designation' => $request->designation,
+                        'aadhar_no' => $request->aadhar_no,
+                        'pan_no' => $request->pan_no,
+                        'reporting_person' => $request->reporting_person,
+                        'company_role_id' => $request->company_user_role,
+                    ]);
+                    $message = 'User Updaed Successfully';
+                }
+            } else {
+                // dd($request->all());
+                $isCompanyUser = CompanyUser::create([
+                    'uuid' => Str::uuid() ?? null,
+                    'name' => $request->name ?? null,
+                    'phone' => $request->phone ?? null,
+                    'email' => $request->email ?? null,
+                    'password' => Hash::make($request->password) ?? null,
+                    // 'country' => $request->country ?? null,
+                    // 'state' => $request->state ?? null,
+                    // 'city' => $request->city ?? null,
+                    'dob' => $request->dob ?? null,
+                    'address' => $request->address ?? null,
+                    'designation' => $request->designation ?? null,
+                    'aadhar_no' => $request->aadhar_no ?? null,
+                    'pan_no' => $request->pan_no ?? null,
+                    'company_id' => $authCompany ?? null,
+                    'company_role_id' => $request?->company_user_role ?? null,
+                    'reporting_person' => $request->reporting_person ?? null,
+                    'profile_images' => $request->img ? getImgUpload($request->img, 'profile_image') : '' ?? null,
+                ]);
+                $message = 'User Created Successfully';
+            }
+            if (isset($isCompanyUser) || isset($isUpdated)) {
+                // Commit the transaction on success
+                DB::commit();
+                return $this->responseJson(true, 201, $message, $isCompanyUser ?? $isUpdated);
+            }
+        } catch (\Exception $e) {
+            // Rollback the transaction on error and log the exception
+            DB::rollBack();
+            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            // Return an error response in JSON
+            return $this->responseJson(false, 500, $e->getMessage(), []);
+        }
+    }
