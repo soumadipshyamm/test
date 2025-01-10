@@ -2,93 +2,145 @@ public function teamsAdd(Request $request)
 {
     $authCompany = Auth::guard('company-api')->user()->company_id;
 
-    // Common validation rules
+    // Validate input dynamically based on update or create
+    $validationRules = $this->getValidationRules($request->updateId);
+    $validatedData = Validator::make($request->all(), $validationRules);
+
+    if ($validatedData->fails()) {
+        return $this->responseJson(false, 422, $validatedData->errors()->first(), []);
+    }
+
+    DB::beginTransaction();
+
+    try {
+        $message = '';
+        $result = null;
+
+        if ($request->updateId) {
+            // Update the user
+            $result = $this->updateUser($request);
+            $message = 'User Updated Successfully';
+        } else {
+            // Create a new user
+            $result = $this->createUser($request, $authCompany);
+            $message = 'User Created Successfully';
+        }
+
+        // Commit transaction if successful
+        DB::commit();
+
+        return $this->responseJson(true, 201, $message, $result);
+    } catch (\Exception $e) {
+        // Rollback transaction on failure
+        DB::rollBack();
+
+        logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+        return $this->responseJson(false, 500, 'An error occurred. Please try again.', []);
+    }
+}
+
+/**
+ * Generate validation rules dynamically.
+ */
+private function getValidationRules($updateId = null)
+{
     $rules = [
         'company_user_role' => 'required',
-        'name' => 'required|string|max:255',
-        'email' => 'required|email|unique:company_users,email',
-        'phone' => 'required|string|max:15',
-        'address' => 'required|string|max:255',
-        'designation' => 'nullable|string|max:255',
-        'profile_images' => 'nullable|mimes:jpeg,jpg,png|max:2048',
-        'dob' => 'nullable|date',
-        'aadhar_no' => 'nullable|string|max:12',
-        'pan_no' => 'nullable|string|max:10',
-        'reporting_person' => 'nullable|integer',
+        'name' => 'required',
+        'email' => ['required', 'email', Rule::unique('company_users', 'email')->ignore($updateId)],
+        'phone' => 'required',
+        'address' => 'required',
+        'img' => 'sometimes|mimes:jpeg,jpg,png',
     ];
 
-    if ($request->updateId) {
-        $rules['email'] = 'required|email|unique:company_users,email,' . $request->updateId;
-        $rules['password'] = 'nullable|min:8';
+    if ($updateId) {
+        $rules['password'] = 'nullable';
     } else {
         $rules['password'] = 'required|min:8';
     }
 
-    $validatedData = $request->validate($rules);
+    return $rules;
+}
 
-    DB::beginTransaction();
-    try {
-        if ($request->updateId) {
-            // Update user logic
-            $id = $request->updateId;
-            $fetchUser = CompanyUser::findOrFail($id);
+/**
+ * Handle user creation logic.
+ */
+private function createUser($request, $authCompany)
+{
+    return CompanyUser::create([
+        'uuid' => Str::uuid(),
+        'name' => $request->name,
+        'phone' => $request->phone,
+        'email' => $request->email,
+        'password' => Hash::make($request->password),
+        'dob' => $request->dob,
+        'address' => $request->address,
+        'designation' => $request->designation,
+        'aadhar_no' => $request->aadhar_no,
+        'pan_no' => $request->pan_no,
+        'company_id' => $authCompany,
+        'company_role_id' => $request->company_user_role,
+        'reporting_person' => $request->reporting_person,
+        'profile_images' => $this->handleImageUpload($request->file('img'), 'profile_image'),
+    ]);
+}
 
-            // Handle image upload
-            $profileImage = $fetchUser->profile_images;
-            if ($request->hasFile('profile_images')) {
-                // Delete existing image
-                deleteFile($id, 'company_users', 'profile_images', 'profile_image');
-                $profileImage = getImgUpload($request->file('profile_images'), 'profile_image');
-            }
+/**
+ * Handle user update logic.
+ */
+private function updateUser($request)
+{
+    $id = $request->updateId;
+    $fetchUserId = CompanyUser::findOrFail($id);
 
-            $fetchUser->update([
-                'name' => $validatedData['name'],
-                'phone' => $validatedData['phone'],
-                'email' => $validatedData['email'],
-                'password' => $validatedData['password'] ? Hash::make($validatedData['password']) : $fetchUser->password,
-                'country' => $request->country,
-                'state' => $request->state,
-                'city' => $request->city,
-                'dob' => $validatedData['dob'],
-                'address' => $validatedData['address'],
-                'designation' => $validatedData['designation'],
-                'aadhar_no' => $validatedData['aadhar_no'],
-                'pan_no' => $validatedData['pan_no'],
-                'company_role_id' => $validatedData['company_user_role'],
-                'reporting_person' => $validatedData['reporting_person'],
-                'profile_images' => $profileImage,
-            ]);
+    $dataToUpdate = [
+        'name' => $request->name,
+        'phone' => $request->phone,
+        'country' => $request->country,
+        'state' => $request->state,
+        'city' => $request->city,
+        'dob' => $request->dob,
+        'address' => $request->address,
+        'designation' => $request->designation,
+        'aadhar_no' => $request->aadhar_no,
+        'pan_no' => $request->pan_no,
+        'company_role_id' => $request->company_user_role,
+        'reporting_person' => $request->reporting_person,
+    ];
 
-            $message = 'User Updated Successfully';
-        } else {
-            // Create user logic
-            $isCompanyUser = CompanyUser::create([
-                'uuid' => Str::uuid(),
-                'name' => $validatedData['name'],
-                'phone' => $validatedData['phone'],
-                'email' => $validatedData['email'],
-                'password' => Hash::make($validatedData['password']),
-                'dob' => $validatedData['dob'],
-                'address' => $validatedData['address'],
-                'designation' => $validatedData['designation'],
-                'aadhar_no' => $validatedData['aadhar_no'],
-                'pan_no' => $validatedData['pan_no'],
-                'company_id' => $authCompany,
-                'company_role_id' => $validatedData['company_user_role'],
-                'reporting_person' => $validatedData['reporting_person'],
-                'profile_images' => $request->file('profile_images') ? getImgUpload($request->file('profile_images'), 'profile_image') : null,
-            ]);
+    // If password is provided, hash it
+    if ($request->filled('password')) {
+        $dataToUpdate['password'] = Hash::make($request->password);
+    }
 
-            $message = 'User Created Successfully';
-        }
+    // Handle image upload if exists
+    if ($request->hasFile('img')) {
+        $this->deleteExistingImage($fetchUserId->profile_images);
+        $dataToUpdate['profile_images'] = $this->handleImageUpload($request->file('img'), 'profile_image');
+    }
 
-        // Commit the transaction
-        DB::commit();
-        return $this->responseJson(true, 201, $message, $isCompanyUser ?? $fetchUser);
-    } catch (\Exception $e) {
-        // Rollback the transaction on error
-        DB::rollBack();
-        logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
-        return $this->responseJson(false, 500, 'An error occurred. Please try again.', []);
+    $fetchUserId->update($dataToUpdate);
+
+    return $fetchUserId;
+}
+
+/**
+ * Handle image upload.
+ */
+private function handleImageUpload($image, $type)
+{
+    if ($image) {
+        return getImgUpload($image, $type);
+    }
+    return null;
+}
+
+/**
+ * Delete existing image.
+ */
+private function deleteExistingImage($imagePath)
+{
+    if ($imagePath) {
+        deleteFile(null, 'company_users', 'profile_images', $imagePath);
     }
 }
