@@ -1,116 +1,94 @@
-   public function teamsAdd(Request $request)
-    {
-        $authCompany = Auth::guard('company-api')->user()->company_id;
-        $validatedData ='';
-        if ($request->updateId) {
-            $validatedData = $request->validate([
-                'company_user_role' => 'required',
-                // 'updateId' => 'sometimes|required',
-                'name' => 'required',
-                'email' => 'required|email|unique:company_users,email,' . $request->updateId,
-                // 'password' => 'required_if:updateId,!=,null',
-                'phone' => 'required',
-                'address' => 'required',
-                // 'designation' => 'required',
-                // 'img' => 'mimes:jpeg,jpg,png',
-            ]);
-        }else{
-            $validatedData = $request->validate([
-                'company_user_role' => 'required',
-                'name' => 'required',
-                'email' => 'required|email|unique:company_users,email',
-                'password' => 'required',
-                'phone' => 'required',
-                'address' => 'required',
-                // 'designation' => 'required',
-                // 'img' => 'mimes:jpeg,jpg,png',
-            ]);
-        }
+public function teamsAdd(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
 
-        if ($$validatedData->fails()) {
-            return $this->responseJson(false, 422, $$validatedData->errors()->first(), "");
-        }
+    // Common validation rules
+    $rules = [
+        'company_user_role' => 'required',
+        'name' => 'required|string|max:255',
+        'email' => 'required|email|unique:company_users,email',
+        'phone' => 'required|string|max:15',
+        'address' => 'required|string|max:255',
+        'designation' => 'nullable|string|max:255',
+        'profile_images' => 'nullable|mimes:jpeg,jpg,png|max:2048',
+        'dob' => 'nullable|date',
+        'aadhar_no' => 'nullable|string|max:12',
+        'pan_no' => 'nullable|string|max:10',
+        'reporting_person' => 'nullable|integer',
+    ];
 
-        DB::beginTransaction();
-        try {
-            if ($request->updateId) {
-                $id = $request->updateId;
-                $fetchUserId = CompanyUser::find($id);
-                if ($request->hasFile('profile_images')) {
-                    deleteFile($id, 'company_users', 'profile_images', 'profile_image');
-                    $isUpdated = CompanyUser::where('id', $id)->update([
-                        'name' => $request->name,
-                        'phone' => $request->phone,
-                        // 'email' => $request->email,
-                        // 'password' => $request->password ? Hash::make($request->password) : $fetchUserId->password,
-                        'country' => $request->country,
-                        'state' => $request->state,
-                        'city' => $request->city,
-                        'dob' => $request->dob,
-                        'address' => $request->address,
-                        'designation' => $request->designation,
-                        'aadhar_no' => $request->aadhar_no,
-                        'pan_no' => $request->pan_no,
-                        'company_role_id' => $request->company_user_role,
-                        'reporting_person' => $request->reporting_person,
-                        'profile_images' => getImgUpload($request->img, 'profile_image'),
-                    ]);
-                    $message = 'User Updaed Successfully';
-                } else {
-
-                    // $id = uuidtoid($request->uuid, 'company_users');
-                    $id = $request->updateId;
-                    $isUpdated = CompanyUser::where('id', $id)->update([
-                        'name' => $request->name,
-                        'phone' => $request->phone,
-                        // 'email' => $request->email,
-                        // 'password' => $request->password ? Hash::make($request->password) : $fetchUserId->password,
-                        'country' => $request->country,
-                        'state' => $request->state,
-                        'city' => $request->city,
-                        'dob' => $request->dob,
-                        'address' => $request->address,
-                        'designation' => $request->designation,
-                        'aadhar_no' => $request->aadhar_no,
-                        'pan_no' => $request->pan_no,
-                        'reporting_person' => $request->reporting_person,
-                        'company_role_id' => $request->company_user_role,
-                    ]);
-                    $message = 'User Updaed Successfully';
-                }
-            } else {
-                // dd($request->all());
-                $isCompanyUser = CompanyUser::create([
-                    'uuid' => Str::uuid() ?? null,
-                    'name' => $request->name ?? null,
-                    'phone' => $request->phone ?? null,
-                    'email' => $request->email ?? null,
-                    'password' => Hash::make($request->password) ?? null,
-                    // 'country' => $request->country ?? null,
-                    // 'state' => $request->state ?? null,
-                    // 'city' => $request->city ?? null,
-                    'dob' => $request->dob ?? null,
-                    'address' => $request->address ?? null,
-                    'designation' => $request->designation ?? null,
-                    'aadhar_no' => $request->aadhar_no ?? null,
-                    'pan_no' => $request->pan_no ?? null,
-                    'company_id' => $authCompany ?? null,
-                    'company_role_id' => $request?->company_user_role ?? null,
-                    'reporting_person' => $request->reporting_person ?? null,
-                    'profile_images' => $request->img ? getImgUpload($request->img, 'profile_image') : '' ?? null,
-                ]);
-                $message = 'User Created Successfully';
-            }
-            if (isset($isCompanyUser) || isset($isUpdated)) {
-                // Commit the transaction on success
-                DB::commit();
-                return $this->responseJson(true, 201, $message, $isCompanyUser ?? $isUpdated);
-            }
-        } catch (\Exception $e) {
-            // Rollback the transaction on error and log the exception
-            DB::rollBack();
-            logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
-            // Return an error response in JSON
-            return $this->responseJson(false, 500, $e->getMessage(), []);
-        }
+    if ($request->updateId) {
+        $rules['email'] = 'required|email|unique:company_users,email,' . $request->updateId;
+        $rules['password'] = 'nullable|min:8';
+    } else {
+        $rules['password'] = 'required|min:8';
     }
+
+    $validatedData = $request->validate($rules);
+
+    DB::beginTransaction();
+    try {
+        if ($request->updateId) {
+            // Update user logic
+            $id = $request->updateId;
+            $fetchUser = CompanyUser::findOrFail($id);
+
+            // Handle image upload
+            $profileImage = $fetchUser->profile_images;
+            if ($request->hasFile('profile_images')) {
+                // Delete existing image
+                deleteFile($id, 'company_users', 'profile_images', 'profile_image');
+                $profileImage = getImgUpload($request->file('profile_images'), 'profile_image');
+            }
+
+            $fetchUser->update([
+                'name' => $validatedData['name'],
+                'phone' => $validatedData['phone'],
+                'email' => $validatedData['email'],
+                'password' => $validatedData['password'] ? Hash::make($validatedData['password']) : $fetchUser->password,
+                'country' => $request->country,
+                'state' => $request->state,
+                'city' => $request->city,
+                'dob' => $validatedData['dob'],
+                'address' => $validatedData['address'],
+                'designation' => $validatedData['designation'],
+                'aadhar_no' => $validatedData['aadhar_no'],
+                'pan_no' => $validatedData['pan_no'],
+                'company_role_id' => $validatedData['company_user_role'],
+                'reporting_person' => $validatedData['reporting_person'],
+                'profile_images' => $profileImage,
+            ]);
+
+            $message = 'User Updated Successfully';
+        } else {
+            // Create user logic
+            $isCompanyUser = CompanyUser::create([
+                'uuid' => Str::uuid(),
+                'name' => $validatedData['name'],
+                'phone' => $validatedData['phone'],
+                'email' => $validatedData['email'],
+                'password' => Hash::make($validatedData['password']),
+                'dob' => $validatedData['dob'],
+                'address' => $validatedData['address'],
+                'designation' => $validatedData['designation'],
+                'aadhar_no' => $validatedData['aadhar_no'],
+                'pan_no' => $validatedData['pan_no'],
+                'company_id' => $authCompany,
+                'company_role_id' => $validatedData['company_user_role'],
+                'reporting_person' => $validatedData['reporting_person'],
+                'profile_images' => $request->file('profile_images') ? getImgUpload($request->file('profile_images'), 'profile_image') : null,
+            ]);
+
+            $message = 'User Created Successfully';
+        }
+
+        // Commit the transaction
+        DB::commit();
+        return $this->responseJson(true, 201, $message, $isCompanyUser ?? $fetchUser);
+    } catch (\Exception $e) {
+        // Rollback the transaction on error
+        DB::rollBack();
+        logger($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+        return $this->responseJson(false, 500, 'An error occurred. Please try again.', []);
+    }
+}
