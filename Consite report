@@ -1,4 +1,47 @@
-@
+<ul class="{{ isActiveRoute(['company.companies.list', 'company.project.list'], 'mm-collapse mm-show') }}">
+    <li class="{{ isActiveRoute('company.companies.list') }}">
+        <a href="{{ route('company.companies.list') }}" class="mm-@yield('company-active')">
+            <i class="fa-regular fa-building fa-lg"></i>
+            Companies
+        </a>
+    </li>
+    <li class="{{ isActiveRoute('company.project.list') }}">
+        <a href="{{ route('company.project.list') }}" class="mm-@yield('project-active')">
+            <i class="fas fa-code-branch"></i>
+            Projects
+        </a>
+    </li>
+</ul>
+
+
+<?php
+
+if (!function_exists('isActiveRoute')) {
+    /**
+     * Check if the current route matches any of the given routes and return the appropriate class.
+     *
+     * @param array|string $routes List of routes to check.
+     * @param string $class Class to return if the route matches (default: 'active').
+     * @return string
+     */
+    function isActiveRoute($routes, $class = 'active')
+    {
+        if (is_array($routes)) {
+            foreach ($routes as $route) {
+                if (request()->routeIs($route)) {
+                    return $class;
+                }
+            }
+        } elseif (request()->routeIs($routes)) {
+            return $class;
+        }
+
+        return '';
+    }
+}
+
+
+
 
 @if ($isSubscribedFree)
     {{-- Master Section --}}
