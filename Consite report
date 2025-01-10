@@ -1,4 +1,119 @@
+@
+
 @if ($isSubscribedFree)
+    {{-- Master Section --}}
+    @if (checkCompanyPermissions('master', auth()->guard('company')->user()->company_role_id, auth()->guard('company')->user()->id, 'view'))
+        <li class="app-sidebar__heading">Master</li>
+        <li class="app-sidebar__heading app_submenu">
+            <a href="#">
+                <span>
+                    <img src="{{ asset('company_assets/images/side-icon/master.svg') }}" class="img-fluid" alt="">
+                </span>
+                Masters
+            </a>
+            <ul class="{{ request()->routeIs('company.companies.list', 'company.project.list') ? 'mm-collapse mm-show' : '' }}">
+                <li class="{{ request()->routeIs('company.companies.list') ? 'active' : '' }}">
+                    <a href="{{ route('company.companies.list') }}" class="mm-@yield('company-active')">
+                        <i class="fa-regular fa-building fa-lg"></i>
+                        Companies
+                    </a>
+                </li>
+                <li class="{{ request()->routeIs('company.project.list') ? 'active' : '' }}">
+                    <a href="{{ route('company.project.list') }}" class="mm-@yield('project-active')">
+                        <i class="fas fa-code-branch"></i>
+                        Projects
+                    </a>
+                </li>
+            </ul>
+        </li>
+    @endif
+
+    {{-- User Management Section --}}
+    @if (checkCompanyPermissions('user-management', auth()->guard('company')->user()->company_role_id, auth()->guard('company')->user()->id, 'view'))
+        <li class="app-sidebar__heading">User Management</li>
+        <li class="app-sidebar__heading app_submenu">
+            <a href="#">
+                <span>
+                    <img src="{{ asset('company_assets/images/side-icon/master.svg') }}" class="img-fluid" alt="">
+                </span>
+                Company Users
+            </a>
+            <ul class="{{ request()->routeIs('company.userManagment.list', 'company.roleManagment.list') ? 'mm-collapse mm-show' : '' }}">
+                <li class="{{ request()->routeIs('company.userManagment.list') ? 'active' : '' }}">
+                    <a href="{{ route('company.userManagment.list') }}" class="mm-@yield('user-active')">
+                        <i class="metismenu-icon"></i>
+                        Manage Teams
+                    </a>
+                </li>
+                <li class="{{ request()->routeIs('company.roleManagment.list') ? 'active' : '' }}">
+                    <a href="{{ route('company.roleManagment.list') }}" class="mm-@yield('role-active')">
+                        <i class="metismenu-icon"></i>
+                        User Roles and Permissions
+                    </a>
+                </li>
+            </ul>
+        </li>
+    @endif
+
+    {{-- Reports Section --}}
+    @if (checkCompanyPermissions('reports', auth()->guard('company')->user()->company_role_id, auth()->guard('company')->user()->id, 'view'))
+        <li class="app-sidebar__heading">Reports</li>
+        
+        {{-- Work Progress Reports --}}
+        <li class="app-sidebar__heading app_submenu">
+            <a href="#">
+                <span>
+                    <img src="{{ asset('company_assets/images/side-icon/master.svg') }}" class="img-fluid" alt="">
+                </span>
+                Work Progress Reports
+            </a>
+            <ul class="{{ request()->routeIs('company.report.workProgressDetails', 'company.report.dprDetails') ? 'mm-collapse mm-show' : '' }}">
+                <li class="{{ request()->routeIs('company.report.workProgressDetails') ? 'active' : '' }}">
+                    <a href="{{ route('company.report.workProgressDetails') }}" class="mm-@yield('workProgressDetails-active')">
+                        <i class="fa-solid fa-arrow-trend-up"></i>
+                        Work Progress Details
+                    </a>
+                </li>
+                <li class="{{ request()->routeIs('company.report.dprDetails') ? 'active' : '' }}">
+                    <a href="{{ route('company.report.dprDetails') }}" class="mm-@yield('dpr-active')">
+                        <i class="fas fa-chart-line"></i>
+                        DPR
+                    </a>
+                </li>
+            </ul>
+        </li>
+        
+        {{-- Inventory Reports --}}
+        <li class="app-sidebar__heading app_submenu">
+            <a href="#">
+                <span>
+                    <img src="{{ asset('company_assets/images/side-icon/master.svg') }}" class="img-fluid" alt="">
+                </span>
+                Inventory Reports
+            </a>
+            <ul class="{{ request()->routeIs('company.report.inventorypr', 'company.report.rfq') ? 'mm-collapse mm-show' : '' }}">
+                <li class="{{ request()->routeIs('company.report.inventorypr') ? 'active' : '' }}">
+                    <a href="{{ route('company.report.inventorypr') }}" class="mm-@yield('inventorypr-active')">
+                        <i class="fa-solid fa-truck-fast"></i>
+                        PR
+                    </a>
+                </li>
+                <li class="{{ request()->routeIs('company.report.rfq') ? 'active' : '' }}">
+                    <a href="{{ route('company.report.rfq') }}" class="mm-@yield('rfq-active')">
+                        <i class="fa-solid fa-truck"></i>
+                        RFQ
+                    </a>
+                </li>
+            </ul>
+        </li>
+    @endif
+@endif
+
+
+
+
+
+if ($isSubscribedFree)
                     @if (checkCompanyPermissions(
                             'master',
                             auth()->guard('company')->user()->company_role_id,
