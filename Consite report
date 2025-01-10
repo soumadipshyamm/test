@@ -27,62 +27,7 @@
                                         Projects
                                     </a>
                                 </li>
-                                <li class="{{ request()->routeIs('company.subProject.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.subProject.list') }}" class="mm-@yield('subProject-active')">
-                                        <i class='fas fa-sitemap'></i>
-                                        Subproject
-                                    </a>
-                                </li>
-                                <li
-                                    class="{{ request()->routeIs('company.profileDesignation.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.profileDesignation.list') }}"
-                                        class="mm-@yield('profileDesignation-active')">
-                                        <i class="fas fa-address-card"></i>
-                                        Role/Designation
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.units.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.units.list') }}" class="mm-@yield('units-active')">
-                                        <i class="fa fa-balance-scale" aria-hidden="true"></i>
-                                        Units
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.storeWarehouse.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.storeWarehouse.list') }}" class="mm-@yield('storeWarehouse-active')">
-                                        <i class="fa fa-warehouse"></i>
-                                        Warehouses
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.labour.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.labour.list') }}" class="mm-@yield('labour-active')">
-                                        <i class="fa fa-users"></i>
-                                        Labours
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.assets.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.assets.list') }}" class="mm-@yield('assets-active')">
-                                        <i class="fas fa-tools"></i>
-                                        Assets Equipments
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.vendor.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.vendor.list') }}" class="mm-@yield('vendor-active')">
-                                        <i class="fa fa-industry" aria-hidden="true"></i>
-                                        Vendors
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.activities.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.activities.list') }}" class="mm-@yield('activities-active')">
-                                        <i class="fa fa-tasks"></i>
-                                        Activities
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.materials.list') ? 'active' : '' }}">
-                                    <a href="{{ route('company.materials.list') }}" class="mm-@yield('materials-active')">
-                                        <i class="fa fa-tools"></i>
-                                        Materials
-                                    </a>
-                                </li>
+                               
                             </ul>
                         </li>
                     @endif
@@ -159,22 +104,7 @@
                                         DPR
                                     </a>
                                 </li>
-                                <li
-                                    class="{{ request()->routeIs('company.report.resourcesUsageFromDPR') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.resourcesUsageFromDPR') }}"
-                                        class="mm-@yield('resourcesUsageFromDPR-active')">
-                                        <i class="fa-solid fa-users"></i>
-                                        Resources Usage From DPR
-                                    </a>
-                                </li>
-                                <li
-                                    class="{{ request()->routeIs('company.report.matrialusedVsStoreIssue') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.matrialusedVsStoreIssue') }}"
-                                        class="mm-@yield('matrialusedVsStoreIssue-active')">
-                                        <i class="fa-regular fa-store"></i>
-                                        Material Used Vs Store Issue
-                                    </a>
-                                </li>
+                                
                             </ul>
                         </li>
                         <li class="app-sidebar__heading app_submenu">
@@ -200,53 +130,8 @@
                                         RFQ
                                     </a>
                                 </li>
-                                <li class="{{ request()->routeIs('company.report.grnSlip') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.grnSlip') }}" class="mm-@yield('grnSlip-active')">
-                                        <i class="fa-solid fa-receipt"></i>
-                                        GRN (MRN) Slip
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.report.grnDetails') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.grnDetails') }}" class="mm-@yield('grnDetails-active')">
-                                        <i class="fa-solid fa-list"></i>
-                                        GRN (MRN) Details
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.report.issueSlip') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.issueSlip') }}" class="mm-@yield('issueSlip-active')">
-                                        <i class="fas fa-shopping-basket"></i>
-                                        ISSUE Slip
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.report.issueDetails') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.issueDetails') }}"
-                                        class="mm-@yield('issueDetails-active')">
-                                        <i class="fa-regular fa-cart-arrow-up"></i>
-                                        Issue (Outward) Details
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.report.issueReturn') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.issueReturn') }}"
-                                        class="mm-@yield('issueReturn-active')">
-                                        <i class="fa-regular fa-house-person-return"></i>
-                                        Issue Return
-                                    </a>
-                                </li>
-                                <li
-                                    class="{{ request()->routeIs('company.report.globalStockDetails') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.globalStockDetails') }}"
-                                        class="mm-@yield('GlobalProjectStock-active')">
-                                        <i class="far fa-inventory"></i>
-                                        Global Stock Details
-                                    </a>
-                                </li>
-                                <li class="{{ request()->routeIs('company.report.stockStatement') ? 'active' : '' }}">
-                                    <a href="{{ route('company.report.stockStatement') }}"
-                                        class="mm-@yield('ProjectStockStatement-active')">
-                                        <i class="far fa-tasks-alt"></i>
-                                        Project Stock Statement
-                                    </a>
-                                </li>
+                               
                             </ul>
                         </li>
+                    @endif
                     @endif
