@@ -1,4 +1,31 @@
- if ($request->uuid) {
+
+$validatedData = $request->validate([
+    'class' => 'required|in:Class-A,Class-B,Class-C',
+    'name' => [
+        'required',
+        function ($attribute, $value, $fail) use ($request) {
+            $query = \App\Models\Material::where('name', $value);
+
+            // Check if specification is null or matches the provided one
+            if ($request->specification) {
+                $query->where('specification', $request->specification);
+            } else {
+                $query->whereNull('specification');
+            }
+
+            if ($query->exists()) {
+                $fail('A material with the same name and specification already exists.');
+            }
+        },
+    ],
+    'specification' => 'nullable|string',
+    'unit_id' => 'required|exists:units,id', // Ensure unit_id exists in the units table
+]);
+
+
+
+
+if ($request->uuid) {
                     $validatedData = $request->validate([
                         // 'class' => 'required',
                         'class' => 'required|in:Class-A,Class-B,Class-C',
