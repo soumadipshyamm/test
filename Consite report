@@ -1,4 +1,108 @@
- if ($request->projectUpdateId) {
+
+
+DB::beginTransaction();
+
+try {
+    $isProjectUpdated = false;
+    $clientData = [
+        'client_name' => $request->client_name,
+        'client_designation' => $request->client_designation,
+        'client_email' => $request->client_email,
+        'client_phone' => $request->client_phone,
+        'client_mobile' => $request->client_mobile,
+        'client_company_name' => $request->client_company_name,
+        'client_company_address' => $request->client_company_address,
+    ];
+
+    if ($request->projectUpdateId) {
+        // Update existing project
+        $project = Project::findOrFail($request->projectUpdateId);
+        $project->update([
+            'project_name' => $request->project_name,
+            'planned_start_date' => $request->planned_start_date,
+            'address' => $request->address,
+            'planned_end_date' => $request->planned_end_date,
+            'own_project_or_contractor' => $request->own_project_or_contractor,
+            'project_completed' => $request->project_completed == 'yes' ? 'yes' : 'no',
+            'company_id' => $authConpany,
+            'companies_id' => $request->companies_id,
+            'project_completed_date' => $request->project_completed_date,
+            'logo' => $request->logo ? getImgUpload($request->logo, 'logo') : $project->logo,
+        ]);
+
+        // Handle client data for existing project
+        if ($request->own_project_or_contractor == 'yes') {
+            if ($request->clientId) {
+                Client::where('id', $request->clientId)
+                    ->where('project_id', $project->id)
+                    ->update($clientData);
+            } else {
+                $clientData['uuid'] = Str::uuid();
+                $clientData['project_id'] = $project->id;
+                Client::create($clientData);
+            }
+
+            // Sync tagged members
+            if (is_array($request->tag_member)) {
+                $project->members()->sync($request->tag_member);
+            }
+        }
+
+        $isProjectUpdated = true;
+    } else {
+        // Create a new project
+        $projectData = [
+            'uuid' => Str::uuid(),
+            'project_name' => $request->project_name,
+            'planned_start_date' => $request->planned_start_date,
+            'address' => $request->address,
+            'planned_end_date' => $request->planned_end_date,
+            'own_project_or_contractor' => $request->own_project_or_contractor,
+            'project_completed' => $request->project_completed == 'yes' ? 'yes' : 'no',
+            'company_id' => $authConpany,
+            'companies_id' => $request->companies_id,
+            'project_completed_date' => $request->project_completed_date,
+            'logo' => $request->logo ? getImgUpload($request->logo, 'logo') : '',
+        ];
+
+        $project = Project::create($projectData);
+
+        // Create client data if applicable
+        if ($request->own_project_or_contractor == 'yes') {
+            $clientData['uuid'] = Str::uuid();
+            $clientData['project_id'] = $project->id;
+            Client::create($clientData);
+        }
+
+        // Create a default "Main Store" for the project
+        StoreWarehouse::create([
+            'uuid' => Str::uuid(),
+            'name' => 'Main Store',
+            'location' => null,
+            'projects_id' => $project->id,
+            'company_id' => $authConpany,
+        ]);
+
+        // Sync tagged members
+        if (is_array($request->tag_member)) {
+            $project->members()->sync($request->tag_member);
+        }
+    }
+
+    DB::commit();
+
+    $message = $isProjectUpdated ? 'Project and Client Updated Successfully' : 'Project and Client Created Successfully';
+    return $this->responseJson(true, 200, $message, $project);
+
+} catch (\Exception $e) {
+    DB::rollBack();
+    return $this->responseJson(false, 500, 'An error occurred: ' . $e->getMessage());
+}
+
+
+
+
+if ($request->projectUpdateId) {
                 // Update an existing project
                 $pid = $request->projectUpdateId;
                 $fetchLogo = Project::find($pid);
