@@ -1,3 +1,15 @@
+$request->validate([
+                    'name' => 'required',
+                    'specification' => 'required',
+                    'unit_id' => 'required',
+                ]);
+"For duplicate creation checks, both fields will be considered (name & specification). If the name is the same but the specification is different, the creation will be allowed. However, if the name is the same and the specification is either blank or identical, it will be treated as a duplicate (deny creation)   
+following this condition 
+
+
+
+
+
 <ul class="{{ isActiveRoute(['company.companies.list', 'company.project.list'], 'mm-collapse mm-show') }}">
     <li class="{{ isActiveRoute('company.companies.list') }}">
         <a href="{{ route('company.companies.list') }}" class="mm-@yield('company-active')">
