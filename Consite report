@@ -1,4 +1,29 @@
+$
+
 $request->validate([
+    'name' => [
+        'required',
+        function ($attribute, $value, $fail) use ($request) {
+            $existingRecord = YourModel::where('name', $value)
+                ->where(function ($query) use ($request) {
+                    $query->where('specification', $request->specification)
+                        ->orWhereNull('specification');
+                })
+                ->first();
+
+            if ($existingRecord) {
+                if ($existingRecord->specification === $request->specification || empty($request->specification)) {
+                    $fail('The combination of name and specification already exists.');
+                }
+            }
+        },
+    ],
+    'specification' => 'required',
+    'unit_id' => 'required',
+]);
+
+
+request->validate([
                     'name' => 'required',
                     'specification' => 'required',
                     'unit_id' => 'required',
