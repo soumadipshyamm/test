@@ -1,4 +1,23 @@
-$
+ if ($request->uuid) {
+                    $validatedData = $request->validate([
+                        // 'class' => 'required',
+                        'class' => 'required|in:Class-A,Class-B,Class-C',
+                        'name' => 'required',
+                        'specification' => 'nullable|sometimes',
+                        'unit_id' => 'required',
+                    ]);
+                } else {
+                    $validatedData = $request->validate([
+                        // 'class' => 'required',
+                        'class' => 'required|in:Class-A,Class-B,Class-C',
+                        // 'name' => ' required|unique:materials,name',
+                        'name' => ' required',
+                        'specification' => 'nullable|sometimes',
+                        'unit_id' => 'required',
+                    ]);
+                }
+
+
 
 $request->validate([
     'name' => [
