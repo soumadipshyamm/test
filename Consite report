@@ -1,17 +1,6 @@
-//
-// Fetch PrMemberManagement data related to a specific material request
-$testttt = PrMemberManagment::where('material_request_id', 69)->get();
-
-// Check if all members in $testttt are active
-$isAllActive = $testttt->every(fn($item) => $item->is_active == 1);
-
-// Build the query for MaterialRequest
 $query = MaterialRequest::where('company_id', $authCompany->company_id)
     ->whereHas('PrMemberManagment', function ($query) use ($isAllActive) {
-        if (!$isAllActive) {
-            // Filter based on inactive members if not all are active
-            $query->where('is_active', 0);
-        }
+       $query->every(fn($item) => $item->is_active == 1);
     })
     ->whereNotNull('request_id');
 
@@ -30,12 +19,6 @@ if ($request->isMethod('post')) {
 
 // Retrieve the data
 $datas = $query->orderBy('id', 'desc')->get();
-
-// Debugging if needed
-// dd($datas, $isAllActive, $testttt);
-
-
-
 
 
 
