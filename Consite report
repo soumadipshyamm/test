@@ -1,3 +1,54 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+public function import(Request $request)
+    {
+        $authConpany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authConpany);
+        $checkAdditionalFeatures = fetchDataActivities($companyId, $request->project);
+        $isSubscription = checkSubscriptionPermission($companyId, 'activities');
+        if (count($checkAdditionalFeatures) < $isSubscription->is_subscription) {
+            try {
+                $file = $request->file('file');
+                $project = $request->project;
+                $subproject = $request->subproject;
+                $tmpcachekey = 'tmpcachekey';
+                Cache::put($tmpcachekey, []);
+                $datatImport = Excel::import(new ActivitesImport($project, $subproject, $companyId, $tmpcachekey), $file);
+                $importedData =  Cache::get($tmpcachekey);
+                if (count($importedData) == 0) {
+                    return redirect()->route('company.activities.list')->with('success', 'Import Data Uploaded Successfully');
+                } else {
+                    return redirect()->route('company.activities.nonImportData');
+                }
+            } catch (\Exception $e) {
+                // Log the error message
+                Log::error('Error importing Excel file: ' . $e->getMessage());
+                return redirect()->back()->with('error', 'Error importing Excel file');
+            }
+        } else {
+            return redirect()
+                ->back()
+                // ->route('company.subscription.list')
+                ->with('expired', true);
+        }
+    }
+
+
+
+
+****************************************************************************************************************************************************
+
 <?php
 
 namespace App\Exports;
