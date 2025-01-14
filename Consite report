@@ -1,99 +1,93 @@
+<?php
+
+namespace App\Exports;
+
+use App\Models\Activities;
+use App\Http\Resources\ActivitesExportResources;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+
 class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
 {
-
-    protected  $selects;
-    protected  $row_count;
-    protected  $column_count;
+    protected $selects;
+    protected $rowCount;
+    protected $columnCount;
     protected $projectId;
+
     public function __construct($projectId)
     {
         $this->projectId = $projectId;
         $status = getUnit();
-        // dd($$this->projectId);
-        // $departments = ['Account', 'Admin', 'Ict', 'Sales'];
-        //$departments=\ModelName::pluck('name')->toArray();
-        $selects = [  //selects should have column_name and options
-            // ['columns_name' => 'D', 'options' => $departments],
+
+        $this->selects = [
             ['columns_name' => 'F', 'options' => $status],
         ];
-        $this->selects = $selects;
-        $this->row_count = 2; //number of rows that will have the dropdown
-        $this->column_count = 5; //number of columns to be auto sized
+
+        $this->rowCount = 2; // Number of rows for the dropdown
+        $this->columnCount = 5; // Number of columns to be auto-sized
     }
 
     public function collection()
     {
-        $authConpany = Auth::guard('company')->user()->id;
-        $companyId = searchCompanyId($authConpany);
+        $authCompanyId = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompanyId);
 
-        $labours = Activities::with('units', 'project', 'subproject')->where('company_id', $companyId)->where('project_id', $this->projectId)->get();
-        // dd($labours);
-        $collection = ActivitesExportResources::collection($labours);
-        return collect($collection);
+        $labours = Activities::with('units', 'project', 'subproject')
+            ->where('company_id', $companyId)
+            ->where('project_id', $this->projectId)
+            ->get();
+
+        return collect(ActivitesExportResources::collection($labours));
     }
 
     public function headings(): array
     {
         return [
             '#',
-            'uuid',
-            'project',
-            'subproject',
-            'type',
-            'sl_no',
-            'activities',
-            'units',
-            'qty',
-            'rate',
-            'amount',
-            'start_date',
-            'end_date'
+            'UUID',
+            'Project',
+            'Subproject',
+            'Type',
+            'SL No',
+            'Activities',
+            'Units',
+            'Qty',
+            'Rate',
+            'Amount',
+            'Start Date',
+            'End Date'
         ];
     }
-
-    // 'project' => $this->project->project_name ?? '',
-    // 'subproject' => $this->subproject->name ?? '',
-    // 'type' => $this->type,
-    // 'sl_no' => $this->sl_no,
-    // 'activities' => $this->activities,
-    // 'unit_id' => $this->units?->unit,
-    // 'qty' => $this->qty,
-    // 'rate' => $this->rate,
-    // 'amount' => $this->amount,
-    // 'start_date' => $this->start_date,
-    // 'end_date' => $this->end_date,
-
 
     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $startRow = 2; // Specify the starting row (e.g., skip the header).
-
-                $row_count = $this->row_count;
-                $column_count = $this->column_count;
+                $startRow = 2; // Starting row for data validation
 
                 foreach ($this->selects as $select) {
-                    $drop_column = $select['columns_name'];
+                    $dropColumn = $select['columns_name'];
                     $options = $select['options'];
 
-                    // Set dropdown list for the first data row.
-                    $validation = $event->sheet->getCell("{$drop_column}2")->getDataValidation();
+                    $validation = $event->sheet->getCell("{$dropColumn}2")->getDataValidation();
                     $this->configureDataValidation($validation, $options);
 
-                    // Clone validation to remaining rows.
-                    for ($i = 3; $i <= $row_count; $i++) {
-                        $event->sheet->getCell("{$drop_column}{$i}")->setDataValidation(clone $validation);
+                    for ($i = 3; $i <= $this->rowCount; $i++) {
+                        $event->sheet->getCell("{$dropColumn}{$i}")->setDataValidation(clone $validation);
                     }
                 }
 
-                // Set columns to autosize.
-                for ($i = 1; $i <= $column_count; $i++) {
+                for ($i = 1; $i <= $this->columnCount; $i++) {
                     $column = Coordinate::stringFromColumnIndex($i);
                     $event->sheet->getColumnDimension($column)->setAutoSize(true);
                 }
 
-                // Apply text wrapping to a specific column (e.g., column F).
                 $this->applyTextWrapping($event, 'H', $startRow);
             },
         ];
@@ -107,7 +101,7 @@ class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, W
         $validation->setShowInputMessage(true);
         $validation->setShowErrorMessage(true);
         $validation->setShowDropDown(true);
-        $validation->setErrorTitle('Input error');
+        $validation->setErrorTitle('Input Error');
         $validation->setError('Value is not in the list.');
         $validation->setPromptTitle('Pick from list');
         $validation->setPrompt('Please pick a value from the drop-down list.');
@@ -118,7 +112,7 @@ class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, W
     {
         $endRow = $endRow ?? $event->sheet->getDelegate()->getHighestRow();
 
-        $event->sheet->getDelegate()->getColumnDimension('H')->setWidth(50);
+        $event->sheet->getDelegate()->getColumnDimension($column)->setWidth(50);
         for ($row = $startRow; $row <= $endRow; $row++) {
             $cell = $column . $row;
             $event->sheet->getDelegate()->getStyle($cell)->getAlignment()->setWrapText(true);
