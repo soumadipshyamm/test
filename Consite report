@@ -1,4 +1,45 @@
-// $testttt = PrMemberManagment::where('material_request_id', 69)->get();
+//
+// Fetch PrMemberManagement data related to a specific material request
+$testttt = PrMemberManagment::where('material_request_id', 69)->get();
+
+// Check if all members in $testttt are active
+$isAllActive = $testttt->every(fn($item) => $item->is_active == 1);
+
+// Build the query for MaterialRequest
+$query = MaterialRequest::where('company_id', $authCompany->company_id)
+    ->whereHas('PrMemberManagment', function ($query) use ($isAllActive) {
+        if (!$isAllActive) {
+            // Filter based on inactive members if not all are active
+            $query->where('is_active', 0);
+        }
+    })
+    ->whereNotNull('request_id');
+
+// Additional filters for POST method
+if ($request->isMethod('post')) {
+    $date15DaysAgo = now()->subDays(15);
+
+    if ($projectId) {
+        $query->where('projects_id', $projectId);
+    }
+
+    if ($subprojectId) {
+        $query->orWhere('sub_projects_id', $subprojectId);
+    }
+}
+
+// Retrieve the data
+$datas = $query->orderBy('id', 'desc')->get();
+
+// Debugging if needed
+// dd($datas, $isAllActive, $testttt);
+
+
+
+
+
+
+$testttt = PrMemberManagment::where('material_request_id', 69)->get();
         // $sdfg = '';
         // foreach ($testttt as $rr) {
         //     if ($rr->is_active == 1) {
