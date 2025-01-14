@@ -1,3 +1,134 @@
+public function add(Request $request)
+{
+    // Start the session and load the company
+    Session::put('navbar', 'show');
+    $authConpany = Auth::guard('company')->user()->id;
+    $companyId = searchCompanyId($authConpany);
+    
+    if ($request->isMethod('post')) {
+        // Validate request data
+        $validatedData = $request->validate([
+            'project' => 'required',
+            'type' => 'required|in:heading,activites',
+            'heading' => 'required_if:type,activites',
+            'activities' => 'required',
+        ]);
+
+        // Fetch subscription info and activity data
+        $checkAdditionalFeatures = fetchDataActivities($companyId, $request->project);
+        $isSubscription = checkSubscriptionPermission($companyId, 'activities');
+        
+        // Assign subproject or null
+        $subproject = $request->subproject ?? null;
+
+        // Determine sl_no based on type (heading or activity)
+        $slNo = $this->generateSlNo($request->type, $request->heading, $companyId);
+
+        // Perform update or create based on whether UUID is provided
+        try {
+            DB::beginTransaction();
+
+            // If UUID exists, update existing activity
+            if ($request->uuid) {
+                $id = uuidtoid($request->uuid, 'activities');
+                Activities::where('id', $id)->update([
+                    'project_id' => $request->project,
+                    'subproject_id' => $subproject,
+                    'type' => $request->type,
+                    'parent_id' => $request->heading,
+                    'activities' => $request->activities,
+                    'unit_id' => $request->unit_id ?? null,
+                    'qty' => $request->quantity,
+                    'rate' => $request->rate,
+                    'amount' => $request->amount,
+                    'start_date' => $request->start_date,
+                    'end_date' => $request->end_date,
+                ]);
+            } else {
+                // Create new activity
+                if (count($checkAdditionalFeatures) < $isSubscription->is_subscription) {
+                    Activities::create([
+                        'uuid' => Str::uuid(),
+                        'project_id' => $request->project,
+                        'subproject_id' => $subproject,
+                        'type' => $request->type,
+                        'sl_no' => $slNo,
+                        'parent_id' => $request->heading,
+                        'activities' => $request->activities,
+                        'unit_id' => $request->unit_id ?? null,
+                        'qty' => $request->quantity,
+                        'rate' => $request->rate,
+                        'amount' => $request->amount,
+                        'start_date' => $request->start_date,
+                        'end_date' => $request->end_date,
+                        'company_id' => $companyId,
+                    ]);
+                } else {
+                    return redirect()->back()->with('expired', true);
+                }
+            }
+
+            DB::commit();
+            return redirect()->route('company.activities.list')->with('success', 'Activities Saved Successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            logger($e->getMessage() . '--' . $e->getFile() . '--' . $e->getLine());
+            return redirect()->route('company.activities.list')->with('false', $e->getMessage());
+        }
+    }
+
+    return view('Company.activities.add-edit');
+}
+
+/**
+ * Generate the sl_no for new activities based on their type and parent.
+ */
+private function generateSlNo($type, $parentId, $companyId)
+{
+    // If activity is a heading (no parent), generate sl_no for headings (top-level)
+    if ($type === 'heading') {
+        return $this->generateHeadingSlNo($companyId);
+    }
+
+    // If it's a child activity, find the parent's sl_no and increment appropriately
+    if ($parentId) {
+        return $this->generateChildSlNo($parentId);
+    }
+
+    return '1'; // Default to '1' if neither case is met
+}
+
+/**
+ * Generate sl_no for headings (top-level activities).
+ */
+private function generateHeadingSlNo($companyId)
+{
+    $lastSlNo = Activities::whereNull('parent_id')
+        ->where('company_id', $companyId)
+        ->max('sl_no');
+
+    return $lastSlNo ? $lastSlNo + 1 : 1;
+}
+
+/**
+ * Generate sl_no for child activities (under a parent).
+ */
+private function generateChildSlNo($parentId)
+{
+    $parent = Activities::find($parentId);
+
+    // Get the parent's sl_no and increment the child number
+    $parentSlNo = $parent->sl_no;
+    $lastChildSlNo = Activities::where('parent_id', $parentId)->max('sl_no');
+
+    if (strpos($parentSlNo, '.') === false) {
+        return $parentSlNo . '.1'; // First child of a heading
+    }
+
+    // Increment the last child number
+    $lastChildNumber = substr(strrchr($lastChildSlNo, '.'), 1); // Get last child number
+    return $parentSlNo . '.' . ($lastChildNumber + 1);
+}
 
 
 ***************************************************************************************88
