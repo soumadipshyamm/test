@@ -1,138 +1,39 @@
-$authConpany = Auth::guard('company')->user()->id;
-        $companyId = searchCompanyId($authConpany);
-        if ($request->isMethod('post')) {
-            dd($request->all());
-            $request->validate([
-                'project_name' => 'required',
-                'planned_start_date' => 'required',
-                'address' => 'required',
-                'planned_end_date' => 'date',
-                'tag_company' => 'required',
-                'own_project_or_contractor' => 'required|in:yes,no',
-                'client_name' => 'required_if:own_project_or_contractor,yes',
-                'client_company_address' => 'required_if:own_project_or_contractor,yes',
-                'client_company_name' => 'required_if:own_project_or_contractor,yes',
-                'client_designation' => 'required_if:own_project_or_contractor,yes',
-                'client_email' => 'required_if:own_project_or_contractor,yes',
-                'client_phone' => 'required_if:own_project_or_contractor,yes',
-            ]);
-            // dd($request->all());
-            DB::beginTransaction();
-            if ($request->uuid) {
-                try {
-                    $pid = uuidtoid($request->uuid, 'projects');
-                    $fetchLogo = Project::find($pid);
-                    $isProjectUpdated = Project::where('id', $pid)->update([
-                        'project_name' => $request->project_name,
-                        'planned_start_date' => $request->planned_start_date,
-                        'address' => $request->address,
-                        'planned_end_date' => $request->planned_end_date,
-                        'own_project_or_contractor' => $request->own_project_or_contractor,
-                        'project_completed' => $request->project_completed == 'yes' ? 'yes' : 'no',
-                        'company_id' => $companyId,
-                        'companies_id' => $request->tag_company,
-                        'project_completed_date' => $request->project_completed_date,
-                        'logo' => $request->logo ? getImgUpload($request->logo, 'logo') : $fetchLogo->logo,
-                    ]);
-                    // }
-                    // dd($request->own_project_or_contractor);
-                    if ($request->own_project_or_contractor == 'yes') {
-                        if ($request->clientUuid != null) {
-                            $cid = uuidtoid($request->clientUuid, 'clients');
-                            $isClientUpdated = Client::where('id', $cid)->where('project_id', $pid)->update([
-                                'client_name' => $request->client_name,
-                                'client_designation' => $request->client_designation,
-                                'client_email' => $request->client_email,
-                                'client_phone' => $request->client_phone,
-                                'client_mobile' => $request->client_mobile,
-                                'client_company_name' => $request->client_company_name,
-                                'client_company_address' => $request->client_company_address,
-                            ]);
-                            if ($isClientUpdated) {
-                                DB::commit();
-                                return redirect()->route('company.project.list')->with('success', 'Project Updated Successfully');
-                            }
-                        } else {
-                            // dd($isProjectUpdated);
-                            $isClientCreated = Client::create([
-                                'uuid' => Str::uuid(),
-                                'client_name' => $request->client_name,
-                                'client_designation' => $request->client_designation,
-                                'client_email' => $request->client_email,
-                                'client_phone' => $request->client_phone,
-                                'client_mobile' => $request->client_mobile,
-                                'client_company_name' => $request->client_company_name,
-                                'client_company_address' => $request->client_company_address,
-                                'project_id' => $pid,
-                            ]);
-                            if ($isClientCreated) {
-                                // dd($request->all());
-                                DB::commit();
-                                return redirect()->route('company.project.list')->with('success', 'Project Updated Successfully');
-                            }
-                        }
-                    } else {
-                        // dd($request->all());
-                        if ($request->clientUuid) {
-                            $cid = uuidtoid($request->clientUuid, 'clients');
-                            $res = Client::where('id', $cid)->delete();
-                        }
-                        DB::commit();
-                        return redirect()->route('company.project.list')->with('success', 'Project Updated Successfully');
-                    }
-                    //  dd($request->all());
-                } catch (\Exception $e) {
-                    DB::rollBack();
-                    logger($e->getMessage() . '--' . $e->getFile() . '--' . $e->getLine());
-                    return redirect()->route('company.project.list')->with('error', 'something want to be worng');
-                }
-            } else {
-                //create a new project
-                try {
-                    $isProjectCreated = Project::create([
-                        'uuid' => Str::uuid(),
-                        'project_name' => $request->project_name,
-                        'planned_start_date' => $request->planned_start_date,
-                        'address' => $request->address,
-                        'planned_end_date' => $request->planned_end_date,
-                        'own_project_or_contractor' => $request->own_project_or_contractor,
-                        'project_completed' => $request->project_completed == 'yes' ? 'yes' : 'no',
-                        'company_id' => $companyId,
-                        'companies_id' => $request->tag_company,
-                        'project_completed_date' => $request->project_completed_date,
-                        'logo' => $request->logo ? getImgUpload($request->logo, 'logo') : '',
-                    ]);
-                    if ($request->own_project_or_contractor == 'yes') {
-                        $isClientCreated = Client::create([
-                            'uuid' => Str::uuid(),
-                            'client_name' => $request->client_name,
-                            'client_designation' => $request->client_designation,
-                            'client_email' => $request->client_email,
-                            'client_phone' => $request->client_phone,
-                            'client_mobile' => $request->client_mobile,
-                            'client_company_name' => $request->client_company_name,
-                            'client_company_address' => $request->client_company_address,
-                            'project_id' => $isProjectCreated->id,
-                        ]);
-                    }
-                    $isSubProjectCreated = StoreWarehouse::create([
-                        'uuid' => Str::uuid(),
-                        'name' => 'Main Store',
-                        'location' => Null,
-                        'projects_id' => $isProjectCreated->id,
-                        'company_id' => $companyId,
-                    ]);
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
-                    if ($isProjectCreated) {
-                        DB::commit();
-                        return redirect()->route('company.project.list')->with('success', 'Project Created Successfully');
-                    }
-                } catch (\Exception $e) {
-                    DB::rollBack();
-                    // dd($e->getMessage());
-                    logger($e->getMessage() . '--' . $e->getFile() . '--' . $e->getLine());
-                    return redirect()->route('company.project.list')->with('error', $e->getMessage());
+class Activities extends Model
+{
+    protected $fillable = ['uuid', 'parent_id', 'type', 'activities', 'sl_no'];
+
+    public static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            // If there's no parent_id (i.e., top-level entry)
+            if (is_null($model->parent_id)) {
+                // Get the last sl_no for top-level entries and increment it
+                $lastSlNo = Activities::whereNull('parent_id')->max('sl_no');
+                $model->sl_no = $lastSlNo ? $lastSlNo + 1 : 1; // Start with 1 if no records exist
+            } else {
+                // If there is a parent_id, generate sl_no in parent.child format
+                $parentSlNo = Activities::where('id', $model->parent_id)->value('sl_no');
+                
+                // If there's a parent_sl_no, get the last child sl_no for this parent and increment it
+                $lastChildSlNo = Activities::where('parent_id', $model->parent_id)->max('sl_no');
+                $model->sl_no = $lastChildSlNo ? $parentSlNo . '.' . ($lastChildSlNo + 1) : $parentSlNo . '.1';
+                
+                // If it's a child with its own children, it should use the child sl_no as parent
+                if ($parentSlNo) {
+                    $lastSiblingSlNo = Activities::where('parent_id', $model->parent_id)->max('sl_no');
+                    $model->sl_no .= '.' . ($lastSiblingSlNo + 1);
                 }
             }
-        }
-        return view('Company.projects.add-edit');
+
+            // Optionally, set UUID if not provided
+            if (!$model->uuid) {
+                $model->uuid = Str::uuid();
+            }
+        });
+    }
+}
