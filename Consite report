@@ -1,123 +1,140 @@
+<?php
+
+namespace App\Imports;
+
+use App\Models\Activities;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+
 class ActivitesImport implements ToModel, WithHeadingRow
 {
     protected $project;
     protected $subproject;
     protected $companyId;
-    protected $tmpcachekey;
-    public function __construct($project, $subproject, $companyId, $tmpcachekey)
+    protected $tmpCacheKey;
+
+    public function __construct($project, $subproject, $companyId, $tmpCacheKey)
     {
         $this->project = $project;
         $this->subproject = $subproject;
-        $this->companyId =  $companyId;
-        $this->tmpcachekey =  $tmpcachekey;
+        $this->companyId = $companyId;
+        $this->tmpCacheKey = $tmpCacheKey;
     }
+
     public function model(array $row)
     {
-        // Log::channel('excel')->info('Imported row: ' . json_encode($row));
-        // dd($row['activities']);
-        Log::info('Excel import successful', $row);
-        $companyId = $this->companyId;
-        // if ($this->isValidRow($row)) {
-        // dd($row);
-        if ($this->isValidSlNo($row, $companyId)) {
-            $parentId = $this->calculateParentId($row['sl_no'], $companyId);
+        Log::info('Excel import row: ', $row);
+
+        if ($this->isValidSlNo($row, $this->companyId)) {
+            $parentId = $this->calculateParentId($row['sl_no'], $this->companyId);
+
             $data = new Activities([
                 'uuid' => Str::uuid(),
                 'project_id' => $this->project,
                 'subproject_id' => $this->subproject,
-                'type' => $parentId === null ? 'heading' : 'activites',
+                'type' => $parentId === null ? 'heading' : 'activities',
                 'sl_no' => $row['sl_no'],
                 'parent_id' => $parentId,
                 'activities' => $row['activities'],
-                'unit_id' => $this->getUnitId($row['unit_id'], $companyId),
+                'unit_id' => $this->getUnitId($row['unit_id'], $this->companyId),
                 'qty' => $row['qty'],
                 'rate' => $row['rate'],
                 'amount' => $row['qty'] * $row['rate'],
                 'start_date' => $row['start_date'],
                 'end_date' => $row['end_date'],
-                'company_id' => $companyId,
+                'company_id' => $this->companyId,
             ]);
+
+            $this->logExportedData($data);
             return $data;
         } else {
-            // dd($row);
-            $arr = Cache::get($this->tmpcachekey, []); // Get the cached array or initialize an empty array if it doesn't exist
-            $arr[] = $row; // Push the value onto the array
-            // dd($row);
-            // Put the updated array back in the cache
-            Cache::put($this->tmpcachekey, $arr);
+            $cachedData = Cache::get($this->tmpCacheKey, []);
+            $cachedData[] = $row;
+            Cache::put($this->tmpCacheKey, $cachedData);
         }
-        // }
     }
-    // *********************************************************************************
-    // protected function isValidRow(array $row)
-    // {
-    //     dd($row);
-    //     return in_array($row['heading'], ['activites']);
-    // }
 
     protected function isValidSlNo(array $row, $companyId)
     {
         $slNoParts = explode('.', $row['sl_no']);
         $slNoCount = count($slNoParts);
-        // dd($slNoParts);
-        if ($slNoCount === 1 || $slNoCount === null) {
-            // dd($row);
-            $isvalid = true;
-        } elseif ($slNoCount === 2) {
-            $isvalid = $this->getCheckSlNo($slNoParts[0], $companyId);
-            // $this->importLog($isvalid, $row);
-        } elseif ($slNoCount === 3) {
-            $slNoCombined = $slNoParts[0] . '.' . $slNoParts[1];
-            $isvalid = $this->getCheckSlNo($slNoCombined, $companyId);
-            // $this->importLog($isvalid, $row);
+
+        if ($slNoCount === 1) {
+            return true;
+        } elseif ($slNoCount === 2 || $slNoCount === 3) {
+            $slNoCombined = $slNoCount === 2 ? $slNoParts[0] : $slNoParts[0] . '.' . $slNoParts[1];
+            return $this->getCheckSlNo($slNoCombined, $companyId);
         }
-        // dd($isvalid);
-        // $this->importLog($isvalid, $row);
-        return $isvalid;
+
+        return false;
     }
-    protected function importLog($isvalid, $row)
-    {
-        if ($isvalid == false) {
-            Log::channel('excel')->info('Imported row: ' . json_encode($row));
-        }
-    }
+
     protected function calculateParentId($slNo, $companyId)
     {
         $slNoParts = explode('.', $slNo);
         $slNoCount = count($slNoParts);
-        if ($slNoCount === 1 || $slNoCount === null) {
+
+        if ($slNoCount === 1) {
             return null;
-        } elseif ($slNoCount === 2) {
-            return $this->getCheckParentId($slNoParts[0], $companyId);
-        } elseif ($slNoCount === 3) {
-            $slNoCombined = $slNoParts[0] . '.' . $slNoParts[1];
+        } elseif ($slNoCount === 2 || $slNoCount === 3) {
+            $slNoCombined = $slNoCount === 2 ? $slNoParts[0] : $slNoParts[0] . '.' . $slNoParts[1];
             return $this->getCheckParentId($slNoCombined, $companyId);
         }
+
         return null;
     }
+
     protected function getCheckParentId($slNoParts, $companyId)
     {
-        $data = Activities::where('sl_no', $slNoParts)->where('company_id', $companyId)->orderBy('id', 'DESC')->first();
-        if ($data == null) {
-            return null;
-        }
-        return $data->id;
+        $data = Activities::where('sl_no', $slNoParts)
+            ->where('company_id', $companyId)
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        return $data?->id;
     }
+
     protected function getCheckSlNo($slNoParts, $companyId)
     {
-        $data = Activities::where('sl_no', $slNoParts)->where('company_id', $companyId)->orderBy('id', 'DESC')->first();
-        if ($data == null) {
-            return false;
-        }
-        return $data->id;
+        $data = Activities::where('sl_no', $slNoParts)
+            ->where('company_id', $companyId)
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        return $data !== null;
     }
+
     protected function getUnitId($unitName, $companyId)
     {
         $unitId = nametoid($unitName, 'units');
+
         if ($unitId === false) {
             $unitId = createunit($unitName, $companyId);
         }
+
         return $unitId;
+    }
+
+    protected function logExportedData($data)
+    {
+        Log::info('Exported Data:', [
+            'uuid' => $data->uuid,
+            'project_id' => $data->project_id,
+            'subproject_id' => $data->subproject_id,
+            'type' => $data->type,
+            'sl_no' => $data->sl_no,
+            'activities' => $data->activities,
+            'unit_id' => $data->unit_id,
+            'qty' => $data->qty,
+            'rate' => $data->rate,
+            'amount' => $data->amount,
+            'start_date' => $data->start_date,
+            'end_date' => $data->end_date,
+            'company_id' => $data->company_id,
+        ]);
     }
 }
 
