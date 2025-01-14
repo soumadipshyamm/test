@@ -1,4 +1,18 @@
-array:3 [ // app\Http\Controllers\API\inventory\MaterialRequestController.php:194
+a
+
+$query = MaterialRequest::where('company_id', $authCompany->company_id)
+    ->whereDoesntHave('PrMemberManagment', function ($query) {
+        $query->where('is_active', '!=', 1); // Exclude if any record has is_active != 1
+    })
+    ->whereNotNull('request_id');
+
+// Retrieve the data
+$datas = $query->orderBy('id', 'desc')->get();
+
+
+
+
+rray:3 [ // app\Http\Controllers\API\inventory\MaterialRequestController.php:194
   0 => array:9 [
     "id" => 17
     "uuid" => "0f0d6ad4-fc2a-4cea-a531-84a1e8497d23"
