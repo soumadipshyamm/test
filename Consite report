@@ -1,3 +1,184 @@
+\
+
+<?php
+
+namespace App\Imports;
+
+use App\Models\Activities;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+
+class ActivitesImport implements ToModel, WithHeadingRow
+{
+    protected $project;
+    protected $subproject;
+    protected $companyId;
+    protected $cacheKey;
+
+    public function __construct($project, $subproject, $companyId, $cacheKey)
+    {
+        $this->project = $project;
+        $this->subproject = $subproject;
+        $this->companyId = $companyId;
+        $this->cacheKey = $cacheKey;
+    }
+
+    public function model(array $row)
+    {
+        // Log each row for debugging
+        Log::info('Processing row for import', $row);
+
+        if (!$this->isValidRow($row)) {
+            $this->cacheInvalidRow($row);
+            return null;
+        }
+
+        $parentId = $this->determineParentId($row['sl_no']);
+
+        // Check for existing data
+        $existingActivity = $this->findExistingActivity($row['sl_no']);
+        $unitId = $this->resolveUnitId($row['unit_id']);
+
+        if ($existingActivity) {
+            $this->updateIfChanged($existingActivity, $row, $unitId);
+            return null;
+        }
+
+        // Create new activity
+        return $this->createNewActivity($row, $unitId, $parentId);
+    }
+
+    /**
+     * Validate row structure and required fields.
+     */
+    protected function isValidRow(array $row): bool
+    {
+        return isset($row['sl_no'], $row['activities'], $row['unit_id'], $row['qty'], $row['rate']);
+    }
+
+    /**
+     * Cache invalid rows for further processing or debugging.
+     */
+    protected function cacheInvalidRow(array $row): void
+    {
+        $invalidRows = Cache::get($this->cacheKey, []);
+        $invalidRows[] = $row;
+        Cache::put($this->cacheKey, $invalidRows);
+    }
+
+    /**
+     * Determine the parent ID based on the SL No.
+     */
+    protected function determineParentId(string $slNo): ?int
+    {
+        $slNoParts = explode('.', $slNo);
+        $slNoKey = count($slNoParts) === 3
+            ? implode('.', array_slice($slNoParts, 0, 2))
+            : $slNoParts[0];
+
+        return $this->getParentIdFromSlNo($slNoKey);
+    }
+
+    /**
+     * Find an existing activity by SL No.
+     */
+    protected function findExistingActivity(string $slNo): ?Activities
+    {
+        return Activities::where('project_id', $this->project)
+            ->where('subproject_id', $this->subproject)
+            ->where('sl_no', $slNo)
+            ->where('company_id', $this->companyId)
+            ->first();
+    }
+
+    /**
+     * Update an activity if any relevant fields have changed.
+     */
+    protected function updateIfChanged(Activities $activity, array $row, int $unitId): void
+    {
+        $updatedData = [
+            'unit_id' => $unitId,
+            'qty' => $row['qty'],
+            'rate' => $row['rate'],
+            'amount' => $row['qty'] * $row['rate'],
+        ];
+
+        if (!$this->isDataUnchanged($activity, $updatedData)) {
+            $activity->update($updatedData);
+        }
+    }
+
+    /**
+     * Check if the given data matches the existing activity.
+     */
+    protected function isDataUnchanged(Activities $activity, array $data): bool
+    {
+        return $activity->unit_id == $data['unit_id'] &&
+               $activity->qty == $data['qty'] &&
+               $activity->rate == $data['rate'] &&
+               $activity->amount == $data['amount'];
+    }
+
+    /**
+     * Create a new activity record.
+     */
+    protected function createNewActivity(array $row, int $unitId, ?int $parentId): Activities
+    {
+        return new Activities([
+            'uuid' => Str::uuid(),
+            'project_id' => $this->project,
+            'subproject_id' => $this->subproject,
+            'type' => $parentId === null ? 'heading' : 'activities',
+            'sl_no' => $row['sl_no'],
+            'parent_id' => $parentId,
+            'activities' => $row['activities'],
+            'unit_id' => $unitId,
+            'qty' => $row['qty'],
+            'rate' => $row['rate'],
+            'amount' => $row['qty'] * $row['rate'],
+            'start_date' => $row['start_date'],
+            'end_date' => $row['end_date'],
+            'company_id' => $this->companyId,
+        ]);
+    }
+
+    /**
+     * Resolve or create the unit ID from the unit name.
+     */
+    protected function resolveUnitId(string $unitName): int
+    {
+        $unitId = nametoid($unitName, 'units');
+        return $unitId !== false ? $unitId : createunit($unitName, $this->companyId);
+    }
+
+    /**
+     * Get parent ID from SL No.
+     */
+    protected function getParentIdFromSlNo(string $slNo): ?int
+    {
+        $activity = Activities::where('sl_no', $slNo)
+            ->where('company_id', $this->companyId)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        return $activity ? $activity->id : null;
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 <?php
 
 namespace App\Imports;
