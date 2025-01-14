@@ -1,117 +1,127 @@
-a
+class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
 
-$query = MaterialRequest::where('company_id', $authCompany->company_id)
-    ->whereDoesntHave('PrMemberManagment', function ($query) {
-        $query->where('is_active', '!=', 1); // Exclude if any record has is_active != 1
-    })
-    ->whereNotNull('request_id');
-
-// Retrieve the data
-$datas = $query->orderBy('id', 'desc')->get();
-
-
-
-
-rray:3 [ // app\Http\Controllers\API\inventory\MaterialRequestController.php:194
-  0 => array:9 [
-    "id" => 17
-    "uuid" => "0f0d6ad4-fc2a-4cea-a531-84a1e8497d23"
-    "user_id" => 1
-    "material_request_id" => 69
-    "leavel" => "1"
-    "company_id" => 1
-    "is_active" => 1
-    "created_at" => "2025-01-14T11:20:00.000000Z"
-    "updated_at" => "2025-01-14T11:20:00.000000Z"
-  ]
-  1 => array:9 [
-    "id" => 18
-    "uuid" => "1b3ba541-54f8-4dec-b09c-412946e5aabf"
-    "user_id" => 23
-    "material_request_id" => 69
-    "leavel" => "2"
-    "company_id" => 1
-    "is_active" => 0
-    "created_at" => "2025-01-14T11:20:00.000000Z"
-    "updated_at" => "2025-01-14T11:20:00.000000Z"
-  ]
-  2 => array:9 [
-    "id" => 19
-    "uuid" => "29a67fbb-b0a7-4361-a7bd-8e818894c493"
-    "user_id" => 21
-    "material_request_id" => 69
-    "leavel" => "3"
-    "company_id" => 1
-    "is_active" => 1
-    "created_at" => "2025-01-14T11:20:00.000000Z"
-    "updated_at" => "2025-01-14T11:20:00.000000Z"
-  ]
-]
-
-
-$query = MaterialRequest::where('company_id', $authCompany->company_id)
-    ->whereHas('PrMemberManagment', function ($query) use ($isAllActive) {
-       $query->every(fn($item) => $item->is_active == 1);
-    })
-    ->whereNotNull('request_id');
-
-// Additional filters for POST method
-if ($request->isMethod('post')) {
-    $date15DaysAgo = now()->subDays(15);
-
-    if ($projectId) {
-        $query->where('projects_id', $projectId);
+    protected  $selects;
+    protected  $row_count;
+    protected  $column_count;
+    protected $projectId;
+    public function __construct($projectId)
+    {
+        $this->projectId = $projectId;
+        $status = getUnit();
+        // dd($$this->projectId);
+        // $departments = ['Account', 'Admin', 'Ict', 'Sales'];
+        //$departments=\ModelName::pluck('name')->toArray();
+        $selects = [  //selects should have column_name and options
+            // ['columns_name' => 'D', 'options' => $departments],
+            ['columns_name' => 'F', 'options' => $status],
+        ];
+        $this->selects = $selects;
+        $this->row_count = 2; //number of rows that will have the dropdown
+        $this->column_count = 5; //number of columns to be auto sized
     }
 
-    if ($subprojectId) {
-        $query->orWhere('sub_projects_id', $subprojectId);
+    public function collection()
+    {
+        $authConpany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authConpany);
+
+        $labours = Activities::with('units', 'project', 'subproject')->where('company_id', $companyId)->where('project_id', $this->projectId)->get();
+        // dd($labours);
+        $collection = ActivitesExportResources::collection($labours);
+        return collect($collection);
     }
-}
 
-// Retrieve the data
-$datas = $query->orderBy('id', 'desc')->get();
+    public function headings(): array
+    {
+        return [
+            '#',
+            'uuid',
+            'project',
+            'subproject',
+            'type',
+            'sl_no',
+            'activities',
+            'units',
+            'qty',
+            'rate',
+            'amount',
+            'start_date',
+            'end_date'
+        ];
+    }
+
+    // 'project' => $this->project->project_name ?? '',
+    // 'subproject' => $this->subproject->name ?? '',
+    // 'type' => $this->type,
+    // 'sl_no' => $this->sl_no,
+    // 'activities' => $this->activities,
+    // 'unit_id' => $this->units?->unit,
+    // 'qty' => $this->qty,
+    // 'rate' => $this->rate,
+    // 'amount' => $this->amount,
+    // 'start_date' => $this->start_date,
+    // 'end_date' => $this->end_date,
 
 
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $startRow = 2; // Specify the starting row (e.g., skip the header).
 
-$testttt = PrMemberManagment::where('material_request_id', 69)->get();
-        // $sdfg = '';
-        // foreach ($testttt as $rr) {
-        //     if ($rr->is_active == 1) {
-        //         $sdfg = true;
-        //     } else {
-        //         $sdfg = false;
-        //         break;
-        //     }
-        // }
+                $row_count = $this->row_count;
+                $column_count = $this->column_count;
 
-        // dd($sdfg, $testttt);
+                foreach ($this->selects as $select) {
+                    $drop_column = $select['columns_name'];
+                    $options = $select['options'];
 
+                    // Set dropdown list for the first data row.
+                    $validation = $event->sheet->getCell("{$drop_column}2")->getDataValidation();
+                    $this->configureDataValidation($validation, $options);
 
-
-        $query = MaterialRequest::where('company_id', $authCompany->company_id)
-            ->whereHas('PrMemberManagment', function ($query) { // Updated relationship name
-                // $query->where('is_active', 1);
-                $sdfg = '';
-                foreach ($testttt as $rr) {
-                    if ($rr->is_active == 1) {
-                        $sdfg = true;
-                    } else {
-                        $sdfg = false;
-                        break;
+                    // Clone validation to remaining rows.
+                    for ($i = 3; $i <= $row_count; $i++) {
+                        $event->sheet->getCell("{$drop_column}{$i}")->setDataValidation(clone $validation);
                     }
                 }
-            })
-            ->whereNotNull('request_id');
 
-        if ($request->isMethod('post')) {
-            $date15DaysAgo = now()->subDays(15);
-            if ($projectId) {
-                $query->where('projects_id', $projectId);
-            }
-            if ($subprojectId) {
-                $query->orWhere('sub_projects_id', $subprojectId);
-            }
+                // Set columns to autosize.
+                for ($i = 1; $i <= $column_count; $i++) {
+                    $column = Coordinate::stringFromColumnIndex($i);
+                    $event->sheet->getColumnDimension($column)->setAutoSize(true);
+                }
+
+                // Apply text wrapping to a specific column (e.g., column F).
+                $this->applyTextWrapping($event, 'H', $startRow);
+            },
+        ];
+    }
+
+    private function configureDataValidation($validation, $options)
+    {
+        $validation->setType(DataValidation::TYPE_LIST);
+        $validation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+        $validation->setAllowBlank(false);
+        $validation->setShowInputMessage(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setShowDropDown(true);
+        $validation->setErrorTitle('Input error');
+        $validation->setError('Value is not in the list.');
+        $validation->setPromptTitle('Pick from list');
+        $validation->setPrompt('Please pick a value from the drop-down list.');
+        $validation->setFormula1(sprintf('"%s"', implode(',', $options)));
+    }
+
+    private function applyTextWrapping($event, $column, $startRow, $endRow = null)
+    {
+        $endRow = $endRow ?? $event->sheet->getDelegate()->getHighestRow();
+
+        $event->sheet->getDelegate()->getColumnDimension('H')->setWidth(50);
+        for ($row = $startRow; $row <= $endRow; $row++) {
+            $cell = $column . $row;
+            $event->sheet->getDelegate()->getStyle($cell)->getAlignment()->setWrapText(true);
         }
-
-        // Retrieve the data
-        $datas = $query->orderBy('id', 'desc')->get();
+    }
+}
