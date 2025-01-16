@@ -1,3 +1,29 @@
+function getCustomer($id = null, $role = 'customer')
+{
+    // Fetch users with is_active = 1, user_type = 5, and matching role slug.
+    $data = User::where('is_active', 1)
+        ->where('user_type', 5)
+        ->whereHas('roles', function ($query) use ($role) {
+            $query->where('slug', $role);
+        })
+        ->get();
+
+    // Initialize options variable
+    $options = "<option value='' disabled selected>Select Customer Name</option>";
+    foreach ($data as $val) {
+        // Check if the user is selected
+        $selected = ($id == $val->uuid) ? 'selected' : '';
+        // Create the option tag
+        $options .= "<option value='" . htmlspecialchars($val->uuid) . "' $selected>" . htmlspecialchars($val->name) . "</option>";
+    }
+
+    return $options;
+}
+
+
+
+
+
 function getCustomer($id = null)
 {
     $type = 'customer';
