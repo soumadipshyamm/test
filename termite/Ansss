@@ -1,4 +1,79 @@
 
+use Illuminate\Support\Str;
+use Webpatser\Uuid\Uuid;
+
+public static function boot()
+{
+    parent::boot();
+
+    // Generate UUID when creating a new model
+    self::creating(function ($model) {
+        $model->uuid = (string) Uuid::generate(4);
+    });
+
+    // Generate employee ID when creating a new model
+    self::creating(function ($model) {
+        $model->employee_id = static::generateUniqueNumber($model->user_type);
+    });
+}
+
+/**
+ * Generate a unique employee number based on user type and year in sequential order.
+ *
+ * @param int $userType The type of the user (e.g., 1 = Super Admin, 2 = Office, etc.)
+ * @return string The generated unique employee ID
+ */
+public static function generateUniqueNumber($userType)
+{
+    $year = date('y'); // Current year in two-digit format
+    $userTypePrefix = ''; // Default prefix
+
+    // Determine the prefix based on the user type
+    switch ($userType) {
+        case 1:
+            $userTypePrefix = 'SA'; // Super Admin
+            break;
+        case 2:
+            $userTypePrefix = 'O'; // Office
+            break;
+        case 3:
+            $userTypePrefix = 'I'; // Inspector
+            break;
+        case 4:
+            $userTypePrefix = 'A'; // Admin
+            break;
+        case 5:
+            $userTypePrefix = 'C'; // Customer
+            break;
+        default:
+            throw new \Exception('Invalid user type.');
+    }
+
+    // Find the last employee number for this user type and increment it
+    $lastRecord = static::where('employee_id', 'LIKE', $userTypePrefix . $year . '%')
+        ->orderBy('employee_id', 'desc')
+        ->first();
+
+    // Extract the last numeric part and increment it
+    if ($lastRecord) {
+        $lastNumber = (int) substr($lastRecord->employee_id, -6); // Get the last 6 digits
+        $newNumber = $lastNumber + 1;
+    } else {
+        $newNumber = 1; // Start from 1 if no previous record exists
+    }
+
+    // Format the new number with leading zeros (e.g., 000001)
+    $formattedNumber = str_pad($newNumber, 6, '0', STR_PAD_LEFT);
+
+    // Return the unique employee ID
+    return $userTypePrefix . $year . $formattedNumber;
+}
+
+
+
+
+
+
 use Illuminate\Support\Facades\DB;
 use Webpatser\Uuid\Uuid;
 
