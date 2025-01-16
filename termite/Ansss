@@ -1,69 +1,42 @@
-function getCustomer($id = null, $role = 'customer')
-{
-    // Fetch users with is_active = 1, user_type = 5, and matching role slug.
-    $data = User::where('is_active', 1)
-        ->where('user_type', 5)
-        ->whereHas('roles', function ($query) use ($role) {
-            $query->where('slug', $role);
-        })
-        ->get();
-
-    // Initialize options variable
-    $options = "<option value='' disabled selected>Select Customer Name</option>";
-    foreach ($data as $val) {
-        // Check if the user is selected
-        $selected = ($id == $val->uuid) ? 'selected' : '';
-        // Create the option tag
-        $options .= "<option value='" . htmlspecialchars($val->uuid) . "' $selected>" . htmlspecialchars($val->name) . "</option>";
-    }
-
-    return $options;
-}
-
-
-
-
-
-function getCustomer($id = null)
-{
-    $type = 'customer';
-    $data = User::where('is_active', 1)->where('user_type', 5);
-    // Check if the type is not empty and apply the whereHas condition
-    if (!empty($type)) {
-        $data->whereHas('roles', function ($query) use ($type) {
-            $query->where('slug', $type);
-        });
-    }
-    // Retrieve the data
-    $data = $data->get();
-    foreach ($data as $val) {
-        $selected = ($id == $val->uuid) ? 'selected' : '';
-        echo "<option value='" . htmlspecialchars($val->uuid) . "' $selected>" . htmlspecialchars($val->name) . "</option>";
-    }
-}
-
-
-
-
-
-$(document).on('click', '#customer_name', function() {
-            $('#customer_name').select2({
-                selectOnClose: true,
-                placeholder: "Select Customer Name", // Optional: Set placeholder
-                allowClear: true // Optional: Allow clearing the selection
-            });
+  public static function boot()
+    {
+        parent::boot();
+        self::creating(function ($model) {
+            $model->uuid = (string) Uuid::generate(4);
         });
 
-<div class="form-group single_form">
-                            <label for="customer_name">Customer Name</label>
-                            <select name="customer_name" id="customer_name"
-                                class="form-control customerName">
-                                {{-- <option disable>Select Customer Name</option> --}}
-                                {{ getCustomer('') }}
-                            </select>
-                        </div>
+        static::creating(function ($model) {
+            $model->employee_id = static::generateUniqueNumber(6);
+        });
+    }
+    public static function generateUniqueNumber($length)
+    {
+        $year = date('y');
+        $userTypePrefix = ''; // Default prefix
+        // Determine the prefix based on user type
 
+            switch ($user_type) {
+                case 1:
+                    $userTypePrefix = 'SA'; // Super Admin
+                    break;
+                case 2:
+                    $userTypePrefix = 'O'; // Office
+                    break;
+                case 3:
+                    $userTypePrefix = 'I'; // Inspector
+                    break;
+                case 4:
+                    $userTypePrefix = 'A'; // Admin
+                    break;
+                case 5:
+                    $userTypePrefix = 'C'; // Customer
+                    break;
+            }
+            // Generate the unique number
+            $queNumber = $userTypePrefix . $year . str_pad(mt_rand(1, 999999), $length, '0', STR_PAD_LEFT);
+            return $queNumber;
 
+    }
 
 
 public function customerCreate(Request $request)
