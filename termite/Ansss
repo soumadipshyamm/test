@@ -1,3 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container {
+            max-width: 600px;
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .header {
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 15px;
+        }
+        .section label {
+            font-weight: bold;
+        }
+        .btn-group button {
+            width: 100%;
+        }
+        .custom-textarea {
+            height: 150px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">Customer Management</div>
+
+        <!-- Search Section -->
+        <div class="section">
+            <label for="search">Search for Name, Address, Phone Number, Location #:</label>
+            <input type="text" id="search" class="form-control" placeholder="Enter search details">
+        </div>
+
+        <!-- Customer Info -->
+        <div class="section">
+            <label for="customer-info">Customer Name (Last Name, First Name):</label>
+            <textarea id="customer-info" class="form-control custom-textarea" placeholder="Customer details here"></textarea>
+        </div>
+
+        <!-- Call Back Section -->
+        <div class="section">
+            <label>Call Back</label>
+            <div class="row">
+                <div class="col">
+                    <label for="follow-up">Follow up:</label>
+                    <input type="date" id="follow-up" class="form-control">
+                </div>
+                <div class="col">
+                    <label for="time">Time:</label>
+                    <input type="time" id="time" class="form-control">
+                </div>
+            </div>
+        </div>
+
+        <!-- Auto Text Section -->
+        <div class="section">
+            <label for="auto-text">Auto Text:</label>
+            <textarea id="auto-text" class="form-control" placeholder="Custom auto text"></textarea>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="section btn-group">
+            <button class="btn btn-primary mb-2">Customer</button>
+            <button class="btn btn-secondary mb-2">Inspections</button>
+            <button class="btn btn-success mb-2">Schedule</button>
+            <button class="btn btn-warning mb-2">Leader Board</button>
+            <button class="btn btn-danger">Callbacks</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+
 public function customerCreate(Request $request)
 {
     // Validate the incoming request data
