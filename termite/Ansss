@@ -1,4 +1,26 @@
-   $(document).on('click', '#customer_name', function() {
+function getCustomer($id = null)
+{
+    $type = 'customer';
+    $data = User::where('is_active', 1)->where('user_type', 5);
+    // Check if the type is not empty and apply the whereHas condition
+    if (!empty($type)) {
+        $data->whereHas('roles', function ($query) use ($type) {
+            $query->where('slug', $type);
+        });
+    }
+    // Retrieve the data
+    $data = $data->get();
+    foreach ($data as $val) {
+        $selected = ($id == $val->uuid) ? 'selected' : '';
+        echo "<option value='" . htmlspecialchars($val->uuid) . "' $selected>" . htmlspecialchars($val->name) . "</option>";
+    }
+}
+
+
+
+
+
+$(document).on('click', '#customer_name', function() {
             $('#customer_name').select2({
                 selectOnClose: true,
                 placeholder: "Select Customer Name", // Optional: Set placeholder
