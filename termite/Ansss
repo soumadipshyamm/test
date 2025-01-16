@@ -1,4 +1,79 @@
-  public static function boot()
+
+use Illuminate\Support\Facades\DB;
+use Webpatser\Uuid\Uuid;
+
+public static function boot()
+{
+    parent::boot();
+
+    // Generate UUID when creating a new model
+    self::creating(function ($model) {
+        $model->uuid = (string) Uuid::generate(4);
+    });
+
+    // Generate sequential employee ID when creating a new model
+    self::creating(function ($model) {
+        $model->employee_id = static::generateUniqueNumber($model->user_type);
+    });
+}
+
+/**
+ * Generate a sequential unique employee number with a prefix.
+ *
+ * @param int $userType The type of the user (e.g., 1 = Super Admin, 2 = Office, etc.)
+ * @return string The generated unique employee ID
+ */
+public static function generateUniqueNumber($userType)
+{
+    $year = date('y'); // Current year in two-digit format
+    $userTypePrefix = ''; // Default prefix
+
+    // Determine the prefix based on the user type
+    switch ($userType) {
+        case 1:
+            $userTypePrefix = 'SA'; // Super Admin
+            break;
+        case 2:
+            $userTypePrefix = 'O'; // Office
+            break;
+        case 3:
+            $userTypePrefix = 'I'; // Inspector
+            break;
+        case 4:
+            $userTypePrefix = 'A'; // Admin
+            break;
+        case 5:
+            $userTypePrefix = 'C'; // Customer
+            break;
+        default:
+            throw new \Exception('Invalid user type.');
+    }
+
+    // Get the last number in the sequence for this user type
+    $lastNumber = DB::table('users')
+        ->where('employee_id', 'LIKE', "{$userTypePrefix}{$year}%")
+        ->orderBy('employee_id', 'desc')
+        ->value('employee_id');
+
+    // Extract the numeric part and increment it
+    if ($lastNumber) {
+        $number = (int) substr($lastNumber, -6) + 1;
+    } else {
+        $number = 1; // Start at 1 if no previous number exists
+    }
+
+    // Pad the number with leading zeros to ensure it's 6 digits
+    $paddedNumber = str_pad($number, 6, '0', STR_PAD_LEFT);
+
+    // Return the complete unique number with the prefix and year
+    return $userTypePrefix . $year . $paddedNumber;
+}
+
+
+
+
+
+public static function boot()
     {
         parent::boot();
         self::creating(function ($model) {
