@@ -1,3 +1,122 @@
+
+
+
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+
+class MaterialsExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents, WithStyles
+{
+    protected $selects;
+    protected $row_count;
+    protected $column_count;
+
+    public function __construct()
+    {
+        $status = Unit::pluck('unit')->toArray();
+        $class = ['Class-A', 'Class-B', 'Class-C'];
+
+        $this->selects = [
+            ['columns_name' => 'C', 'options' => $class],
+            ['columns_name' => 'E', 'options' => $status],
+        ];
+
+        $this->column_count = 5;
+    }
+
+    public function collection()
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        $materials = Materials::with('units')->where('company_id', $companyId)->get();
+        $this->row_count = $materials->count() + 1;
+        return MaterialsExportResources::collection($materials)->collect();
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'Name',
+            'Class',
+            'Code',
+            'Unit',
+            'Specification',
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $this->applyAutoSizing($event, $this->column_count);
+                $this->applyDropdowns($event, $this->selects, $this->row_count);
+            },
+        ];
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            1 => ['font' => ['bold' => true]],
+        ];
+    }
+
+    private function applyAutoSizing(AfterSheet $event, $columnCount)
+    {
+        for ($i = 1; $i <= $columnCount; $i++) {
+            $column = Coordinate::stringFromColumnIndex($i);
+            $event->sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+    }
+
+    private function applyDropdowns(AfterSheet $event, $selects, $rowCount)
+    {
+        $hiddenSheet = $event->sheet->getParent()->createSheet();
+        $hiddenSheet->setTitle('DropdownData');
+
+        foreach ($selects as $index => $select) {
+            $dropColumn = $select['columns_name'];
+            $options = $select['options'];
+
+            if (empty($options)) {
+                continue;
+            }
+
+            $hiddenColumn = Coordinate::stringFromColumnIndex($index + 1);
+            $hiddenSheet->fromArray($options, null, "{$hiddenColumn}1");
+
+            $formulaRange = "'DropdownData'!{$hiddenColumn}\$1:\$" . count($options);
+            $validation = $this->createDropdownValidation($formulaRange);
+
+            for ($row = 2; $row <= $rowCount; $row++) {
+                $event->sheet->getCell("{$dropColumn}{$row}")->setDataValidation(clone $validation);
+            }
+        }
+
+        $hiddenSheet->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
+    }
+
+    private function createDropdownValidation($formula)
+    {
+        $validation = new DataValidation();
+        $validation->setType(DataValidation::TYPE_LIST);
+        $validation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+        $validation->setAllowBlank(false);
+        $validation->setShowInputMessage(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setShowDropDown(true);
+        $validation->setErrorTitle('Input error');
+        $validation->setError('Value is not in the list.');
+        $validation->setPromptTitle('Pick from list');
+        $validation->setPrompt('Please select a value from the dropdown.');
+        $validation->setFormula1($formula);
+
+        return $validation;
+    }
+}
+
+
+
 class MaterialsExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents, WithStyles
 {
     protected $selects;
