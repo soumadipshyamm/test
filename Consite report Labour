@@ -1,3 +1,58 @@
+class MyDataImport implements ToModel, WithHeadingRow
+{
+    /**
+     * Import model from the given row.
+     *
+     * @param  array  $row
+     * @return \Illuminate\Database\Eloquent\Model|null
+     */
+    public function model(array $row)
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        // dd($row);
+        // Get the unit ID from the unit name, or create a new unit if it doesn't exist
+        $unitId = nametoid($row['unit'], 'units');
+        if (!$unitId) {
+            // If the unit doesn't exist, create a new one
+            $unitId = createunit($row['unit'], $companyId);
+        }
+        // dd($unitId);
+        // Find existing labour by name, category, and unit (unique constraint)
+        $existingLabour = Labour::where('name', $row['name'])
+            ->where('category', $row['category'])
+            ->where('unit_id', $unitId)
+            ->where('company_id', $companyId)
+            ->first();
+            // dd($existingLabour);
+        // If a labour exists, update it; otherwise, create a new record
+        if ($existingLabour) {
+            // dd( $existingLabour);
+            // Update existing labour
+            // $existingLabour->uuid = $existingLabour->uuid ; // Assign uuid if not exists
+            $existingLabour->category = $row['category'];
+            $existingLabour->unit_id = $unitId;
+            $existingLabour->save();
+            // dd( $existingLabour);
+            return $existingLabour; // Return the updated record
+        } else {
+            // dd($row);
+
+            // Create new labour record
+            return new Labour([
+                // 'uuid' => Str::uuid(),  // Assign a new UUID
+                'name' => $row['name'],
+                'category' => $row['category'],
+                'unit_id' => $unitId,
+                'company_id' => $companyId,
+            ]);
+        }
+    }
+}
+
+
+
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\MyDataImport;
 use Illuminate\Http\Request;
