@@ -210,6 +210,143 @@ class ExportAssets implements FromCollection, WithHeadings, ShouldAutoSize, With
 ***************************************************************************************************************************
 *************************************Activitie**************************************************************************************
 ***************************************************************************************************************************
+
+namespace App\Exports;
+
+use App\Models\Activities;
+use App\Http\Resources\ActivitesExportResources;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+
+class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+    protected $projects;
+    protected $subprojects;
+    protected $units;
+    protected $rowCount;
+
+    public function __construct($projects, $subprojects)
+    {
+        $this->projects = $projects;
+        $this->subprojects = $subprojects;
+        $this->units = getUnit(); // Fetch unit options dynamically
+        $this->rowCount = 100; // Maximum number of rows
+    }
+
+    public function collection()
+    {
+        $authCompanyId = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompanyId);
+
+        $activities = Activities::with('units', 'project', 'subproject')
+            ->where('company_id', $companyId);
+
+        if (!empty($this->projects)) {
+            $activities->where('project_id', $this->projects);
+
+            if (!empty($this->subprojects)) {
+                $activities->where('subproject_id', $this->subprojects);
+            }
+        }
+
+        $data = ActivitesExportResources::collection($activities->get());
+
+        // Add serial numbers to the data
+        return collect($data->map(function ($item, $index) {
+            $item['#'] = $index + 1; // Add serial number starting from 1
+            return $item;
+        }));
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',          // A
+            'UUID',       // B (Hidden)
+            'Project',    // C (Hidden)
+            'Subproject', // D (Hidden)
+            'Type',       // E
+            'SL No',      // F
+            'Activities', // G
+            'Units',      // H
+            'Qty',        // I
+            'Rate',       // J
+            'Amount',     // K
+            'Start Date(dd-mm-yyyy)', // L
+            'End Date(dd-mm-yyyy)',   // M
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                // Hide columns B, C, D
+                $this->hideColumns($event, ['B', 'C', 'D']);
+
+                // Dropdown validation for "Type" (E) and "Units" (H)
+                $this->applyDropdownValidation($event, 'E', ['heading', 'activities']);
+                $this->applyDropdownValidation($event, 'H', $this->units);
+
+                // Formula for Amount (K = I * J)
+                $this->applyCalculationFormula($event, 'K', 'I', 'J');
+
+                // Apply auto-sizing and formatting
+                $this->autoSizeColumns($event, 13); // Total 13 columns
+            },
+        ];
+    }
+
+    private function hideColumns($event, $columns)
+    {
+        foreach ($columns as $column) {
+            $event->sheet->getDelegate()->getColumnDimension($column)->setVisible(false);
+        }
+    }
+
+    private function applyDropdownValidation($event, $column, $options)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $validation = $event->sheet->getCell("{$column}{$row}")->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(false);
+            $validation->setShowDropDown(true);
+            $validation->setFormula1(sprintf('"%s"', implode(',', $options)));
+        }
+    }
+
+    private function applyCalculationFormula($event, $resultColumn, $qtyColumn, $rateColumn)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $qtyCell = "{$qtyColumn}{$row}";
+            $rateCell = "{$rateColumn}{$row}";
+            $resultCell = "{$resultColumn}{$row}";
+
+            $event->sheet->getDelegate()
+                ->setCellValue($resultCell, "={$qtyCell}*{$rateCell}");
+        }
+    }
+
+    private function autoSizeColumns($event, $columnCount)
+    {
+        for ($i = 1; $i <= $columnCount; $i++) {
+            $column = Coordinate::stringFromColumnIndex($i);
+            $event->sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+    }
+}
+
+
+
+
+
 class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
 {
     protected $projects;
