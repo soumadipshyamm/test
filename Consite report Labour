@@ -1,4 +1,26 @@
 
+
+class MyDataImport implements ToModel, WithHeadingRow
+{
+    public function model(array $row)
+    {
+        // dd($row);
+        $authConpany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authConpany);
+
+        $data = new Labour([
+            'name' => $row['name'],
+            'category' => $row['category'],
+            'unit_id' => nametoid($row['unit'], 'units') == false ? createunit($row['unit'], $companyId) : nametoid($row['unit'], 'units'),
+            'company_id' => $companyId,
+        ]);
+        return $data;
+
+
+
+
+
+
 namespace App\Exports;
 
 use App\Models\Labour;
