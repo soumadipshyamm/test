@@ -1,4 +1,131 @@
 
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+
+class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+    protected $projects;
+    protected $subprojects;
+    protected $units;
+    protected $rowCount;
+
+    public function __construct($projects, $subprojects)
+    {
+        $this->projects = $projects; // Project dropdown values
+        $this->subprojects = $subprojects; // Subproject dropdown values per project
+        $this->units = getUnit(); // Unit dropdown values
+        $this->rowCount = 100; // Maximum rows for dropdowns and calculations
+    }
+
+    public function collection()
+    {
+        return collect([]); // Empty collection, dropdowns apply for all rows
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'UUID',
+            'Project',
+            'Subproject',
+            'Type',
+            'SL No',
+            'Activities',
+            'Units',
+            'Qty',
+            'Rate',
+            'Amount',
+            'Start Date',
+            'End Date',
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+
+                // Apply dropdowns
+                $this->applyDropdown($sheet, 'C', $this->projects); // Project
+                $this->applyDependentDropdown($sheet, 'D', $this->projects, $this->subprojects); // Subproject
+                $this->applyDropdown($sheet, 'E', ['heading', 'activities']); // Type
+                $this->applyDropdown($sheet, 'H', $this->units); // Units
+
+                // Apply calculation (I * J = K)
+                $this->applyCalculation($sheet, 'K', 'I', 'J');
+
+                // Format columns
+                $this->autoSizeColumns($sheet);
+                $this->applyTextWrapping($sheet, 'H', 2); // Wrap text for units column
+            },
+        ];
+    }
+
+    private function applyDropdown($sheet, $column, $options)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $validation = $sheet->getCell("{$column}{$row}")->getDataValidation();
+            $this->configureDropdownValidation($validation, $options);
+        }
+    }
+
+    private function applyDependentDropdown($sheet, $column, $projects, $subprojects)
+    {
+        foreach ($projects as $projectKey => $projectName) {
+            $subprojectOptions = $subprojects[$projectKey] ?? [];
+
+            for ($row = 2; $row <= $this->rowCount; $row++) {
+                $validation = $sheet->getCell("{$column}{$row}")->getDataValidation();
+                $this->configureDropdownValidation($validation, $subprojectOptions);
+            }
+        }
+    }
+
+    private function applyCalculation($sheet, $targetColumn, $qtyColumn, $rateColumn)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $formula = "={$qtyColumn}{$row}*{$rateColumn}{$row}";
+            $sheet->setCellValue("{$targetColumn}{$row}", $formula);
+        }
+    }
+
+    private function configureDropdownValidation($validation, $options)
+    {
+        $validation->setType(DataValidation::TYPE_LIST);
+        $validation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+        $validation->setAllowBlank(false);
+        $validation->setShowInputMessage(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setShowDropDown(true);
+        $validation->setErrorTitle('Invalid Input');
+        $validation->setError('The value is not in the dropdown list.');
+        $validation->setPromptTitle('Pick from list');
+        $validation->setPrompt('Please select a value from the dropdown.');
+        $validation->setFormula1(sprintf('"%s"', implode(',', $options)));
+    }
+
+    private function autoSizeColumns($sheet)
+    {
+        $columnCount = count($this->headings());
+        for ($i = 1; $i <= $columnCount; $i++) {
+            $column = Coordinate::stringFromColumnIndex($i);
+            $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+    }
+
+    private function applyTextWrapping($sheet, $column, $startRow, $endRow = null)
+    {
+        $endRow = $endRow ?? $sheet->getHighestRow();
+
+        $sheet->getColumnDimension($column)->setWidth(50); // Adjust column width for wrapping
+        for ($row = $startRow; $row <= $endRow; $row++) {
+            $sheet->getStyle("{$column}{$row}")->getAlignment()->setWrapText(true);
+        }
+    }
+}
 
 
 
