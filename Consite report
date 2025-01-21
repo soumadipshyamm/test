@@ -1,4 +1,133 @@
 
+
+
+
+
+
+
+
+class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+    protected $selects;
+    protected $rowCount;
+    protected $columnCount;
+    protected $projectId;
+    protected $subprojects;
+
+    public function __construct($projectId,$subprojects)
+    {
+        $this->projectId = $projectId;
+        $this->subprojects = $subprojects;
+        $status = getUnit();
+
+        $this->selects = [
+            ['columns_name' => 'H', 'options' => $status],
+        ];
+
+        $this->rowCount = 2; // Number of rows for the dropdown
+        $this->columnCount = 5; // Number of columns to be auto-sized
+    }
+
+    public function collection()
+    {
+        $authCompanyId = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompanyId);
+        $project_id=$this->projectId;
+        $subproject_id=$this->subprojects;
+        $labours = Activities::with('units', 'project', 'subproject')
+            ->where('company_id', $companyId);
+            if(!empty($project_id) && !is_null($project_id) ){
+                $labours->where('project_id', $project_id);
+
+                if(!empty($subproject_id) && !is_null($subproject_id) ){
+                    $labours->where('subproject_id', $subproject_id);
+                }
+            }
+            $labours= $labours->get();
+            // dd($labours);
+        return collect(ActivitesExportResources::collection($labours));
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'UUID',
+            'Project',
+            'Subproject',
+            'Type',
+            'SL No',
+            'Activities',
+            'Units',
+            'Qty',
+            'Rate',
+            'Amount',
+            'Start Date',
+            'End Date'
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $startRow = 2; // Starting row for data validation
+
+                foreach ($this->selects as $select) {
+                    $dropColumn = $select['columns_name'];
+                    $options = $select['options'];
+
+                    $validation = $event->sheet->getCell("{$dropColumn}2")->getDataValidation();
+                    $this->configureDataValidation($validation, $options);
+
+                    for ($i = 3; $i <= $this->rowCount; $i++) {
+                        $event->sheet->getCell("{$dropColumn}{$i}")->setDataValidation(clone $validation);
+                    }
+                }
+
+                for ($i = 1; $i <= $this->columnCount; $i++) {
+                    $column = Coordinate::stringFromColumnIndex($i);
+                    $event->sheet->getColumnDimension($column)->setAutoSize(true);
+                }
+
+                $this->applyTextWrapping($event, 'H', $startRow);
+            },
+        ];
+    }
+
+    private function configureDataValidation($validation, $options)
+    {
+        $validation->setType(DataValidation::TYPE_LIST);
+        $validation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+        $validation->setAllowBlank(false);
+        $validation->setShowInputMessage(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setShowDropDown(true);
+        $validation->setErrorTitle('Input Error');
+        $validation->setError('Value is not in the list.');
+        $validation->setPromptTitle('Pick from list');
+        $validation->setPrompt('Please pick a value from the drop-down list.');
+        $validation->setFormula1(sprintf('"%s"', implode(',', $options)));
+    }
+
+    private function applyTextWrapping($event, $column, $startRow, $endRow = null)
+    {
+        $endRow = $endRow ?? $event->sheet->getDelegate()->getHighestRow();
+
+        $event->sheet->getDelegate()->getColumnDimension($column)->setWidth(50);
+        for ($row = $startRow; $row <= $endRow; $row++) {
+            $cell = $column . $row;
+            $event->sheet->getDelegate()->getStyle($cell)->getAlignment()->setWrapText(true);
+        }
+    }
+}
+
+
+
+
+
+
+
 class ActivitiesImport implements ToModel, WithHeadingRow
 {
     protected $project;
