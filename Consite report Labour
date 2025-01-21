@@ -1,0 +1,32 @@
+class MyDataExport implements FromCollection, WithHeadings, ShouldAutoSize
+{
+    public function collection()
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        $labours = Labour::with('units')->where('company_id',$companyId)->get();
+        $collection = LaboursResource::collection($labours);
+        return collect($collection);
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'Uuid',
+            'Name',
+            'Category',
+            'Unit',
+        ];
+    }
+
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            1 => ['font' => ['bold' => true], 'freeze' => true],
+        ];
+    }
+
+}
