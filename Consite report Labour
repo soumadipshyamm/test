@@ -1,3 +1,107 @@
+namespace App\Exports;
+
+use App\Models\Labour;
+use App\Http\Resources\LabourCollection;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use Maatwebsite\Excel\Events\AfterSheet;
+
+class MyDataExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+    public function collection()
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        // Fetch the labours and pass them through LabourCollection
+        $labours = Labour::with('units')
+            ->where('company_id', $companyId)
+            ->limit(100)
+            ->get();
+
+        // Apply the LabourCollection transformation
+        $collection = new LabourCollection($labours);
+
+        // Map the transformed collection into the structure for export
+        return $collection->map(function ($labour, $index) {
+            return [
+                '#'       => $index + 1,
+                'Uuid'    => $labour->uuid,
+                'Name'    => $labour->name,
+                'Category' => '', // Placeholder for dropdown
+                'Unit'    => '', // Placeholder for dropdown
+            ];
+        });
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'Uuid',
+            'Name',
+            'Category',
+            'Unit',
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+
+                // Hide Column B (UUID)
+                $sheet->getColumnDimension('B')->setVisible(false);
+
+                // Set dropdown for Column D (Category)
+                $categories = ['unskilled', 'semiskilled', 'skilled'];
+                $categoryList = '"' . implode(',', $categories) . '"';
+
+                $this->applyDropdown($sheet, 'D2:D101', $categoryList);
+
+                // Set dropdown for Column E (Unit)
+                $units = Labour::select('unit')->distinct()->pluck('unit')->toArray();
+                $unitList = '"' . implode(',', $units) . '"';
+
+                $this->applyDropdown($sheet, 'E2:E101', $unitList);
+
+                // Freeze the header row
+                $sheet->freezePane('A2');
+
+                // Set bold font for the header
+                $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+            },
+        ];
+    }
+
+    /**
+     * Apply a dropdown to a given range of cells.
+     */
+    private function applyDropdown($sheet, $cellRange, $options)
+    {
+        $validation = $sheet->getDataValidation($cellRange);
+        $validation->setType(DataValidation::TYPE_LIST);
+        $validation->setErrorStyle(DataValidation::STYLE_STOP);
+        $validation->setAllowBlank(false);
+        $validation->setShowInputMessage(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setFormula1($options);
+    }
+}
+
+
+
+
+
+
+
+
+
 
 
 
