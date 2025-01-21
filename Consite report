@@ -210,36 +210,23 @@ class ExportAssets implements FromCollection, WithHeadings, ShouldAutoSize, With
 ***************************************************************************************************************************
 *************************************Activitie**************************************************************************************
 ***************************************************************************************************************************
-
-namespace App\Exports;
-
-use App\Models\Activities;
-use App\Models\Project;
-use App\Models\Subproject;
-use App\Http\Resources\ActivitesExportResources;
-use Illuminate\Support\Facades\Auth;
-use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
-use Maatwebsite\Excel\Concerns\WithEvents;
-use Maatwebsite\Excel\Events\AfterSheet;
-use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-
 class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
 {
     protected $projects;
     protected $subprojects;
     protected $units;
-    protected $types;
+    protected $rowCount;
 
-    public function __construct()
+    public function __construct($projects, $subprojects)
     {
-        // Fetch dynamic data for dropdowns
-        $this->projects = Project::pluck('name')->toArray();
-        $this->subprojects = Subproject::pluck('name', 'project_id')->toArray();
-        $this->units = getUnit(); // Function to fetch available units
-        $this->types = ['heading', 'activities'];
+        $this->projects = $projects;
+        $this->subprojects = $subprojects;
+
+        // Dropdown options for Units and Type
+        // $this->units = getUnit(); // Fetch unit options dynamically
+        // $this->typeOptions = ['heading', 'activities'];
+
+        $this->rowCount = 100; // Maximum number of rows for applying rules
     }
 
     public function collection()
@@ -248,28 +235,35 @@ class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, W
         $companyId = searchCompanyId($authCompanyId);
 
         $activities = Activities::with('units', 'project', 'subproject')
-            ->where('company_id', $companyId)
-            ->get();
+            ->where('company_id', $companyId);
 
-        return collect(ActivitesExportResources::collection($activities));
+        if (!empty($this->projects)) {
+            $activities->where('project_id', $this->projects);
+
+            if (!empty($this->subprojects)) {
+                $activities->where('subproject_id', $this->subprojects);
+            }
+        }
+
+        return collect(ActivitesExportResources::collection($activities->get()));
     }
 
     public function headings(): array
     {
         return [
-            '#',
-            'UUID',           // Column B (Hidden)
-            'Project',        // Column C (Hidden)
-            'Subproject',     // Column D (Hidden)
-            'Type',           // Column E
-            'SL No',
-            'Activities',
-            'Units',          // Column H: Dropdown
-            'Qty',            // Column I
-            'Rate',           // Column J
-            'Amount',         // Column K = I * J (Calculated)
-            'Start Date',
-            'End Date',
+            '#',          // A
+            'UUID',       // B
+            'Project',    // C
+            'Subproject', // D
+            'Type',       // E
+            'SL No',      // F
+            'Activities', // G
+            'Units',      // H
+            'Qty',        // I
+            'Rate',       // J
+            'Amount',     // K
+            'Start Date(dd-mm-yyyy)', // L
+            'End Date(dd-mm-yyyy)',   // M
         ];
     }
 
@@ -277,109 +271,67 @@ class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, W
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $this->applyDropdowns($event);
-                $this->applyDependentDropdowns($event);
-                $this->applyDynamicCalculations($event);
-                $this->autoSizeColumns($event);
-                $this->hideColumns($event); // Hide specific columns
+                // Read-only columns
+                $this->setReadOnlyColumns($event, ['B', 'C', 'D']);
+
+
+                // Dropdown validation for "Type" (E) and "Units" (H)
+                $this->applyDropdownValidation($event, 'E', ['heading', 'activities']);
+                $this->applyDropdownValidation($event, 'H', $this->units); // Units
+
+                // Formula for Amount (K = I * J)
+                $this->applyCalculationFormula($event, 'K', 'I', 'J');
+
+                // Apply auto-sizing and formatting
+                $this->autoSizeColumns($event, 13); // Total 13 columns
+
+
             },
         ];
     }
 
-    private function applyDropdowns($event)
+    private function setReadOnlyColumns($event, $columns)
     {
-        $dropdowns = [
-            'E' => $this->types,       // Type Dropdown
-            'H' => $this->units,       // Units Dropdown
-        ];
-
-        foreach ($dropdowns as $column => $options) {
-            $this->addDropdownValidation($event, $column, $options, 2, 100); // Apply from row 2 to 100
+        foreach ($columns as $column) {
+            for ($row = 2; $row <= $this->rowCount; $row++) {
+                $cell = "{$column}{$row}";
+                $event->sheet->getDelegate()->getStyle($cell)->getProtection()->setLocked(true);
+            }
         }
     }
 
-    private function applyDependentDropdowns($event)
+    private function applyDropdownValidation($event, $column, $options)
     {
-        // Dependent dropdown for Subproject (D) based on selected Project (C)
-        $startRow = 2; // Start applying from row 2
-        $endRow = 100; // Maximum rows for dropdowns
-
-        for ($row = $startRow; $row <= $endRow; $row++) {
-            $formula = "OFFSET(SubprojectList, MATCH(C{$row}, ProjectList, 0)-1, 0, COUNTIF(ProjectList, C{$row}), 1)";
-            $validation = $event->sheet->getCell("D{$row}")->getDataValidation();
-            $this->configureDataValidation($validation, $formula, true);
-        }
-
-        // Add named ranges for Projects and Subprojects
-        $sheet = $event->sheet->getDelegate();
-        $sheet->getParent()->addNamedRange(
-            new \PhpOffice\PhpSpreadsheet\NamedRange('ProjectList', $sheet, "C2:C" . count($this->projects))
-        );
-        $sheet->getParent()->addNamedRange(
-            new \PhpOffice\PhpSpreadsheet\NamedRange('SubprojectList', $sheet, "D2:D" . count($this->subprojects))
-        );
-    }
-
-    private function applyDynamicCalculations($event)
-    {
-        $sheet = $event->sheet->getDelegate();
-        $highestRow = 100; // Define the maximum row to apply the formula
-
-        for ($row = 2; $row <= $highestRow; $row++) {
-            $sheet->setCellValue("K{$row}", "=I{$row}*J{$row}"); // Formula for Amount = Qty * Rate
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $validation = $event->sheet->getCell("{$column}{$row}")->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(false);
+            $validation->setShowDropDown(true);
+            $validation->setFormula1(sprintf('"%s"', implode(',', is_array($options) ? $options : (array)$options)));
         }
     }
 
-    private function autoSizeColumns($event)
+    private function applyCalculationFormula($event, $resultColumn, $qtyColumn, $rateColumn)
     {
-        for ($i = 1; $i <= 13; $i++) {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $qtyCell = "{$qtyColumn}{$row}";
+            $rateCell = "{$rateColumn}{$row}";
+            $resultCell = "{$resultColumn}{$row}";
+
+            $event->sheet->getDelegate()
+                ->setCellValue($resultCell, "={$qtyCell}*{$rateCell}");
+        }
+    }
+
+    private function autoSizeColumns($event, $columnCount)
+    {
+        for ($i = 1; $i <= $columnCount; $i++) {
             $column = Coordinate::stringFromColumnIndex($i);
             $event->sheet->getColumnDimension($column)->setAutoSize(true);
         }
     }
-
-    private function addDropdownValidation($event, $column, $options, $startRow, $endRow)
-    {
-        $sheet = $event->sheet->getDelegate();
-        $validationFormula = '"' . implode(',', $options) . '"';
-
-        for ($row = $startRow; $row <= $endRow; $row++) {
-            $validation = $sheet->getCell("{$column}{$row}")->getDataValidation();
-            $this->configureDataValidation($validation, $validationFormula);
-        }
-    }
-
-    private function configureDataValidation($validation, $formula, $isDependent = false)
-    {
-        $validation->setType(DataValidation::TYPE_LIST);
-        $validation->setErrorStyle(DataValidation::STYLE_STOP);
-        $validation->setAllowBlank(false);
-        $validation->setShowDropDown(true);
-        $validation->setShowInputMessage(true);
-        $validation->setShowErrorMessage(true);
-        $validation->setErrorTitle('Invalid Selection');
-        $validation->setError('Please select a valid value.');
-        $validation->setPromptTitle('Select from List');
-        $validation->setPrompt('Please select a value from the dropdown list.');
-
-        if ($isDependent) {
-            $validation->setFormula1($formula); // For dependent dropdown
-        } else {
-            $validation->setFormula1(sprintf('"%s"', $formula)); // For static dropdown
-        }
-    }
-
-    private function hideColumns($event)
-    {
-        $columnsToHide = ['B', 'C', 'D']; // Columns to hide
-        $sheet = $event->sheet->getDelegate();
-
-        foreach ($columnsToHide as $column) {
-            $sheet->getColumnDimension($column)->setVisible(false);
-        }
-    }
 }
-
 
 
 
