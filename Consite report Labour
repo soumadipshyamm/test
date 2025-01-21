@@ -1,3 +1,105 @@
+
+class MyDataExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+
+
+    protected $units;          // Dropdown options for units
+    protected $rowCount;       // Number of rows to apply formatting rules
+
+    public function __construct()
+    {
+        $this->units = getUnit();              // Fetch unit options dynamically
+        $this->rowCount = 100;                 // Set maximum rows for the sheet
+    }
+
+    public function collection()
+    {
+
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        // Fetch the labours and pass them through LabourCollection
+        $labours = Labour::with('units')
+            ->where('company_id', $companyId)
+            ->limit(100)
+            ->get();
+
+        // Apply the LabourCollection transformation
+        $collection =  LabourExportResources::collection($labours);
+
+        // Map the transformed collection into the structure for export
+        // return $collection->map(function ($labour, $index) {
+        //     return [
+        //         '#'       => $index + 1,
+        //         'Uuid'    => $labour->uuid,
+        //         'Name'    => $labour->name,
+        //         'Category' => '', // Placeholder for dropdown
+        //         'Unit'    => '', // Placeholder for dropdown
+        //     ];
+        // });
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'Uuid',
+            'Code',
+            'Name',
+            'Category',
+            'Unit',
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+
+                // Hide Column B (UUID)
+                $sheet->getColumnDimension('B')->setVisible(false);
+
+                $this->applyDropdownValidation($event, 'D', ['unskilled', 'semiskilled', 'skilled']);
+                $this->applyDropdownValidation($event, 'E', $this->units);
+
+                $this->autoSizeColumns($event, 13); // Total 13 columns
+
+            },
+        ];
+    }
+
+    /**
+     * Apply a dropdown to a given range of cells.
+     */
+    private function applyDropdownValidation($event, $column, $options)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $validation = $event->sheet->getCell("{$column}{$row}")->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(false);
+            $validation->setShowDropDown(true);
+            $validation->setFormula1(sprintf('"%s"', implode(',', $options)));
+        }
+    }
+
+    private function autoSizeColumns($event, $columnCount)
+    {
+        for ($i = 1; $i <= $columnCount; $i++) {
+            $column = Coordinate::stringFromColumnIndex($i);
+            $event->sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+    }
+}
+
+
+
+
+
+
+
+
 namespace App\Exports;
 
 use App\Models\Labour;
