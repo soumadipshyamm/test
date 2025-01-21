@@ -1,4 +1,52 @@
- $file = $request->file('file');
+use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\MyDataImport;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redirect;
+
+class LabourController extends Controller
+{
+    /**
+     * Import data from the uploaded file.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function import(Request $request)
+    {
+        // Validate the incoming request to ensure a file is uploaded and is of the correct type
+        $request->validate([
+            'file' => 'required|mimes:xlsx,csv,xls|max:10240', // 10MB max file size
+        ]);
+
+        // Check if a file is uploaded
+        if ($request->hasFile('file')) {
+            try {
+                // Get the uploaded file from the request
+                $file = $request->file('file');
+                
+                // Import the file data using the MyDataImport class
+                Excel::import(new MyDataImport, $file);
+
+                // Return success message upon successful import
+                return redirect()->route('company.labour.list')->with('success', 'Data Imported Successfully!');
+            } catch (\Exception $e) {
+                // In case of any error during the import, return with an error message
+                return redirect()->route('company.labour.list')->with('error', 'Error during import: ' . $e->getMessage());
+            }
+        }
+
+        // If no file is selected or there's an issue with the file
+        return back()->with('error', 'No file selected for import or invalid file type.');
+    }
+}
+
+
+
+
+
+
+
+$file = $request->file('file');
             Excel::import(new MyDataImport, $file);
             return redirect()
                 ->route('company.labour.list')
