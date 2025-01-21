@@ -1,3 +1,189 @@
+class ActivitiesImport implements ToModel, WithHeadingRow
+{
+    protected $project;
+    protected $subproject;
+    protected $companyId;
+    protected $tmpcachekey;
+
+    public function __construct($project, $subproject, $companyId, $tmpcachekey)
+    {
+        $this->project = $project;
+        $this->subproject = $subproject;
+        $this->companyId = $companyId;
+        $this->tmpcachekey = $tmpcachekey;
+    }
+
+    public function model(array $row)
+    {
+        Log::info('Excel import process started', $row);
+
+        $companyId = $this->companyId;
+
+        // Null row checking
+        if ($this->isNullRow($row)) {
+            $this->cacheInvalidRow($row, 'Row is null or contains invalid data');
+            return null;
+        }
+
+        // Validate the row structure
+        if (!$this->isValidSlNo($row, $companyId)) {
+            $this->cacheInvalidRow($row, 'Invalid SL No structure');
+            return null;
+        }
+
+        $parentId = $this->calculateParentId($row['sl_no'], $companyId);
+
+        // Check if the activity already exists
+        $existingActivityQuery = Activities::where('project_id', $this->project)
+            ->where('company_id', $companyId);
+
+        if ($this->subproject) {
+            $existingActivityQuery->where('subproject_id', $this->subproject);
+        }
+
+        $existingActivity = $existingActivityQuery->where('id', $row['id'] ?? null)->first();
+
+        if ($existingActivity) {
+            $this->updateActivityIfNeeded($existingActivity, $row, $companyId);
+        } else {
+            return $this->createNewActivity($row, $parentId, $companyId);
+        }
+    }
+
+    protected function isNullRow(array $row)
+    {
+        // Check if all required fields are null or empty
+        $requiredFields = ['sl_no', 'activities', 'units', 'qty', 'rate', 'start_date', 'end_date'];
+        foreach ($requiredFields as $field) {
+            if (!isset($row[$field]) || trim($row[$field]) === '') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected function cacheInvalidRow(array $row, $reason)
+    {
+        $cachedData = Cache::get($this->tmpcachekey, []);
+        $cachedData[] = [
+            'row' => $row,
+            'reason' => $reason,
+        ];
+        Cache::put($this->tmpcachekey, $cachedData);
+    }
+
+    protected function updateActivityIfNeeded($existingActivity, $row, $companyId)
+    {
+        $shouldUpdate = (
+            $existingActivity->unit_id !== $this->getUnitId($row['units'], $companyId) ||
+            $existingActivity->qty != $row['qty'] ||
+            $existingActivity->rate != $row['rate'] ||
+            $existingActivity->amount != ($row['qty'] * $row['rate'])
+        );
+
+        if ($shouldUpdate) {
+            $existingActivity->update([
+                'unit_id' => $this->getUnitId($row['units'], $companyId),
+                'qty' => $row['qty'],
+                'rate' => $row['rate'],
+                'amount' => $row['qty'] * $row['rate'],
+            ]);
+            Log::info("Activity updated: {$existingActivity->id}");
+        }
+    }
+
+    protected function createNewActivity($row, $parentId, $companyId)
+    {
+        $data = new Activities([
+            'uuid' => Str::uuid(),
+            'project_id' => $this->project,
+            'subproject_id' => $this->subproject,
+            'type' => $parentId === null ? 'heading' : 'activities',
+            'sl_no' => $row['sl_no'],
+            'parent_id' => $parentId,
+            'activities' => $row['activities'],
+            'unit_id' => $this->getUnitId($row['units'], $companyId),
+            'qty' => $row['qty'],
+            'rate' => $row['rate'],
+            'amount' => $row['qty'] * $row['rate'],
+            'start_date' => $row['start_date'],
+            'end_date' => $row['end_date'],
+            'company_id' => $companyId,
+        ]);
+
+        $this->logExportedData($data);
+
+        return $data;
+    }
+
+    protected function isValidSlNo(array $row, $companyId)
+    {
+        $slNoParts = explode('.', $row['sl_no']);
+        $slNoCount = count($slNoParts);
+
+        switch ($slNoCount) {
+            case 1:
+                return true;
+            case 2:
+                return $this->getCheckSlNo($slNoParts[0], $companyId);
+            case 3:
+                $slNoCombined = "{$slNoParts[0]}.{$slNoParts[1]}";
+                return $this->getCheckSlNo($slNoCombined, $companyId);
+            default:
+                return false;
+        }
+    }
+
+    protected function calculateParentId($slNo, $companyId)
+    {
+        $slNoParts = explode('.', $slNo);
+        $slNoCount = count($slNoParts);
+
+        switch ($slNoCount) {
+            case 1:
+                return null;
+            case 2:
+                return $this->getCheckParentId($slNoParts[0], $companyId);
+            case 3:
+                $slNoCombined = "{$slNoParts[0]}.{$slNoParts[1]}";
+                return $this->getCheckParentId($slNoCombined, $companyId);
+            default:
+                return null;
+        }
+    }
+
+    protected function getCheckParentId($slNoParts, $companyId)
+    {
+        $data = Activities::where('sl_no', $slNoParts)
+            ->where('company_id', $companyId)
+            ->latest('id')
+            ->first();
+
+        return $data ? $data->id : null;
+    }
+
+    protected function getCheckSlNo($slNoParts, $companyId)
+    {
+        return Activities::where('sl_no', $slNoParts)
+            ->where('company_id', $companyId)
+            ->exists();
+    }
+
+    protected function getUnitId($unitName, $companyId)
+    {
+        $unitId = nametoid($unitName, 'units');
+
+        return $unitId !== false ? $unitId : createunit($unitName, $companyId);
+    }
+
+    protected function logExportedData($data)
+    {
+        Log::info('Exported Data:', $data->toArray());
+    }
+}
+
+
+
 
 namespace App\Exports;
 
