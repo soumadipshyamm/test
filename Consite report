@@ -6,6 +6,150 @@
 ***************************************************************************************************************************
 **********************************Assets*******************************************************************************
 ***************************************************************************************************************************
+
+use Maatwebsite\Excel\Concerns\WithMapping;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+
+class ExportAssets implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents, WithMapping
+{
+    protected $units;
+    protected $row_count;
+
+    public function __construct()
+    {
+        // Fetch all units for the dropdown list
+        $this->units = getUnit(); // Ensure it returns a valid array of unit names
+        $this->row_count = 100; // Dropdown for the first 100 rows
+    }
+
+    public function collection()
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        $assets = Assets::with('units', 'project', 'store_warehouses')
+            ->where('company_id', $companyId)
+            ->get();
+
+        return $assets;
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'UUID', // Hidden column
+            'Code',
+            'Asset/Equipments/Machinery',
+            'Unit',
+            'Specification',
+        ];
+    }
+
+    public function map($row): array
+    {
+        return [
+            $row->id,
+            $row->uuid,
+            $row->code,
+            $row->name,
+            $row->units->name ?? 'N/A', // Unit name or fallback
+            $row->specification,
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+
+                // Add the dropdown for units (column E)
+                $this->applyUnitDropdown($sheet, 'E', $this->row_count);
+
+                // Hide the UUID column (Column B)
+                $sheet->getColumnDimension('B')->setVisible(false);
+
+                // Auto-size all columns
+                foreach (range('A', 'F') as $column) {
+                    $sheet->getColumnDimension($column)->setAutoSize(true);
+                }
+            },
+        ];
+    }
+
+    /**
+     * Apply a dropdown for the "Unit" column.
+     *
+     * @param Worksheet $sheet
+     * @param string $column
+     * @param int $row_count
+     */
+    private function applyUnitDropdown(Worksheet $sheet, string $column, int $row_count)
+    {
+        $units = $this->units;
+
+        // If the unit list is too large, create a named range
+        if (strlen(implode(',', $units)) > 255) {
+            $this->addNamedRange($sheet, $units, 'UnitOptions');
+            $formula = '=UnitOptions';
+        } else {
+            $formula = sprintf('"%s"', implode(',', $units));
+        }
+
+        for ($row = 2; $row <= $row_count + 1; $row++) {
+            $cell = $sheet->getCell("{$column}{$row}");
+            $validation = $cell->getDataValidation();
+            $this->configureDataValidation($validation, $formula);
+        }
+    }
+
+    /**
+     * Configure data validation for dropdown.
+     *
+     * @param DataValidation $validation
+     * @param string $formula
+     */
+    private function configureDataValidation(DataValidation $validation, string $formula)
+    {
+        $validation->setType(DataValidation::TYPE_LIST);
+        $validation->setErrorStyle(DataValidation::STYLE_STOP);
+        $validation->setAllowBlank(false);
+        $validation->setShowInputMessage(true);
+        $validation->setShowErrorMessage(true);
+        $validation->setFormula1($formula);
+        $validation->setErrorTitle('Invalid Input');
+        $validation->setError('Please select a valid unit from the list.');
+    }
+
+    /**
+     * Add a named range to the sheet for long dropdown lists.
+     *
+     * @param Worksheet $sheet
+     * @param array $options
+     * @param string $rangeName
+     */
+    private function addNamedRange(Worksheet $sheet, array $options, string $rangeName)
+    {
+        $startRow = 1; // Start on the first row
+        foreach ($options as $index => $option) {
+            $sheet->setCellValue("Z" . ($index + $startRow), $option); // Store options in column Z
+        }
+
+        $highestRow = count($options);
+        $sheet->getParent()->addNamedRange(
+            new \PhpOffice\PhpSpreadsheet\NamedRange(
+                $rangeName,
+                $sheet,
+                "Z{$startRow}:Z{$highestRow}"
+            )
+        );
+    }
+}
+
+
+
 use Maatwebsite\Excel\Concerns\WithMapping; // Add this for row mapping
 
 class ExportAssets implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents, WithMapping
