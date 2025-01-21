@@ -1,4 +1,154 @@
 
+namespace App\Exports;
+
+use App\Models\Labour;
+use App\Models\Unit;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Concerns\{FromCollection, WithHeadings, ShouldAutoSize, WithEvents};
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+
+class MyDataExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+    protected const ROW_LIMIT = 100; // Total rows to include in the export
+
+    /**
+     * Collection to populate data for the export.
+     */
+    public function collection()
+    {
+        $labours = $this->getLaboursData();
+
+        $data = [];
+        $serial = 1;
+
+        foreach ($labours as $labour) {
+            $data[] = [
+                $serial++,            // Serial Number
+                $labour->uuid,        // UUID (hidden)
+                $labour->name,        // Name
+                '',                   // Category placeholder
+                '',                   // Unit placeholder
+            ];
+        }
+
+        // Ensure the data has a fixed row count
+        $this->addEmptyRows($data, self::ROW_LIMIT);
+
+        return collect($data);
+    }
+
+    /**
+     * Fetch labours data based on the authenticated company.
+     */
+    private function getLaboursData()
+    {
+        $authCompanyId = Auth::guard('company')->user()->id;
+        $companyId = $this->searchCompanyId($authCompanyId);
+
+        return Labour::with('units')
+            ->where('company_id', $companyId)
+            ->get();
+    }
+
+    /**
+     * Add empty rows to match the required row limit.
+     */
+    private function addEmptyRows(array &$data, int $limit)
+    {
+        $currentCount = count($data);
+
+        while ($currentCount < $limit) {
+            $data[] = [$currentCount + 1, '', '', '', ''];
+            $currentCount++;
+        }
+    }
+
+    /**
+     * Define column headings.
+     */
+    public function headings(): array
+    {
+        return ['#', 'Uuid', 'Name', 'Category', 'Unit'];
+    }
+
+    /**
+     * Register events for custom sheet configurations.
+     */
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+
+                // Hide the UUID column
+                $sheet->getColumnDimension('B')->setVisible(false);
+
+                // Add dropdowns and apply styles
+                $this->applyDropdowns($sheet);
+                $this->applyStyles($sheet);
+            },
+        ];
+    }
+
+    /**
+     * Apply dropdowns for Category and Unit columns.
+     */
+    private function applyDropdowns(Worksheet $sheet)
+    {
+        $categories = ['Unskilled', 'Semiskilled', 'Skilled'];
+        $units = Unit::pluck('name')->toArray();
+
+        // Apply dropdown validations
+        $this->addDropdown($sheet, 'D', $categories, self::ROW_LIMIT);
+        $this->addDropdown($sheet, 'E', $units, self::ROW_LIMIT);
+    }
+
+    /**
+     * Add dropdown validation to a specific column.
+     */
+    private function addDropdown(Worksheet $sheet, string $column, array $options, int $rowLimit)
+    {
+        $dropdownValues = '"' . implode(',', $options) . '"';
+
+        for ($row = 2; $row <= $rowLimit + 1; $row++) {
+            $validation = $sheet->getCell("{$column}{$row}")->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(true);
+            $validation->setShowInputMessage(true);
+            $validation->setShowErrorMessage(true);
+            $validation->setFormula1($dropdownValues);
+        }
+    }
+
+    /**
+     * Apply styles to the sheet.
+     */
+    private function applyStyles(Worksheet $sheet)
+    {
+        // Make the header row bold and freeze it
+        $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+        $sheet->freezePane('A2');
+    }
+
+    /**
+     * Mock function for retrieving a company ID.
+     * Replace with actual implementation.
+     */
+    private function searchCompanyId($authCompanyId)
+    {
+        // Mocked logic for retrieving the company ID
+        return $authCompanyId; // Replace with your business logic
+    }
+}
+
+
+
+
+
+
 
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
