@@ -1,3 +1,90 @@
+
+namespace App\Imports;
+
+use App\Models\Labour;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+
+class MyDataImport implements ToModel, WithHeadingRow
+{
+    /**
+     * Import model from the given row.
+     *
+     * @param  array  $row
+     * @return \Illuminate\Database\Eloquent\Model|null
+     */
+    public function model(array $row)
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        // Get the unit ID from the unit name, or create a new unit if it doesn't exist
+        $unitId = nametoid($row['unit'], 'units');
+        if (!$unitId) {
+            // If the unit doesn't exist, create a new one
+            $unitId = createunit($row['unit'], $companyId);
+        }
+
+        // Find existing labour by name, category, and unit (unique constraint)
+        $existingLabour = Labour::where('name', $row['name'])
+            ->where('category', $row['category'])
+            ->where('unit_id', $unitId)
+            ->where('company_id', $companyId)
+            ->first();
+
+        // Log variables for debugging
+        Log::info("Processing row for labour: " . $row['name'], $row);
+
+        // If a labour exists, update it; otherwise, create a new record
+        if ($existingLabour) {
+            // Log the update
+            Log::info("Updating existing labour: " . $existingLabour->name . " (ID: " . $existingLabour->id . ")");
+
+            // Update existing labour
+            $existingLabour->category = $row['category'];
+            $existingLabour->unit_id = $unitId;
+            $existingLabour->save();
+
+            // Log successful update
+            Log::info("Labour updated successfully: " . $existingLabour->name);
+
+            return $existingLabour; // Return the updated record
+        } else {
+            // Log the creation of a new record
+            Log::info("Creating new labour: " . $row['name']);
+
+            // Create new labour record
+            return new Labour([
+                'uuid' => Str::uuid(),  // Generate a new UUID
+                'name' => $row['name'],
+                'category' => $row['category'],
+                'unit_id' => $unitId,
+                'company_id' => $companyId,
+            ]);
+        }
+    }
+
+    /**
+     * After import completes, log the results.
+     */
+    public function afterImport()
+    {
+        // Optionally, log the total number of imported records
+        Log::info('Import completed at: ' . now());
+    }
+}
+
+
+
+
+
+
+
+
+
 class MyDataImport implements ToModel, WithHeadingRow
 {
     /**
