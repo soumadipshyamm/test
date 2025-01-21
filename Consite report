@@ -2,6 +2,42 @@
 protected static function generateUniqueNumber($length)
 {
     $prefix = 'L'; // Define the prefix
+    $uniqueCode = ''; // Initialize the unique code
+
+    do {
+        // Fetch the last generated code that matches the prefix
+        $lastCode = static::where('code', 'like', "{$prefix}%")
+            ->orderBy('code', 'desc')
+            ->value('code');
+
+        if ($lastCode) {
+            // Extract the numeric part of the last code and increment it
+            $lastNumber = intval(substr($lastCode, strlen($prefix)));
+            $nextNumber = str_pad($lastNumber + 1, $length, '0', STR_PAD_LEFT);
+        } else {
+            // Start from 1 if no records exist
+            $nextNumber = str_pad(1, $length, '0', STR_PAD_LEFT);
+        }
+
+        // Form the unique code by combining the prefix with the next number
+        $uniqueCode = $prefix . $nextNumber;
+
+    } while (static::where('code', $uniqueCode)->exists()); // Ensure the code is unique
+
+    // Return the unique code
+    return $uniqueCode;
+}
+
+
+
+
+
+
+
+
+protected static function generateUniqueNumber($length)
+{
+    $prefix = 'L'; // Define the prefix
     $nextNumber = null;
     
     // Loop until a unique code is generated
