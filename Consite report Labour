@@ -1,3 +1,107 @@
+
+
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+
+class MyDataExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+    public function collection()
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        $labours = Labour::with('units')->where('company_id', $companyId)->get();
+        
+        $data = [];
+        $serial = 1;
+        foreach ($labours as $labour) {
+            $data[] = [
+                $serial++,
+                $labour->uuid,
+                $labour->name,
+                '', // Placeholder for dropdown (Category)
+                '', // Placeholder for dropdown (Unit)
+            ];
+        }
+
+        // Extend rows to 100 with empty placeholders
+        while (count($data) < 100) {
+            $data[] = [count($data) + 1, '', '', '', ''];
+        }
+
+        return collect($data);
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'Uuid',
+            'Name',
+            'Category',
+            'Unit',
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                /** @var Worksheet $sheet */
+                $sheet = $event->sheet->getDelegate();
+                
+                // Hide column B (UUID)
+                $sheet->getColumnDimension('B')->setVisible(false);
+
+                // Add dropdowns for Category and Unit columns
+                $this->addDropdowns($sheet);
+
+                // Style headers (bold and freeze the top row)
+                $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+                $sheet->freezePane('A2');
+            },
+        ];
+    }
+
+    private function addDropdowns(Worksheet $sheet)
+    {
+        // Categories for Column D
+        $categories = ['Unskilled', 'Semiskilled', 'Skilled'];
+        $categoryRange = '"'.implode(',', $categories).'"';
+        for ($row = 2; $row <= 101; $row++) {
+            $validation = $sheet->getCell("D$row")->getDataValidation();
+            $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(true);
+            $validation->setShowInputMessage(true);
+            $validation->setShowErrorMessage(true);
+            $validation->setFormula1($categoryRange);
+        }
+
+        // Dynamic units for Column E
+        $units = Unit::pluck('name')->toArray(); // Assuming `name` is the column with unit names
+        $unitRange = '"'.implode(',', $units).'"';
+        for ($row = 2; $row <= 101; $row++) {
+            $validation = $sheet->getCell("E$row")->getDataValidation();
+            $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(true);
+            $validation->setShowInputMessage(true);
+            $validation->setShowErrorMessage(true);
+            $validation->setFormula1($unitRange);
+        }
+    }
+}
+
+
+
+
+
+
 class MyDataExport implements FromCollection, WithHeadings, ShouldAutoSize
 {
     public function collection()
