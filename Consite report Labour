@@ -1,5 +1,66 @@
 
 
+
+
+
+namespace App\Imports;
+
+use App\Models\Labour;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+
+class MyDataImport implements ToModel, WithHeadingRow
+{
+    /**
+     * Import model from the given row.
+     *
+     * @param  array  $row
+     * @return \Illuminate\Database\Eloquent\Model|null
+     */
+    public function model(array $row)
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        // Get the unit ID from the unit name, or create a new unit if it doesn't exist
+        $unitId = nametoid($row['unit'], 'units');
+        if (!$unitId) {
+            // If the unit doesn't exist, create a new one
+            $unitId = createunit($row['unit'], $companyId);
+        }
+
+        // Find existing labour by name, category, and unit (unique constraint)
+        $existingLabour = Labour::where('name', $row['name'])
+            ->where('category', $row['category'])
+            ->where('unit_id', $unitId)
+            ->where('company_id', $companyId)
+            ->first();
+
+        // If a labour exists, update it; otherwise, create a new record
+        if ($existingLabour) {
+            // Update existing labour
+            $existingLabour->uuid = $existingLabour->uuid ?: (string) \Str::uuid(); // Assign uuid if not exists
+            $existingLabour->category = $row['category'];
+            $existingLabour->unit_id = $unitId;
+            $existingLabour->save();
+            
+            return $existingLabour; // Return the updated record
+        } else {
+            // Create new labour record
+            return new Labour([
+                'uuid' => (string) \Str::uuid(),  // Assign a new UUID
+                'name' => $row['name'],
+                'category' => $row['category'],
+                'unit_id' => $unitId,
+                'company_id' => $companyId,
+            ]);
+        }
+    }
+}
+
+
+
 class MyDataImport implements ToModel, WithHeadingRow
 {
     public function model(array $row)
