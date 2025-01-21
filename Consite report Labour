@@ -1,4 +1,8 @@
-
+ $file = $request->file('file');
+            Excel::import(new MyDataImport, $file);
+            return redirect()
+                ->route('company.labour.list')
+                ->with('success', 'Import Data Uploaded Successfully');
 
 
 
