@@ -6,6 +6,57 @@
 ***************************************************************************************************************************
 **********************************Assets*******************************************************************************
 ***************************************************************************************************************************
+class ImportAssets implements ToModel, WithHeadingRow
+{
+    protected $project;
+    protected $warehouses;
+
+    public function __construct($project, $warehouses)
+    {
+        $this->project = $project;
+        $this->warehouses = $warehouses;
+    }
+
+    public function model(array $row)
+    {
+
+        // dd($row);
+        // Get the authenticated company ID
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        // Fetch the asset based on the provided code
+        $asset = isset($row['code']) && $row['code'] !== null ? Assets::where('code', $row['code'])->first() : null;
+
+        // Check if the asset exists
+        if ($asset) {
+            // Update the existing asset
+            $asset->update([
+                'name' => $row['assetequipmentsmachinery'],
+                'specification' => $row['specification'],
+                'unit_id' => nametoid($row['unit'], 'units') ?: createunit($row['unit'], $companyId),
+                // 'project_id' => $this->project,
+                // 'store_warehouses_id' => $this->warehouses,
+            ]);
+            Log::info($asset);
+            return $asset;
+        } else {
+            // Create a new asset if it doesn't exist
+            $newAsset = new Assets([
+                'name' => $row['assetequipmentsmachinery'],
+                'specification' => $row['specification'],
+                'unit_id' => nametoid($row['unit'], 'units') ?: createunit($row['unit'], $companyId),
+                'company_id' => $companyId,
+            ]);
+            Log::info($newAsset);
+            return $newAsset;
+        }
+    }
+}
+
+
+
+
 
 use Maatwebsite\Excel\Concerns\WithMapping;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
