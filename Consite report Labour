@@ -1,4 +1,48 @@
 
+
+   public function index(Request $request)
+    {
+        $authCompany = Auth::guard('company-api')->user()->company_id;
+
+        $fetchDpr = Dpr::where(['date' => Carbon::now()->format('Y-m-d'), 'projects_id' => $request->project_id, 'sub_projects_id' => $request->subproject_id, 'company_id' => $authCompany])->orderBy('id', 'desc')->first();
+
+
+        $result = '';
+        if ($fetchDpr) {
+            // dd($fetchDpr);
+            $dprId = $fetchDpr->id;
+            $authCompany = Auth::guard('company-api')->user()->company_id;
+            $activitesData = Activities::with([
+                'units',
+                'project',
+                'subproject',
+                'parent',
+                'children',
+                'activitiesHistory'
+                 => function ($q) use ($dprId) {
+                    $q->where('dpr_id', $dprId);
+                }
+            ])
+            // ->whereHas('activitiesHistory', function ($q) use ($dprId) {
+            //     $q->where('dpr_id', $dprId);
+            // })
+                ->where('company_id', $authCompany)
+                ->get();
+
+                $result = DprActivitesResources::collection($activitesData);
+                // dd($result);
+
+        } else {
+
+            $datas = Activities::with('units', 'project', 'subproject', 'parent', 'children', 'activitiesHistory')->orderBy('id', 'asc')->where('company_id', $authCompany)->where(['project_id' => $request->project_id, 'subproject_id' => $request->subproject_id])->get();
+            $result = ActiviteiesResources::collection($datas);
+        }
+
+
+
+
+
+
 namespace App\Imports;
 
 use App\Models\Labour;
