@@ -1,1 +1,36 @@
 
+class ExportVendor  implements FromCollection, WithHeadings, ShouldAutoSize
+{
+
+    public function collection()
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        $vendor = Vendor::where('company_id',$companyId)->get();
+        $collection = VendorResource::collection($vendor);
+        return collect($collection);
+    }
+
+    public function headings(): array
+    {
+        return [
+            '#',
+            'Uuid',
+            'Name',
+            'Type',
+            'Gst No',
+            'Address',
+            'Contact Person Name',
+            'Contact Person Phone',
+            'Contact Person Email',
+        ];
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            1 => ['font' => ['bold' => true], 'freeze' => true],
+        ];
+    }
+}
