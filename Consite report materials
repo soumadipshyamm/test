@@ -1,1 +1,20 @@
+class MaterialsImport implements ToModel, WithHeadingRow
+{
+    public function model(array $row)
+    {
+        $authCompany = Auth::guard('company')->user();
+        $companyId = searchCompanyId($authCompany->id);
 
+        // Create new materials
+        $data = new Materials([
+            'name' => $row['name'],
+            'class' => $row['class'],
+            'code' =>  uniqid(),
+            'specification' => $row['specification'],
+            'unit_id' => nametoid($row['unit'], 'units') ?: createunit($row['unit'], $companyId),
+            'company_id' => $companyId,
+        ]);
+        $data->save();
+        return  $data;
+    }
+}
