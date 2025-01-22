@@ -2,6 +2,40 @@
 
 
 
+
+
+class MaterialsImport implements ToModel, WithHeadingRow
+{
+    public function model(array $row)
+    {
+        $authCompany = Auth::guard('company')->user();
+        $companyId = searchCompanyId($authCompany->id);
+// dd($row);
+
+        // Prepare the unique attributes and update data
+        $attributes = [
+            'name' => $row['name'],
+            'class' => $row['class'],
+            'unit_id' => nametoid($row['unit'], 'units') ?: createunit($row['unit'], $companyId),
+            'specification' => $row['specification'],
+            'company_id' => $companyId,
+        ];
+
+        $data = Materials::updateOrCreate(
+            $attributes, // Attributes to search for
+            [           // Data to update or insert
+                'uuid'=>$row['uuid'],
+            ]
+        );
+
+        return $data;
+    }
+}
+
+
+
+
+
 use Illuminate\Support\Str;
 
 class MaterialsImport implements ToModel, WithHeadingRow
