@@ -1,6 +1,14 @@
 
 
 
+
+
+Maatwebsite\Excel\Imports\ModelManager::Maatwebsite\Excel\Imports\{closure}(): Argument #1 ($model) must be of type Illuminate\Database\Eloquent\Model, bool given, called in C:\xampp\htdocs\php82\Konsite\construction-app-admin\vendor\laravel\framework\src\Illuminate\Collections\Traits\EnumeratesValues.php on line 240
+                Excel::import(new ActivitesImport($project, $subproject, $companyId, $cacheKey), $file);
+
+
+
+
 class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
 {
     protected $projects;       // Selected project ID
