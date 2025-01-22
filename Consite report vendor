@@ -1,3 +1,125 @@
+
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Events\AfterSheet;
+
+class ExportVendor implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents, WithMapping, WithStyles
+{
+    private const TYPE_DROPDOWN_OPTIONS = ['supplier', 'contractor', 'both'];
+
+    public function collection()
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        $vendors = Vendor::where('company_id', $companyId)->get();
+
+        return collect(VendorResource::collection($vendors)->resolve());
+    }
+
+    public function headings(): array
+    {
+        return [
+            'SlNo',
+            'Uuid', // Hidden column
+            'Name',
+            'Type',
+            'Gst No',
+            'Address',
+            'Contact Person Name',
+            'Contact Person Phone',
+            'Contact Person Email',
+        ];
+    }
+
+    public function map($vendor): array
+    {
+        static $slNo = 1;
+
+        return [
+            $slNo++, // Auto-increment serial number
+            $vendor['uuid'], // Hidden column
+            $vendor['name'],
+            $this->validateType($vendor['type']), // Ensure valid type
+            $vendor['gst_no'],
+            $vendor['address'],
+            $vendor['contact_person_name'],
+            $vendor['contact_person_phone'],
+            $vendor['contact_person_email'],
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+                $lastRow = $sheet->getHighestRow();
+
+                // Hide UUID column (Column B)
+                $sheet->getColumnDimension('B')->setVisible(false);
+
+                // Apply dropdown to Column D (Type)
+                $this->applyDropdown($sheet, 'D', 2, $lastRow, self::TYPE_DROPDOWN_OPTIONS);
+
+                // Freeze header row
+                $sheet->freezePane('A2');
+
+                // Style the header row
+                $sheet->getStyle('A1:I1')->applyFromArray([
+                    'font' => ['bold' => true],
+                    'alignment' => ['horizontal' => 'center'],
+                ]);
+            },
+        ];
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            1 => ['font' => ['bold' => true]],
+        ];
+    }
+
+    private function applyDropdown(Worksheet $sheet, string $column, int $startRow, int $endRow, array $options)
+    {
+        // Prepare dropdown options as a comma-separated string
+        $dropdownOptions = sprintf('"%s"', implode(',', $options));
+
+        for ($row = $startRow; $row <= $endRow; $row++) {
+            $cell = "{$column}{$row}";
+            $validation = $sheet->getCell($cell)->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(false);
+            $validation->setShowInputMessage(true);
+            $validation->setShowErrorMessage(true);
+            $validation->setFormula1($dropdownOptions); // Assign options
+            $sheet->getCell($cell)->setDataValidation($validation); // Apply validation
+        }
+    }
+
+    private function validateType(?string $type): string
+    {
+        return in_array($type, self::TYPE_DROPDOWN_OPTIONS) ? $type : 'supplier';
+    }
+}
+
+
+
+
+
+
+
+
+
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
