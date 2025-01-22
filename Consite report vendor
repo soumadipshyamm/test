@@ -1,4 +1,13 @@
+Call to a member function all() on array
 
+
+ public function export()
+
+    {
+
+        return Excel::download(new ExportVendor, 'vendors.xlsx');
+
+    }
 
 
 class ExportVendor implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents, WithMapping, WithStyles
