@@ -1,8 +1,10 @@
 
 
+        $data = Materials::updateOrCreate(
 
 
 
+SQLSTATE[23000]: Integrity constraint violation: 1062 Duplicate entry 'c5771a6f-1d79-49a8-a9fe-8a5956f6eaa6' for key 'materials_uuid_unique'
 
 class MaterialsImport implements ToModel, WithHeadingRow
 {
