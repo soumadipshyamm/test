@@ -1,3 +1,144 @@
+
+
+
+
+
+
+
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
+
+class CreatePricingGuidesTable extends Migration
+{
+    /**
+     * Run the migrations.
+     *
+     * @return void
+     */
+    public function up()
+    {
+        Schema::create('pricing_guides', function (Blueprint $table) {
+            $table->id();
+            $table->string('company_name')->nullable();
+            $table->integer('ms')->default(0);
+            $table->integer('infestations')->default(0);
+            $table->string('roof_type')->nullable();
+            $table->integer('attic_area')->default(0);
+            $table->integer('number_of_attics_or_crawl_spaces')->default(0);
+            $table->integer('number_of_structures_being_fumigated')->default(0);
+            $table->boolean('title_warranty')->default(0);
+            $table->timestamps();
+        });
+
+        Schema::create('control_pricing', function (Blueprint $table) {
+            $table->id();
+            $table->integer('control');
+            $table->decimal('cost', 8, 2);
+            $table->decimal('minimum', 8, 2);
+            $table->timestamps();
+        });
+
+        Schema::create('calculated_results', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('pricing_guide_id')->constrained('pricing_guides')->onDelete('cascade');
+            $table->decimal('fumigation_cal', 10, 2)->default(0);
+            $table->decimal('preventive_treatment_cal', 10, 2)->default(0);
+            $table->decimal('total_price', 10, 2)->default(0);
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     *
+     * @return void
+     */
+    public function down()
+    {
+        Schema::dropIfExists('calculated_results');
+        Schema::dropIfExists('control_pricing');
+        Schema::dropIfExists('pricing_guides');
+    }
+}
+
+// Seeder to insert dynamic data
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+
+class PricingGuideSeeder extends Seeder
+{
+    public function run()
+    {
+        $controlPricingData = [
+            ['control' => 4, 'cost' => 100, 'minimum' => 200],
+            ['control' => 5, 'cost' => 150, 'minimum' => 250],
+            ['control' => 6, 'cost' => 120, 'minimum' => 220],
+            ['control' => 7, 'cost' => 170, 'minimum' => 270],
+            ['control' => 14, 'cost' => 200, 'minimum' => 300],
+            ['control' => 15, 'cost' => 250, 'minimum' => 350],
+            ['control' => 19, 'cost' => 300, 'minimum' => 400],
+            ['control' => 20, 'cost' => 350, 'minimum' => 450],
+            ['control' => 21, 'cost' => 400, 'minimum' => 500],
+            ['control' => 22, 'cost' => 450, 'minimum' => 550],
+            ['control' => 23, 'cost' => 500, 'minimum' => 600],
+            ['control' => 24, 'cost' => 550, 'minimum' => 650],
+        ];
+
+        DB::table('control_pricing')->insert($controlPricingData);
+
+        $pricingGuideData = [
+            'company_name' => 'Moxie Pest Control',
+            'ms' => 10,
+            'infestations' => 5,
+            'roof_type' => 3,
+            'attic_area' => 100,
+            'number_of_attics_or_crawl_spaces' => 2,
+            'number_of_structures_being_fumigated' => 1,
+            'title_warranty' => 1,
+        ];
+
+        $pricingGuideId = DB::table('pricing_guides')->insertGetId($pricingGuideData);
+
+        $this->calculateDynamicData($pricingGuideId);
+    }
+
+    public function calculateDynamicData($pricingGuideId)
+    {
+        $pricingGuide = DB::table('pricing_guides')->where('id', $pricingGuideId)->first();
+        $controlPricing = DB::table('control_pricing')->get();
+
+        $P6 = $controlPricing->where('control', 4)->first()->cost;
+        $Q6 = $controlPricing->where('control', 4)->first()->minimum;
+        $Q8 = $controlPricing->where('control', 6)->first()->minimum;
+
+        $fumigationCal = max($pricingGuide->ms * $P6, $Q6);
+        $preventiveTreatmentCal = $pricingGuide->number_of_attics_or_crawl_spaces <= 1 ? $Q8 : $Q8 + $pricingGuide->number_of_attics_or_crawl_spaces - 1;
+        $totalPrice = $fumigationCal + $preventiveTreatmentCal;
+
+        DB::table('calculated_results')->insert([
+            'pricing_guide_id' => $pricingGuideId,
+            'fumigation_cal' => $fumigationCal,
+            'preventive_treatment_cal' => $preventiveTreatmentCal,
+            'total_price' => $totalPrice,
+        ]);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
 @php
     $companyRespectClass = '';
     $companyRespectHeadingClass = '';
