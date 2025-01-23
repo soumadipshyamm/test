@@ -1,0 +1,152 @@
+@php
+    $companyRespectClass = '';
+    $companyRespectHeadingClass = '';
+    $companyRespectBorderClass = '#bc2226';
+    $dummyText =
+        'This report is for supplementary purposes only. For full description please refer to an official WDO report or call us at (858) 345-9990. (Offers are honored for a limited time after inspections date.)';
+    if ($pricingGuide?->office?->name == 'Moxie Pest Control') {
+        $companyRespectClass = 'optionhead-bg';
+        $companyRespectHeadingClass = 'optionhead';
+        $companyRespectBorderClass = '#3F8CD0';
+        $dummyText =
+            'This report is for supplementary purposes only. For full description please refer to an official WDO report or call us at (949) 377-0347. (Offers are honored for a limited time after inspections date.)';
+    }
+
+    $B2 = $pricingGuide->ms ?? 0;
+    $B3 = $pricingGuide->infestations ?? 0;
+    $B4 = $pricingGuide->roof_type ?? null;
+    $B5 = $pricingGuide->attic_area ?? 0;
+    $B6 = $pricingGuide->number_of_attics_or_crawl_spaces ?? 0;
+    $B7 = $pricingGuide->number_of_structures_being_fumigated ?? 0;
+    $B8 = $pricingGuide->title_warranty ?? 0;
+
+    $P6 = $controlPricing->where('control', 4)->first()->cost;
+    $P7 = $controlPricing->where('control', 5)->first()->cost;
+    $Q6 = $controlPricing->where('control', 4)->first()->minimum;
+    $P18 = $controlPricing->where('control', 15)->first()->cost;
+    $Q7 = $controlPricing->where('control', 5)->first()->minimum;
+    $Q8 = $controlPricing->where('control', 6)->first()->minimum;
+    $Q9 = $controlPricing->where('control', 7)->first()->minimum;
+    $P8 = $controlPricing->where('control', 6)->first()->cost;
+    $P9 = $controlPricing->where('control', 7)->first()->cost;
+    $P17 = $controlPricing->where('control', 14)->first()->cost;
+    $P20 = $controlPricing->where('control', 17)->first()->cost;
+
+    $tileWarranty = 0;
+    if ($B4 == 1) {
+        $tileWarranty = $controlPricing->where('control', 19)->first()->cost;
+    } elseif ($B4 == 2) {
+        $tileWarranty = $controlPricing->where('control', 20)->first()->cost;
+    } elseif ($B4 == 3) {
+        $tileWarranty = $controlPricing->where('control', 21)->first()->cost;
+    } elseif ($B4 == 4) {
+        $tileWarranty = $controlPricing->where('control', 22)->first()->cost;
+    } elseif ($B4 == 5) {
+        $tileWarranty = $controlPricing->where('control', 23)->first()->cost;
+    } elseif ($B4 == 6) {
+        $tileWarranty = $controlPricing->where('control', 24)->first()->cost;
+    }
+
+    $D43 = $fumigationCal = ($B2 * $P6 < $Q6 ? $Q6 : $B2 * $P6) + ($B7 > 1 ? $B7 * $P18 - $P18 : 0);
+    $D44 = $tileWarrantyCal = $tileWarranty;
+    // if ($pricingGuide->title_warranty == 1) {
+    //     $D44 = $tileWarrantyCal = $tileWarranty;
+    // } else {
+    //     $D44 = $tileWarrantyCal = 0;
+    // }
+    $D45 = $fumeTileCal = (float) $fumigationCal + (float) $tileWarrantyCal;
+    $D46 = $preventiveTreatmentCal = $B6 <= 1 ? $Q8 : $Q8 + $P8 * ($B6 - 1);
+    $D47 = $oneTimeLocaltreatCal = $B3 <= 2 ? $Q9 : $Q9 + ($B3 - 2) * $P9;
+    $D48 = $woodRepairsCal = 0;
+    $D49 = $WDOInspectionCal = $P17;
+    $D50 = $insulationCal = $P7 * $B5 < $Q7 ? $Q7 : $P7 * $B5;
+    $D51 = $bundleDiscount = -($D43 * 0.05 > $P20 ? $D43 * 0.05 : $P20);
+
+    // dd($D51);
+
+    $totalPrice =
+        $fumigationCal +
+        $tileWarrantyCal +
+        $fumeTileCal +
+        $preventiveTreatmentCal +
+        $oneTimeLocaltreatCal +
+        $woodRepairsCal +
+        $WDOInspectionCal +
+        $insulationCal +
+        $bundleDiscount;
+
+    //new calculation start
+    $initialCostBoth = 10.0;
+    $initialCostBothMin = 599;
+    $initialCostBoth2 = 8.0;
+    $initialCostBoth2Min = 499;
+    $monthlyCost = 1.0;
+    $monthlyCostMin = 59.0;
+    $annualCost = 5.0;
+    $annualCostMin = 449.0;
+    $fumeCost = 89.0;
+    $fumeCostMin = 1799.0;
+    $insulationCost = 4.6;
+    $insulationCostMin = 2400.0;
+    $preventiveTreatment = 150.0;
+    $preventiveTreatmentMin = 1099.0;
+    $localPerInfestation = 50.0;
+    $localPerInfestationMin = 599.0;
+    $hwc = 15.0;
+    $hwcMin = 699.0;
+    $lwc = 35.0;
+    $lwcMin = 699.0;
+    $onePieceClay = 35.0;
+    $onePieceClayMin = 699.0;
+    $twoPieceClay = 40.0;
+    $twoPieceClayMin = 699.0;
+    $twoPieceCement = 45.0;
+    $twoPieceCementMin = 699.0;
+    $maxi = 40.0;
+    $maxiMin = 699.0;
+    $wdoInspection = 150.0;
+    $additnialStructureFee = 150.0;
+    $fumigationBundleMin = 1700.0;
+    // $D51 = $bundleDiscount = -400.0;
+
+    $D35 = $drywood_and_subterranean_initial_pif = 1956;
+    $E35 = $drywood_and_subterranean_yearly = 449;
+    $F35 = $drywood_and_subterranean_initial_contract = 599;
+    $G35 = $drywood_and_subterranean_monthly = 59;
+
+    $D36 = $drywood_only_initial_pif = 1626;
+    $E36 = $drywood_only_yearly = 399;
+    $F36 = $drywood_only_initial_contract = 499;
+    $G36 = $drywood_only_monthly = 49;
+
+    $D37 = $subterranean_only_initial_pif = 1726;
+    $E37 = $subterranean_only_yearly = 399;
+    $F37 = $subterranean_only_initial_contract = 499;
+    $G37 = $subterranean_only_monthly = 49;
+
+    //main start
+    $drywood_and_subterranean_subscription_fumigation_monthly_f = $D45 + $F35 + $D51;
+    $drywood_and_subterranean_subscription_localtreat_monthly_f = $B3 < 3 ? $F35 : $F35 + $D47 + $D51;
+    $drywood_and_subterranean_subscription_renewal_monthly_f = 59;
+
+    $drywood_only_subscription_fumigation_monthly_f = $F36 + $D45 + $D51;
+    $drywood_only_subscription_localtreat_monthly_f = $B3 < 3 ? $F36 : $F36 + $D47 + $D51;
+    $drywood_only_subscription_renewal_monthly_f = 49;
+
+    $subterranean_only_monthly_f = $F37;
+    $subterranean_only_renewal_monthly_f = 49;
+    $drywood_and_subterranean_subscription_fumigation_pif_f = $D12 = $B8 == 1 ? $D35 + $D45 + $D51 : $D43 + $D35 + $D51;
+    $drywood_and_subterranean_subscription_localtreat_pif_f = $F12 = $B3 < 3 ? $D35 : $D35 + $D47 + $D51;
+    $drywood_and_subterranean_subscription_renewal_pif_f = 449;
+
+    $drywood_only_subscription_fumigation_pif_f = $B8 == 1 ? $D45 + $D36 + $D51 : $D43 + $D51 + $D36;
+    $drywood_only_subscription_localtreat_pif_f = $B3 < 3 ? $D36 : $D36 + $D47 + $D51;
+    $drywood_only_subscription_renewal_pif_f = 399;
+
+    $subterranean_only_pif_f = $D37;
+    $subterranean_only_renewal_pif_f = 399;
+
+    $initialFumigationWithSubscriptionDiscount = $F12 + $D45 - $D12;
+    //main end
+    //new calculation end
+@endphp
