@@ -1,0 +1,515 @@
+<div class="tab-pane fade show active" id="pills-pricing" role="tabpanel" aria-labelledby="pills-pricing-tab">
+    <form action="{{ route('customer.add') }}" class="formSubmit fileUpload" method="GET" id="addNewCustomerDetailsForm">
+        @csrf
+        <input type="hidden" name="uuid" id="uuid" value="{{ $datas->uuid ?? '' }}">
+        <div class="tabcon_body">
+            <div class="row">
+                <div class="d-flex">
+                    <div class="col-md-12">
+                        {{-- **************************************************************************** --}}
+                        <div class="singleuser_box mb-4">
+                            <div class="p-3">
+                                <div class="d-flex flex-row align-items-center mb-3">
+                                    <h5 class="me-2">Drywood and Subterranean Service Plan</h5>
+                                    <input type="checkbox"
+                                        class="form-check-input drywood-subterranean-ervice-plancheckbox"
+                                        id="servicePlanCheckbox">
+                                </div>
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-6">
+                                        <div class="add-form-panel">
+                                            <label for="building_number_1" class="form-label">Initial Price</label>
+                                            <input type="text" class="form-control profile-address"
+                                                id="building_number_1" name="building_number_1" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="add-form-panel">
+                                            {{-- <label for="building_number_2" class="form-label">Reoccurring</label>
+                                        <input type="text" class="form-control profile-address" id="building_number_2" name="building_number_2" value=""> --}}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <label for="building_number_2" class="form-label">Reoccurring</label>
+                                            <input type="text" class="form-control profile-address"
+                                                id="building_number_2" name="building_number_2" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <label for="renewal" class="form-label">Select Renewal</label>
+                                            <select class="form-control profile-address" id="renewal" name="renewal">
+                                                <option value="">--- Select Renewal ---</option>
+                                                <option value="month">Monthly</option>
+                                                <option value="year">Yearly</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="add-form-panel">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch"
+                                                    id="flexSwitchCheckDefault">
+                                                {{-- <label class="form-check-label" for="flexSwitchCheckDefault">Enable --}}
+                                                {{-- Option</label> --}}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- **************************************************************************** --}}
+                        <div class="singleuser_box mb-4 ">
+                            <div class="p-3">
+                                <div class=" d-flex flex-row bd-highlight mb-3">
+                                    <h5>Dry Wood Service plan</h5>
+                                    <input type="checkbox"
+                                        class="form-check-input drywood-subterranean-ervice-plancheckbox"
+                                        id="servicePlanCheckbox">
+                                </div>
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-6">
+                                        <div class="add-form-panel">
+                                            <label for="building_number_1" class="form-label">Initial Price</label>
+                                            <input type="text" class="form-control profile-address"
+                                                id="building_number_1" name="building_number_1" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="add-form-panel">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <label for="building_number_2" class="form-label">Reoccurring</label>
+                                            <input type="text" class="form-control profile-address"
+                                                id="building_number_2" name="building_number_2" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <label for="renewal" class="form-label">Select Renewal</label>
+                                            <select class="form-control profile-address" id="renewal" name="renewal">
+                                                <option value="">--- Select Renewal ---</option>
+                                                <option value="month">Monthly</option>
+                                                <option value="year">Yearly</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="add-form-panel">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch"
+                                                    id="flexSwitchCheckDefault">
+                                                {{-- <label class="form-check-label" for="flexSwitchCheckDefault">Enable
+                                                Option</label> --}}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- **************************************************************************** --}}
+                        <div class="singleuser_box mb-4 ">
+                            <div class="p-3">
+                                <div class=" d-flex flex-row bd-highlight mb-3">
+                                    <h5>Subterranean Service plan</h5>
+                                    <input type="checkbox"
+                                        class="form-check-input drywood-subterranean-ervice-plancheckbox"
+                                        id="servicePlanCheckbox">
+                                </div>
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-6">
+                                        <div class="add-form-panel">
+                                            <label for="building_number_1" class="form-label">Initial Price</label>
+                                            <input type="text" class="form-control profile-address"
+                                                id="building_number_1" name="building_number_1" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="add-form-panel">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row g-3 align-items-end">
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <label for="building_number_2" class="form-label">Reoccurring</label>
+                                            <input type="text" class="form-control profile-address"
+                                                id="building_number_2" name="building_number_2" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <label for="renewal" class="form-label">Select Renewal</label>
+                                            <select class="form-control profile-address" id="renewal"
+                                                name="renewal">
+                                                <option value="">--- Select Renewal ---</option>
+                                                <option value="month">Monthly</option>
+                                                <option value="year">Yearly</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="add-form-panel">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" role="switch"
+                                                    id="flexSwitchCheckDefault">
+                                                {{-- <label class="form-check-label" for="flexSwitchCheckDefault">Enable
+                                                Option</label> --}}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 d-flex align-items-end">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- **************************************************************************** --}}
+                        {{-- **************************************************************************** --}}
+                        <div class="singleuser_box mb-4">
+                            <div class="p-3">
+                                <div class="d-flex flex-row bd-highlight mb-3">
+                                    <h5>Stand-alone Options</h5>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check ">
+                                            <input class="form-check-input p-2" type="checkbox"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label" for="servicePlanSwitch">Fumigation</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="form-check form-switch">
+                                            {{-- <input class="form-check-input" type="checkbox" role="switch" id="servicePlanSwitch"> --}}
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 ">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check ">
+                                            <input class="form-check-input p-2" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label" for="servicePlanSwitch">Preventive</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="form-check  form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 ">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check ">
+                                            <input class="form-check-input p-2" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label" for="servicePlanSwitch">One Time
+                                                Local</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check ">
+                                            <input class="form-check-input p-2" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label" for="servicePlanSwitch">Wood
+                                                Repairs</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 ">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check ">
+                                            <input class="form-check-input p-2" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label" for="servicePlanSwitch">Tile
+                                                warranty</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="add-form-panel">
+                                            <select name="" id="" class="form-control">
+                                                <option value="">1 Year</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 ">
+                                        {{-- <button type="button" class="btn btn-outline-primary">Schedule</button> --}}
+                                    </div>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3 mt-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check ">
+                                            <input class="form-check-input p-2" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label" for="servicePlanSwitch">Insulation</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 ">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input p-2" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label" for="servicePlanSwitch">Inspection
+                                                fee</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 ">
+                                        {{-- <button type="button" class="btn btn-outline-primary">Schedule</button> --}}
+                                    </div>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check ">
+                                            <input class="form-check-input p-2" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label" for="servicePlanSwitch">Other</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-1">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 ">
+                                        <button type="button" class="btn btn-outline-primary">Schedule</button>
+                                    </div>
+                                </div>
+                                {{-- **************************************************************************** --}}
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <div class="form-check custom-checkbox">
+                                            <input class="form-check-input gap-2 p-2" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label class="form-check-label"
+                                                for="servicePlanSwitch">Discounts(s)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="add-form-panel">
+                                            <input type="text" class="form-control" id="initialPrice"
+                                                name="initialPrice" value="">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-7 pt-4">
+                                        <div class="form-check form-switch ">
+                                            <label for="initialPrice" class="form-label">Fume</label>
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="servicePlanSwitch">
+                                            <label for="initialPrice" class="form-label">Local Trea</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-3 offset-md-3"><button type="button"
+                                            class="btn btn-outline-primary">Agreement</button></div>
+                                </div>
+                                <hr>
+                                {{-- **************************************************************************** --}}
+                                {{-- **************************************************************************** --}}
+                                <div class="p-4">
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="form-check-label" for="servicePlanSwitch">Option 3</label>
+                                            <select name="" id="" class="form-control">
+                                                <option value="">Option 1</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-check-label" for="servicePlanSwitch">Other</label>
+                                            <select name="" id="" class="form-control">
+                                                <option value="">Option 1</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-check-label" for="servicePlanSwitch">office</label>
+                                            <select name="" id="" class="form-control">
+                                                <option value="">---Select Office---</option>
+                                                {{ getOfficeList('') }}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            {{-- <label class="form-check-label" for="servicePlanSwitch">Inspection fee</label> --}}
+                                            <button type="button" class="btn btn-outline-primary">Preview
+                                                Pricing</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <hr>
+                                {{-- **************************************************************************** --}}
+                                {{-- **************************************************************************** --}}
+                                <div class="row">
+                                    <div class="col-md-4 offset-md-4">
+                                        <div class="form-group">
+                                            <label class="form-check-label" for="otherSelect">Documents</label>
+                                            <select name="other" id="otherSelect" class="form-control">
+                                                <option value="">Option 1</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 g-3">
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="fumigation1">
+                                            <label class="form-check-label" for="fumigation1">Email WDO report to
+                                                customer</label>
+                                        </div>
+
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="fumigation2">
+                                            <label class="form-check-label" for="fumigation2">Email Pricing to
+                                                customer</label>
+                                        </div>
+
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="fumigation3">
+                                            <label class="form-check-label" for="fumigation3">Escrow
+                                                inspection</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class=" offset-md-3 d-flex align-items-end">
+                                            <button type="button" class="btn btn-outline-primary">Preview WDO /
+                                                Complete
+                                                inspection</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {{-- **************************************************************************** --}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
