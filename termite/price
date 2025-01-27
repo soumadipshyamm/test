@@ -1,367 +1,68 @@
-
-
-$table->json('additional_details')->nullable()
-
-
-
-
-
-Here’s an updated and corrected structure for the advanced services based on the requirements. I’ll adjust the data models and the related insert functions for each table, considering best practices and structure improvement.
-
-### **Corrected Advanced Structures**
-
-#### **Service Plans Structure:**
-
-```php
-Schema::create('service_plans', function (Blueprint $table) {
-    $table->id();
-    $table->uuid('uuid')->unique()->nullable();
-    $table->string('type');
-    $table->string('name')->nullable();
-    $table->decimal('initial_price', 10, 2)->nullable();
-    $table->decimal('reoccurring_price', 10, 2)->nullable();
-    $table->enum('renewal', ['month', 'year'])->nullable();
-    $table->boolean('is_enabled')->default(false);
-    $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete()->comments('User table foreign key');
-    $table->timestamps();
-});
-```
-
-#### **Standalone Options Structure:**
-
-```php
-Schema::create('standalone_options', function (Blueprint $table) {
-    $table->id();
-    $table->uuid('uuid')->unique()->nullable();
-    $table->string('type');
-    $table->string('name')->nullable();
-    $table->decimal('initial_price', 10, 2)->nullable();
-    $table->string('initial_other_option')->nullable();
-    $table->boolean('is_enabled')->default(false);
-    $table->foreignId('service_plan_id')->constrained()->onDelete('cascade');
-    $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete()->comments('User table foreign key');
-    $table->timestamps();
-});
-```
-
-#### **Service Other Options Structure:**
-
-```php
-Schema::create('service_other_options', function (Blueprint $table) {
-    $table->id();
-    $table->uuid('uuid')->unique()->nullable();
-    $table->string('option')->nullable();
-    $table->string('other')->nullable();
-    $table->string('office')->nullable();
-
-    $table->boolean('documents')->nullable();
-    $table->boolean('email_wdo_report')->default(false);
-    $table->boolean('email_pricing')->default(false);
-    $table->boolean('escrow_inspection')->default(false);
-
-    $table->foreignId('service_plan_id')->constrained()->onDelete('cascade');
-    $table->foreignId('user_id')->nullable()->constrained()->cascadeOnDelete()->comments('User table foreign key');
-    $table->timestamps();
-});
-```
-
-### **Controller Updates**
-
-Here are the corrected methods for the controller with enhanced logic and validation.
-
-#### **Updated `ServiceController` Methods:**
-
-```php
-namespace App\Http\Controllers;
-
-use App\Models\ServicePlan;
-use App\Models\StandaloneOption;
-use App\Models\ServiceOtherOption;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-
-class ServiceController extends Controller
-{
-    /**
-     * Store data into the service_plans table.
-     */
-    public function storeServicePlans(Request $request)
-    {
-        $servicePlans = $request->input('servicePlans');
-
-        foreach ($servicePlans as $key => $plan) {
-            $initialPrice = $this->validatePrice($plan['initial_price']);
-            $reoccurringPrice = $this->validatePrice($plan['reoccurring'] ?? null);
-
-            ServicePlan::create([
-                'uuid' => Str::uuid(),
-                'type' => $key,
-                'name' => $plan['servicePlanCheckbox'] ?? null,
-                'initial_price' => $initialPrice,
-                'reoccurring_price' => $reoccurringPrice,
-                'renewal' => $plan['renewal'] ?? null,
-                'is_enabled' => isset($plan['status']) && $plan['status'] == "1",
-                'user_id' => $request->user()->id,
-            ]);
-        }
-
-        return response()->json(['message' => 'Service plans added successfully.']);
-    }
-
-    /**
-     * Store data into the standalone_options table.
-     */
-    public function storeStandaloneOptions(Request $request)
-    {
-        $standaloneOptions = $request->input('standalone_options');
-
-        foreach ($standaloneOptions as $key => $option) {
-            $initialPrice = $this->validatePrice($option['initialPrice']);
-
-            StandaloneOption::create([
-                'uuid' => Str::uuid(),
-                'type' => $option['type'] ?? $key,
-                'name' => $key,
-                'initial_price' => $initialPrice,
-                'initial_other_option' => $option['description'] ?? null,
-                'is_enabled' => isset($option['status']) && $option['status'] == "1",
-                'service_plan_id' => $request->input('service_plan_id'),
-                'user_id' => $request->user()->id,
-            ]);
-        }
-
-        return response()->json(['message' => 'Standalone options added successfully.']);
-    }
-
-    /**
-     * Store data into the service_other_options table.
-     */
-    public function storeServiceOtherOptions(Request $request)
-    {
-        $options = $request->input('services_other_option');
-
-        ServiceOtherOption::create([
-            'uuid' => Str::uuid(),
-            'option' => $options['option'] ?? null,
-            'other' => $options['other'] ?? null,
-            'office' => $options['office'] ?? null,
-            'documents' => isset($options['documents']) ? (bool)$options['documents'] : false,
-            'email_wdo_report' => isset($options['email_wdo_report']) ? (bool)$options['email_wdo_report'] : false,
-            'email_pricing' => isset($options['email_pricing']) ? (bool)$options['email_pricing'] : false,
-            'escrow_inspection' => isset($options['escrow_inspection']) ? (bool)$options['escrow_inspection'] : false,
-            'service_plan_id' => $request->input('service_plan_id'),
-            'user_id' => $request->user()->id,
-        ]);
-
-        return response()->json(['message' => 'Service other options added successfully.']);
-    }
-
-    /**
-     * Validate and return a valid decimal price or null if invalid.
-     */
-    private function validatePrice($price)
-    {
-        return is_numeric($price) ? number_format((float)$price, 2, '.', '') : null;
-    }
-}
-```
-
-### **Changes/Improvements in the Controller:**
-1. **Validation of Prices**: The `validatePrice()` function ensures that prices are valid decimal numbers and formats them correctly.
-2. **Dynamic Key Handling**: The controller functions now handle the keys dynamically, ensuring flexibility in case of multiple service types.
-3. **Null Handling**: Each field is checked for presence and set to `null` if not provided to avoid errors when storing into the database.
-4. **Default Boolean Values**: For boolean fields, a conditional check ensures that the value is correctly set (true/false).
-
-### **Example Payloads:**
-
-#### `POST /service-plans`
-```json
-{
-  "servicePlans": {
-    "drywood_subterranean": {
-      "servicePlanCheckbox": "drywood_subterranean",
-      "initial_price": "272",
-      "reoccurring": "100",
-      "renewal": "month",
-      "status": "1"
-    }
-  }
-}
-```
-
-#### `POST /standalone-options`
-```json
-{
-  "standalone_options": {
-    "fumigation": {
-      "type": "fumigation",
-      "initialPrice": "388"
-    },
-    "preventive": {
-      "type": "preventive",
-      "initialPrice": "308",
-      "description": "Lorem ipsum"
-    }
-  },
-  "service_plan_id": 1
-}
-```
-
-#### `POST /service-other-options`
-```json
-{
-  "services_other_option": {
-    "option": null,
-    "other": null,
-    "office": "Main office",
-    "email_wdo_report": "1",
-    "email_pricing": "1",
-    "escrow_inspection": "0"
-  },
-  "service_plan_id": 1
-}
-```
-
-### **Routing:**
-
-```php
-use App\Http\Controllers\ServiceController;
-
-Route::post('/service-plans', [ServiceController::class, 'storeServicePlans']);
-Route::post('/standalone-options', [ServiceController::class, 'storeStandaloneOptions']);
-Route::post('/service-other-options', [ServiceController::class, 'storeServiceOtherOptions']);
-```
-
-This structure provides a robust way to handle different advanced services and their related options in your Laravel application, ensuring correct data integrity and flexibility in your data model.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-"servicePlans" => array:3 [
-    "drywood_subterranean" => array:5 [
-      "servicePlanCheckbox" => "drywood_subterranean"
-      "initial_price" => "272"
-      "reoccurring" => "Ab magna dolor culpa"
-      "renewal" => "month"
-      "status" => "1"
-    ]
-    "drywood" => array:4 [
-      "initial_price" => "875"
-      "reoccurring" => "Cillum vitae lorem r"
-      "renewal" => "year"
-      "status" => "1"
-    ]
-    "subterranean" => array:4 [
-      "servicePlanCheckbox" => "subterranean"
-      "initial_price" => "195"
-      "reoccurring" => "Voluptate aut provid"
-      "renewal" => "month"
-    ]
-  ]insert this table Schema::create('service_plans', function (Blueprint $table) {
-            $table->id();
-            $table->uuid('uuid')->unique()->nullable();;
-            $table->string('type');
-            $table->string('name')->nullable();
-            $table->decimal('initial_price', 10, 2)->nullable();
-            $table->decimal('reoccurring_price', 10, 2)->nullable();
-            $table->enum('renewal', ['month', 'year'])->nullable();
-            $table->boolean('is_enabled')->default(false);
-            $table->foreignId('user_id')->nullable()->references('id')->on('users')->constrained()->cascadeOnDelete()->Comments('User table foreign key');
-            $table->timestamps();
-        });
-
-
-
-
-
- "standalone_options" => array:9 [
-    "fumigation" => array:1 [
-      "initialPrice" => "388"
-    ]
-    "preventive" => array:2 [
-      "type" => "preventive"
-      "initialPrice" => "308"
-    ]
-    "one_time_local" => array:2 [
-      "type" => "one_time_local"
-      "initialPrice" => "746"
-    ]
-    "wood_repairs" => array:1 [
-      "initialPrice" => "415"
-    ]
-    "tile_warranty" => array:3 [
-      "type" => "tile_warranty"
-      "initialPrice" => "380"
-      "duration" => null
-    ]
-    "insulation" => array:3 [
-      "type" => "insulation"
-      "initialPrice" => "265"
-      "status" => "1"
-    ]
-    "inspection_fee" => array:3 [
-      "type" => "inspection_fee"
-      "initialPrice" => "428"
-      "status" => "1"
-    ]
-    "other" => array:2 [
-      "initialPrice" => "778"
-      "description" => "Cupidatat duis alias"
-    ]
-    "discounts" => array:2 [
-      "type" => "discounts"
-      "initialPrice" => "651"
-    ]
+array:3 [ // app\Http\Controllers\User\CustomerController.php:326
+  "drywood_subterranean" => array:5 [
+    "servicePlanCheckbox" => "drywood_subterranean"
+    "initial_price" => "618"
+    "reoccurring" => "Debitis dolorem sit"
+    "renewal" => "month"
+    "status" => "1"
   ]
-
- Schema::create('standalone_options', function (Blueprint $table) {
-            $table->id();
-            $table->uuid('uuidd')->unique()->nullable();
-            $table->string('type');
-            $table->string('name')->nullable();
-            $table->decimal('initial_price', 10, 2)->nullable();
-            $table->string('initial_other_option')->nullable();
-            $table->boolean('is_enabled')->default(false);
-            $table->foreignId('service_plan_id')->constrained()->onDelete('cascade');
-            $table->foreignId('user_id')->nullable()->references('id')->on('users')->constrained()->cascadeOnDelete()->Comments('User table foreign key');
-            $table->timestamps();
-        });
-
-
-
-
-
-  "services_other_option" => array:6 [
-    "option" => null
-    "other" => null
-    "office" => null
-    "documents" => null
-    "email_wdo_report" => "1"
-    "email_pricing" => "1"
+  "drywood" => array:3 [
+    "initial_price" => "805"
+    "reoccurring" => "Reprehenderit possi"
+    "renewal" => "month"
   ]
-
-Schema::create('service_other_options', function (Blueprint $table) {
-            $table->id();
-            $table->uuid('uuid')->unique()->nullable();;
-            $table->string('option')->nullable();; // Name of the option
-            $table->string('other')->nullable(); // Office selection
-            $table->string('office')->nullable(); // Office selection
-
-            $table->boolean('documents')->nullable(); // Email WDO report
-            $table->boolean('email_wdo_report')->default(false); // Email WDO report
-            $table->boolean('email_pricing')->default(false); // Email pricing
-            $table->boolean('escrow_inspection')->default(false); // Escrow inspection
-            $table->foreignId('service_plan_id')->constrained()->onDelete('cascade');
-            $table->foreignId('user_id')->nullable()->references('id')->on('users')->constrained()->cascadeOnDelete()->Comments('User table foreign key');
-            $table->timestamps();
-        });
+  "subterranean" => array:4 [
+    "servicePlanCheckbox" => "subterranean"
+    "initial_price" => "855"
+    "reoccurring" => "Aut ipsam commodo cu"
+    "renewal" => "month"
+  ]
+]
+array:9 [ // app\Http\Controllers\User\CustomerController.php:326
+  "fumigation" => array:2 [
+    "type" => "fumigation"
+    "initialPrice" => "189"
+  ]
+  "preventive" => array:1 [
+    "initialPrice" => "244"
+  ]
+  "one_time_local" => array:2 [
+    "type" => "one_time_local"
+    "initialPrice" => "189"
+  ]
+  "wood_repairs" => array:2 [
+    "initialPrice" => "595"
+    "status" => "1"
+  ]
+  "tile_warranty" => array:4 [
+    "type" => "tile_warranty"
+    "initialPrice" => "967"
+    "duration" => null
+    "status" => "1"
+  ]
+  "insulation" => array:2 [
+    "type" => "insulation"
+    "initialPrice" => "678"
+  ]
+  "inspection_fee" => array:1 [
+    "initialPrice" => "151"
+  ]
+  "other" => array:3 [
+    "type" => "other"
+    "initialPrice" => "104"
+    "description" => "Excepturi sunt cumq"
+  ]
+  "discounts" => array:2 [
+    "type" => "discounts"
+    "initialPrice" => "606"
+  ]
+]
+array:7 [ // app\Http\Controllers\User\CustomerController.php:326
+  "option" => null
+  "other" => null
+  "office" => null
+  "documents" => null
+  "email_wdo_report" => "1"
+  "email_pricing" => "1"
+  "escrow_inspection" => "1"
+]
