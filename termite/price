@@ -1,3 +1,84 @@
+array:5 [ // app\Http\Controllers\User\CustomerController.php:326
+  "_token" => "1Vt5Ps028DVNHOXR9pYuA7R1ffYHMglVJ7baWhcG"
+  "uuid" => "931a38c1-ba79-4438-b048-fdb03597daa1"
+  "servicePlans" => array:3 [
+    "drywood_subterranean" => array:5 [
+      "servicePlanCheckbox" => "drywood_subterranean"
+      "initial_price" => "618"
+      "reoccurring" => "Debitis dolorem sit"
+      "renewal" => "month"
+      "status" => "1"
+    ]
+    "drywood" => array:3 [
+      "initial_price" => "805"
+      "reoccurring" => "Reprehenderit possi"
+      "renewal" => "month"
+    ]
+    "subterranean" => array:4 [
+      "servicePlanCheckbox" => "subterranean"
+      "initial_price" => "855"
+      "reoccurring" => "Aut ipsam commodo cu"
+      "renewal" => "month"
+    ]
+  ]
+  "standalone_options" => array:9 [
+    "fumigation" => array:2 [
+      "type" => "fumigation"
+      "initialPrice" => "189"
+    ]
+    "preventive" => array:1 [
+      "initialPrice" => "244"
+    ]
+    "one_time_local" => array:2 [
+      "type" => "one_time_local"
+      "initialPrice" => "189"
+    ]
+    "wood_repairs" => array:2 [
+      "initialPrice" => "595"
+      "status" => "1"
+    ]
+    "tile_warranty" => array:4 [
+      "type" => "tile_warranty"
+      "initialPrice" => "967"
+      "duration" => null
+      "status" => "1"
+    ]
+    "insulation" => array:2 [
+      "type" => "insulation"
+      "initialPrice" => "678"
+    ]
+    "inspection_fee" => array:1 [
+      "initialPrice" => "151"
+    ]
+    "other" => array:3 [
+      "type" => "other"
+      "initialPrice" => "104"
+      "description" => "Excepturi sunt cumq"
+    ]
+    "discounts" => array:2 [
+      "type" => "discounts"
+      "initialPrice" => "606"
+    ]
+  ]
+  "services_other_option" => array:7 [
+    "option" => null
+    "other" => null
+    "office" => null
+    "documents" => null
+    "email_wdo_report" => "1"
+    "email_pricing" => "1"
+    "escrow_inspection" => "1"
+  ]
+]
+
+
+
+
+
+
+
+
+
 array:3 [ // app\Http\Controllers\User\CustomerController.php:326
   "drywood_subterranean" => array:5 [
     "servicePlanCheckbox" => "drywood_subterranean"
