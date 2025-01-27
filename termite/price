@@ -1,4 +1,11 @@
 
+
+$table->json('additional_details')->nullable()
+
+
+
+
+
 Here’s an updated and corrected structure for the advanced services based on the requirements. I’ll adjust the data models and the related insert functions for each table, considering best practices and structure improvement.
 
 ### **Corrected Advanced Structures**
