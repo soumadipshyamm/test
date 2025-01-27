@@ -1,0 +1,32 @@
+ "servicePlans" => array:3 [
+    "drywood_subterranean" => array:5 [
+      "servicePlanCheckbox" => "drywood_subterranean"
+      "initial_price" => "272"
+      "reoccurring" => "Ab magna dolor culpa"
+      "renewal" => "month"
+      "status" => "1"
+    ]
+    "drywood" => array:4 [
+      "initial_price" => "875"
+      "reoccurring" => "Cillum vitae lorem r"
+      "renewal" => "year"
+      "status" => "1"
+    ]
+    "subterranean" => array:4 [
+      "servicePlanCheckbox" => "subterranean"
+      "initial_price" => "195"
+      "reoccurring" => "Voluptate aut provid"
+      "renewal" => "month"
+    ]
+  ]insert this table Schema::create('service_plans', function (Blueprint $table) {
+            $table->id();
+            $table->uuid('uuid')->unique()->nullable();;
+            $table->string('type');
+            $table->string('name')->nullable();
+            $table->decimal('initial_price', 10, 2)->nullable();
+            $table->decimal('reoccurring_price', 10, 2)->nullable();
+            $table->enum('renewal', ['month', 'year'])->nullable();
+            $table->boolean('is_enabled')->default(false);
+            $table->foreignId('user_id')->nullable()->references('id')->on('users')->constrained()->cascadeOnDelete()->Comments('User table foreign key');
+            $table->timestamps();
+        });
