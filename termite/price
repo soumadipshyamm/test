@@ -1,3 +1,21 @@
+use Illuminate\Http\Request;
+
+public function store(Request $request)
+{
+    $request->validate([
+        'recip_qty' => ['required', 'numeric'],
+        'reject_qty' => ['required', 'numeric', 'lte:recip_qty'], // Ensure reject_qty is <= recip_qty
+    ], [
+        'reject_qty.lte' => 'The Reject Quantity must be less than or equal to the Received Quantity.',
+    ]);
+
+    // Handle valid data
+}
+
+
+
+
+
 array:5 [ // app\Http\Controllers\User\CustomerController.php:326
   "_token" => "1Vt5Ps028DVNHOXR9pYuA7R1ffYHMglVJ7baWhcG"
   "uuid" => "931a38c1-ba79-4438-b048-fdb03597daa1"
