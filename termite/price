@@ -1,5 +1,98 @@
 
 
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        // Services Table (Base Table for All Services)
+        Schema::create('services', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        // Pricing Plans Table (To Support Different Price Tiers)
+        Schema::create('pricing_plans', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('service_id')->constrained()->onDelete('cascade');
+            $table->decimal('initial_price', 10, 2)->nullable();
+            $table->decimal('recurring_price', 10, 2)->nullable();
+            $table->enum('recurring_type', ['monthly', 'annual', 'one-time'])->default('one-time');
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        // Standalone Options Table (Extra Services)
+        Schema::create('standalone_options', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description')->nullable();
+            $table->decimal('price', 10, 2)->nullable();
+            $table->enum('status', ['included', 'upon_request', 'waived'])->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
+        // Users' Selected Services Table (Dynamic User-based Service Selection)
+        Schema::create('user_services', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('pricing_plan_id')->constrained('pricing_plans')->onDelete('cascade');
+            $table->boolean('is_selected')->default(false);
+            $table->boolean('is_scheduled')->default(false);
+            $table->date('scheduled_date')->nullable();
+            $table->enum('status', ['pending', 'active', 'completed', 'canceled'])->default('pending');
+            $table->timestamps();
+        });
+
+        // Users' Selected Standalone Options Table
+        Schema::create('user_standalone_options', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('option_id')->constrained('standalone_options')->onDelete('cascade');
+            $table->boolean('is_selected')->default(false);
+            $table->boolean('is_scheduled')->default(false);
+            $table->date('scheduled_date')->nullable();
+            $table->enum('status', ['pending', 'active', 'completed', 'canceled'])->default('pending');
+            $table->timestamps();
+        });
+
+        // Transactions Table (For Payments and Status Tracking)
+        Schema::create('transactions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->foreignId('service_id')->nullable()->constrained('services')->onDelete('set null');
+            $table->foreignId('option_id')->nullable()->constrained('standalone_options')->onDelete('set null');
+            $table->decimal('amount', 10, 2);
+            $table->enum('payment_status', ['pending', 'paid', 'failed', 'refunded'])->default('pending');
+            $table->string('payment_method')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('transactions');
+        Schema::dropIfExists('user_standalone_options');
+        Schema::dropIfExists('user_services');
+        Schema::dropIfExists('standalone_options');
+        Schema::dropIfExists('pricing_plans');
+        Schema::dropIfExists('services');
+    }
+};
+
+
+
+
+
+
+
+
 
 array:5 [ // app\Http\Controllers\User\CustomerController.php:326
   "_token" => "1Vt5Ps028DVNHOXR9pYuA7R1ffYHMglVJ7baWhcG"
