@@ -1,4 +1,17 @@
 
+ function findByInspectionAlocation(array $data){
+        $findSchedule = Inspection::where('user_id', $data['inspoctor_id'])
+        ->where(function($query) use ($data) {
+            $query->whereBetween('insp_start_datetime', [$data['start_datetime'], $data['end_datetime']])
+                  ->WhereBetween('insp_end_datetime', [$data['start_datetime'], $data['end_datetime']]);
+        })
+        ->first();
+        return $findSchedule;
+    }
+
+
+
+
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
