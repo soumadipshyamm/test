@@ -1,3 +1,77 @@
+public function inspactionCreate(Request $request)
+{
+    // Convert start_datetime to Carbon instance
+    $startDatetime = Carbon::parse($request->start_datetime);
+
+    // If end_datetime is missing, set it to start_datetime + 1 hour
+    $endDatetime = $request->end_datetime 
+        ? Carbon::parse($request->end_datetime) 
+        : $startDatetime->copy()->addHour();
+
+    // Validate request data
+    $validator = Validator::make([
+        'customer_id' => $request->customer_id,
+        'inspection_type_id' => $request->inspection_type_id,
+        'inspoctor_id' => $request->inspoctor_id,
+        'start_datetime' => $startDatetime,
+        'end_datetime' => $endDatetime, // Ensured to be at least 1 hour after start
+    ], [
+        'customer_id' => 'required|exists:users,id',
+        'inspection_type_id' => 'required',
+        'inspoctor_id' => 'required|exists:users,id',
+        'start_datetime' => 'required|date',
+        'end_datetime' => 'required|date|after:start_datetime',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    // Check for conflicting inspection slots
+    $findInspaction = $this->Inspaction->findByInspectionAlocation([
+        'inspoctor_id' => $request->inspoctor_id,
+        'start_datetime' => $startDatetime->format('Y-m-d H:i:s'),
+        'end_datetime' => $endDatetime->format('Y-m-d H:i:s'),
+    ]);
+
+    DB::beginTransaction();
+    try {
+        if (!$findInspaction) {
+            if ($request->has('id') && !is_null($request->id)) {
+                $isUpdated = $this->Inspaction->updateInspaction([
+                    'customer_id' => $request->customer_id,
+                    'inspection_type_id' => $request->inspection_type_id,
+                    'inspoctor_id' => $request->inspoctor_id,
+                    'start_datetime' => $startDatetime->format('Y-m-d H:i:s'),
+                    'end_datetime' => $endDatetime->format('Y-m-d H:i:s'),
+                ], $request->id);
+
+                $result = $isUpdated ? new InspactionResource($isUpdated) : [];
+                $message = "Successfully updated Inspection.";
+            } else {
+                $isCreated = $this->Inspaction->createInspaction([
+                    'customer_id' => $request->customer_id,
+                    'inspection_type_id' => $request->inspection_type_id,
+                    'inspoctor_id' => $request->inspoctor_id,
+                    'start_datetime' => $startDatetime->format('Y-m-d H:i:s'),
+                    'end_datetime' => $endDatetime->format('Y-m-d H:i:s'),
+                ]);
+
+                $result = $isCreated ? new InspactionResource($isCreated) : [];
+                $message = "Successfully created Inspection.";
+            }
+        } else {
+            $message = "There is already a scheduled appointment for this time.";
+            $result = $findInspaction;
+        }
+
+        DB::commit();
+        return $this->responseJson(true, 200, $message, $result);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return $this->responseJson(false, 500, 'Booking creation failed: ' . $e->getMessage());
+    }
+}
 
 public function inspactionCreate(Request $request)
 {
