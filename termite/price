@@ -1,33 +1,46 @@
+  public function inspactionCreate(Request $request)
+    {
+        $result=[];
+        $message="";
+        // dd($request->all());
+        $validator = Validator::make($request->all(), [
+            'customer_id' => 'required|exists:users,id',
+            'inspection_type_id' => 'required',
+            'inspoctor_id' => 'required|exists:users,id',
+            'start_datetime' => 'required|date',
+            'end_datetime' => 'required|date|after:start_datetime',
+        ]);
 
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        $findInspaction = $this->Inspaction->findByInspectionAlocation($request->except(['_token']));
+        // dd( $findInspaction);
 
-
-function findByInspectionAllocation(array $data) {
-    return Inspection::where('user_id', $data['inspector_id'])
-        ->where(function($query) use ($data) {
-            $query->where(function ($q) use ($data) {
-                $q->where('insp_start_datetime', '<', $data['end_datetime']) // Existing starts before requested ends
-                  ->where('insp_end_datetime', '>', $data['start_datetime']); // Existing ends after requested starts
-            });
-        })
-        ->exists(); // Returns true if a conflict exists
-}
-
-
-
-
-
- function findByInspectionAlocation(array $data){
-        $findSchedule = Inspection::where('user_id', $data['inspoctor_id'])
-        ->where(function($query) use ($data) {
-            $query->whereBetween('insp_start_datetime', [$data['start_datetime'], $data['end_datetime']])
-                  ->WhereBetween('insp_end_datetime', [$data['start_datetime'], $data['end_datetime']]);
-        })
-        ->first();
-        return $findSchedule;
+        DB::beginTransaction();
+        try {
+            if(!$findInspaction){
+                if ($request->has('id') && $request->id !== null) {
+                    $isUpdated = $this->Inspaction->updateInspaction($request->except(['_token']), $request->id);
+                    $result = $isUpdated ? new InspactionResource($isUpdated) : [];
+                    $message = "Successfully updated Inspaction.";
+                } else {
+                        $isCreated = $this->Inspaction->createInspaction($request->except(['_token', 'id']));
+                        $result = $isCreated ? new InspactionResource($isCreated) : [];
+                        $message = "Successfully created Inspaction.";
+                }
+            }else{
+                $message="There is already a scheduled appointment for this time";
+                $result =$findInspaction;
+            }
+            DB::commit();
+            return $this->responseJson(true, 200, $message, $result);
+        } catch (\Exception $e) {
+            // Rollback transaction in case of error
+            DB::rollBack();
+            return $this->responseJson(false, 500, 'Booking creation failed: ' . $e->getMessage());
+        }
     }
-
-
-
 
 
 use Illuminate\Database\Migrations\Migration;
