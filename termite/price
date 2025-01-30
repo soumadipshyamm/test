@@ -1,4 +1,51 @@
-  public function inspactionCreate(Request $request)
+
+public function inspactionCreate(Request $request)
+{
+    // Validate input data
+    $validator = Validator::make($request->all(), [
+        'customer_id' => 'required|exists:users,id',
+        'inspection_type_id' => 'required|exists:inspection_types,id', // Assuming valid inspection types
+        'inspoctor_id' => 'required|exists:users,id',
+        'start_datetime' => 'required|date_format:Y-m-d H:i:s',
+        'end_datetime' => 'required|date_format:Y-m-d H:i:s|after:start_datetime',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first());
+    }
+
+    // Check for overlapping bookings
+    $conflict = $this->Inspaction->findByInspectionAlocation($request->only(['inspoctor_id', 'start_datetime', 'end_datetime']));
+
+    if ($conflict) {
+        return $this->responseJson(false, 409, "There is already a scheduled appointment for this time.", $conflict);
+    }
+
+    DB::beginTransaction();
+    try {
+        // If ID exists, update; otherwise, create a new entry
+        $inspection = $request->has('id') && $request->id 
+            ? $this->Inspaction->updateInspaction($request->except(['_token']))
+            : $this->Inspaction->createInspaction($request->except(['_token', 'id']));
+
+        if (!$inspection) {
+            throw new \Exception("Inspection could not be saved.");
+        }
+
+        DB::commit();
+        return $this->responseJson(true, 200, "Successfully " . ($request->has('id') ? "updated" : "created") . " Inspection.", new InspactionResource($inspection));
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return $this->responseJson(false, 500, "Booking creation failed: " . $e->getMessage());
+    }
+}
+
+
+
+
+
+
+public function inspactionCreate(Request $request)
     {
         $result=[];
         $message="";
