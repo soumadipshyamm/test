@@ -1,4 +1,21 @@
 
+
+
+function findByInspectionAllocation(array $data) {
+    return Inspection::where('user_id', $data['inspector_id'])
+        ->where(function($query) use ($data) {
+            $query->where(function ($q) use ($data) {
+                $q->where('insp_start_datetime', '<', $data['end_datetime']) // Existing starts before requested ends
+                  ->where('insp_end_datetime', '>', $data['start_datetime']); // Existing ends after requested starts
+            });
+        })
+        ->exists(); // Returns true if a conflict exists
+}
+
+
+
+
+
  function findByInspectionAlocation(array $data){
         $findSchedule = Inspection::where('user_id', $data['inspoctor_id'])
         ->where(function($query) use ($data) {
