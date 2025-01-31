@@ -1,1 +1,46 @@
 
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Http\JsonResponse;
+
+class BaseController extends Controller
+{
+    // Paginate already available data
+    public function paginateResults($finalData, $perPage = 50): JsonResponse
+    {
+        // Determine the current page and the offset
+        $page = request()->get('page', 1);  // Default to page 1 if no page parameter is provided
+        $offset = ($page - 1) * $perPage;
+
+        // Slice the data to simulate pagination
+        $data = array_slice($finalData, $offset, $perPage);
+
+        // Create a LengthAwarePaginator instance
+        $paginator = new LengthAwarePaginator(
+            $data,
+            count($finalData),  // Total number of items
+            $perPage,           // Number of items per page
+            $page,              // Current page
+            ['path' => request()->url()]  // Correct the pagination links
+        );
+
+        // Return paginated data as JSON response
+        return response()->json($paginator);
+    }
+}
+
+
+
+use Illuminate\Http\Request;
+
+class ActivityController extends BaseController
+{
+    public function index(Request $request)
+    {
+        // Example of already processed or fetched data
+        $finalData = \App\Models\Activity::all();  // You can replace this with your custom data
+
+        // Paginate the already fetched data
+        return $this->paginateResults($finalData, 10);  // You can adjust the perPage value
+    }
+}
+
