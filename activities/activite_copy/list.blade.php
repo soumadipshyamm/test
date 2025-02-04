@@ -1,3 +1,143 @@
+array:16 [ // resources\views/common/pdf/issue.blade.php
+  "id" => 93
+  "uuid" => "26ba3e7c-2977-4287-9582-27af8ee2c8bf"
+  "name" => "2025-01-31"
+  "date" => "2025-01-31"
+  "details" => null
+  "remarks" => null
+  "projects_id" => 39
+  "store_id" => null
+  "user_id" => 34
+  "company_id" => 14
+  "is_active" => 1
+  "created_at" => "2025-01-31T10:26:13.000000Z"
+  "updated_at" => "2025-01-31T10:26:13.000000Z"
+  "inv_issue_store" => array:1 [
+    0 => array:12 [
+      "id" => 46
+      "uuid" => "7a5eee2b-8669-4912-ac33-24c3d8ff866d"
+      "name" => "Main Store"
+      "location" => null
+      "company_id" => 14
+      "projects_id" => 39
+      "is_active" => 1
+      "created_at" => "2025-01-30T15:50:55.000000Z"
+      "updated_at" => "2025-01-30T15:50:55.000000Z"
+      "deleted_at" => null
+      "code" => null
+      "pivot" => array:2 [
+        "inv_issues_id" => 93
+        "store_warehouses_id" => 46
+      ]
+    ]
+  ]
+  "inv_issue_goods" => array:2 [
+    0 => array:18 [
+      "id" => 232
+      "uuid" => "6817f444-495e-46d6-909d-da726cdebd20"
+      "inv_issues_id" => 93
+      "materials_id" => null
+      "issue_no" => "672710"
+      "date" => "2025-01-31"
+      "type" => "materials"
+      "inv_issue_lists_id" => 2
+      "img" => null
+      "remarkes" => null
+      "company_id" => 14
+      "is_active" => 1
+      "created_at" => "2025-01-31T10:27:19.000000Z"
+      "updated_at" => "2025-01-31T10:27:19.000000Z"
+      "deleted_at" => null
+      "tag_id" => null
+      "inv_issue_details" => []
+      "inv_issue_list" => array:8 [
+        "id" => 2
+        "uuid" => "fbd15aeb-a0c6-4509-9b52-1402f3da6c91"
+        "name" => "Contractor"
+        "slug" => "contractor"
+        "remarkes" => null
+        "is_active" => 1
+        "created_at" => "2024-04-10T02:16:10.000000Z"
+        "updated_at" => "2024-04-10T02:16:10.000000Z"
+      ]
+    ]
+    1 => array:18 [
+      "id" => 233
+      "uuid" => "83a657d2-42ff-45bf-9ca8-714cb2e3e8f1"
+      "inv_issues_id" => 93
+      "materials_id" => null
+      "issue_no" => "735955"
+      "date" => "2025-01-31"
+      "type" => "materials"
+      "inv_issue_lists_id" => 2
+      "img" => null
+      "remarkes" => null
+      "company_id" => 14
+      "is_active" => 1
+      "created_at" => "2025-01-31T10:27:41.000000Z"
+      "updated_at" => "2025-01-31T10:42:31.000000Z"
+      "deleted_at" => null
+      "tag_id" => null
+      "inv_issue_details" => array:1 [
+        0 => array:17 [
+          "id" => 233
+          "uuid" => "f39f2cb1-36af-48e0-8d6c-397b4c947094"
+          "inv_issue_goods_id" => 233
+          "materials_id" => 46
+          "activities_id" => 968
+          "issue_qty" => "25"
+          "stock_qty" => 1673
+          "remarkes" => null
+          "type" => "materials"
+          "company_id" => 14
+          "is_active" => 1
+          "created_at" => "2025-01-31T10:41:32.000000Z"
+          "updated_at" => "2025-01-31T10:42:11.000000Z"
+          "deleted_at" => null
+          "assets_id" => null
+          "assets" => null
+          "materials" => array:13 [
+            "id" => 46
+            "uuid" => "48e08edc-79e5-4dac-9d53-a928f6d2a43c"
+            "name" => "Binding wire"
+            "class" => "B"
+            "code" => "M016925"
+            "specification" => null
+            "unit_id" => 31
+            "company_id" => 14
+            "is_active" => 1
+            "deleted_at" => null
+            "created_at" => "2025-01-03T10:31:58.000000Z"
+            "updated_at" => "2025-01-03T10:31:58.000000Z"
+            "type" => null
+          ]
+        ]
+      ]
+      "inv_issue_list" => array:8 [
+        "id" => 2
+        "uuid" => "fbd15aeb-a0c6-4509-9b52-1402f3da6c91"
+        "name" => "Contractor"
+        "slug" => "contractor"
+        "remarkes" => null
+        "is_active" => 1
+        "created_at" => "2024-04-10T02:16:10.000000Z"
+        "updated_at" => "2024-04-10T02:16:10.000000Z"
+      ]
+    ]
+  ]
+ 
+  ]
+]
+
+
+
+
+
+
+
+
+
+
 <div class="col-md-12">
     @php
         $firstIssue = $datas->first();
