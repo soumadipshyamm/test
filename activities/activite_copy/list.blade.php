@@ -1,3 +1,51 @@
+<div class="col-md-12">
+    @php
+        $firstIssue = $datas->first();
+        $type = $firstIssue->type ?? 'materials';
+        $isMaterial = $type === 'materials';
+    @endphp
+
+    <h3>{{ $isMaterial ? 'Material' : 'Assets' }}</h3>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Sl No.</th>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Specification</th>
+                <th>Units</th>
+                <th>Issue Qty</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($datas as $data)
+                @foreach ($data->inv_issue_details ?? [] as $key => $detail)
+                    @php
+                        $item = $detail->materials ?? $detail->assets;
+                        $unit = $item->units->unit ?? 'N/A';
+                    @endphp
+                    <tr>
+                        <td>{{ $loop->parent->iteration }}.{{ $loop->iteration }}</td>
+                        <td class="td-line-break">{{ $item->code ?? 'N/A' }}</td>
+                        <td>{{ $item->name ?? 'N/A' }}</td>
+                        <td class="td-line-break">{{ $item->specification ?? 'N/A' }}</td>
+                        <td>{{ $unit }}</td>
+                        <td>{{ $detail->issue_qty > 0 ? $detail->issue_qty : 'N/A' }}</td>
+                    </tr>
+                @endforeach
+            @endforeach
+        </tbody>
+    </table>
+</div>
+
+
+
+
+
+
+
+
 array:2 [ // resources\views/common/pdf/issue.blade.php
   0 => array:18 [
     "id" => 232
