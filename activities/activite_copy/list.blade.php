@@ -1,3 +1,77 @@
+<div class="col-md-12">
+    <h3>Issue Details</h3>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Sl No.</th>
+                <th>Issue No.</th>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Material/Asset Code</th>
+                <th>Name</th>
+                <th>Specification</th>
+                <th>Stock Qty</th>
+                <th>Issue Qty</th>
+                <th>Issued To</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($datas as $key => $data)
+                @php
+                    $issueNo = $data['issue_no'] ?? 'N/A';
+                    $date = $data['date'] ?? 'N/A';
+                    $type = ucfirst($data['type'] ?? 'N/A');
+                    $issuedTo = $data['inv_issue_list']['name'] ?? 'N/A';
+                @endphp
+
+                @if (!empty($data['inv_issue_details']))
+                    @php $validDetails = collect($data['inv_issue_details'])->filter(function ($detail) {
+                        return isset($detail['issue_qty'], $detail['stock_qty']) &&
+                               $detail['issue_qty'] > 0 &&
+                               $detail['stock_qty'] > 0;
+                    }); @endphp
+
+                    @if ($validDetails->isNotEmpty())
+                        @foreach ($validDetails as $index => $detail)
+                            @php
+                                $item = $detail['type'] === 'materials' ? $detail['materials'] : $detail['assets'];
+                            @endphp
+                            <tr>
+                                <td>{{ $loop->parent->iteration }}.{{ $loop->iteration }}</td>
+                                <td>{{ $issueNo }}</td>
+                                <td>{{ $date }}</td>
+                                <td>{{ $type }}</td>
+                                <td>{{ $item['code'] ?? 'N/A' }}</td>
+                                <td>{{ $item['name'] ?? 'N/A' }}</td>
+                                <td>{{ $item['specification'] ?? 'N/A' }}</td>
+                                <td>{{ $detail['stock_qty'] }}</td>
+                                <td>{{ $detail['issue_qty'] }}</td>
+                                <td>{{ $issuedTo }}</td>
+                            </tr>
+                        @endforeach
+                    @else
+                        <tr>
+                            <td colspan="10" style="text-align: center;">No Valid Issue Details Available</td>
+                        </tr>
+                    @endif
+                @else
+                    <tr>
+                        <td colspan="10" style="text-align: center;">No Issue Details Available</td>
+                    </tr>
+                @endif
+            @endforeach
+        </tbody>
+    </table>
+</div>
+
+
+
+
+
+
+
+
 array:16 [ // resources\views/common/pdf/issue.blade.php
   "id" => 93
   "uuid" => "26ba3e7c-2977-4287-9582-27af8ee2c8bf"
