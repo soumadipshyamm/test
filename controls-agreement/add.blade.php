@@ -5,14 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Document</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/css/bootstrap.min.css" rel="stylesheet" />
-
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <style>
         .section-title {
-            background-color: {{ isset($officeDetails) ? $officeDetails->color : '#4dd2ff' }};
+            background-color: cadetblue;
             color: white;
         }
 
@@ -20,53 +21,148 @@
             height: 90px;
             width: 200px;
         }
+
+        .custom-back-button {
+            background-color: #3c1ad6;
+            color: #ffffff;
+            /* Optional: Change text color */
+        }
+
+        .mainBody {
+            border: 1px solid #000000;
+        }
     </style>
 </head>
 
-<body>
 
+{{-- @php
+    $datas = [
+        "_token" => "TwAB6QuHOArNOse4YA2hAHgeCsh1F3c21rkMS960",
+        "uuid" => "227c41a2-9d83-40ea-9bd2-367ebb5ba4e2",
+        "servicePlans" => [
+            "drywood_subterranean" => [
+                "initial_price" => "749",
+                "reoccurring" => "Sit ab nemo cillum",
+                "renewal" => "month",
+                "status" => "1"
+            ],
+            "drywood" => [
+                "servicePlanCheckbox" => "drywood",
+                "initial_price" => "724",
+                "reoccurring" => "Nihil esse repellend",
+                "renewal" => "month"
+            ],
+            "subterranean" => [
+                "servicePlanCheckbox" => "subterranean",
+                "initial_price" => "135",
+                "reoccurring" => "Vitae voluptas qui a",
+                "renewal" => "year"
+            ]
+        ],
+        "standalone_options" => [
+            "fumigation" => [
+                "initialPrice" => "796"
+            ],
+            "preventive" => [
+                "type" => "preventive",
+                "initialPrice" => "220"
+            ],
+            "one_time_local" => [
+                "type" => "one_time_local",
+                "initialPrice" => "657",
+                "status" => "1"
+            ],
+            "wood_repairs" => [
+                "type" => "wood_repairs",
+                "initialPrice" => "849"
+            ],
+            "tile_warranty" => [
+                "initialPrice" => "432",
+                "duration" => null
+            ],
+            "insulation" => [
+                "type" => "insulation",
+                "initialPrice" => "615"
+            ],
+            "inspection_fee" => [
+                "type" => "inspection_fee",
+                "initialPrice" => "506"
+            ],
+            "other" => [
+                "initialPrice" => "647",
+                "description" => "Velit laboriosam q"
+            ],
+            "discounts" => [
+                "initialPrice" => "65",
+                "status" => "1"
+            ]
+        ],
+        "services_other_option" => [
+            "option" => null,
+            "other" => null,
+            "office" => "2",
+            "documents" => null,
+            "email_wdo_report" => "1",
+            "email_pricing" => "1",
+            "escrow_inspection" => "1"
+        ]
+    ];
+@endphp --}}
+
+
+{{-- @dd($datas) --}}
+<body>
     <section class="userlist_sec">
         <div class="container">
             <div class="row">
                 <div class="col-12">
-                    @include('layout.partials.headbar')
                     <div class="usertab_con">
+                        {{-- ********************************************************************************* --}}
                         <div class="tabcon_head">
                             <div class="row">
                                 <div class="col-md-3">
-                                    <h3 class="user_title">Agreements</h3>
+                                    <h3 class="user_title">AGREEMENTS</h3>
                                 </div>
                                 <div class="col-md-9">
-                                    <div class="tabconh_right">
-                                        <form class="search_form" id="search_form">
-                                            <div class="search_sec">
-                                                <div>
-                                                    <select name="select_customer" id="select_customer"
-                                                        class="form-control select_customer">
-                                                        <option value="">---Select Customer---</option>
-                                                        {{ getCustomer(isset($customerDetails) ? $customerDetails?->uuid : '') }}
-                                                    </select>
+                                    <div class="row">
+                                        <div class="pb-2">
+                                            <button onclick="window.history.back();" class="btn btn-primary float-end custom-back-button">
+                                                <i class="fa-solid fa-arrow-left"></i>
+                                                Back
+                                            </button>
+                                        </div>
+                                        <div class="tabconh_right">
+                                            <form class="search_form" id="search_form">
+                                                <div class="search_sec">
+                                                    <div>
+                                                        <select name="select_customer" id="select_customer"
+                                                            class="form-control select_customer">
+                                                            <option value="">---Select Customer---</option>
+                                                            {{ getCustomer(isset($customerDetails) ? $customerDetails?->uuid : '') }}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <select name="select_office" id="select_office"
+                                                            class="form-control select_office">
+                                                            <option value="">---Select Office---</option>
+                                                            {{ getOfficeList(isset($officeDetails) ? $officeDetails?->id : '') }}
+                                                        </select>
+                                                    </div>
+                                                    <div class="action_btn">
+                                                        <a href="javascript:void(0)"
+                                                            class="btn btn-primary searchCustomerOffice">
+                                                            <i class="fa-solid fa-magnifying-glass"
+                                                                aria-hidden="true"></i>
+                                                        </a>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <select name="select_office" id="select_office"
-                                                        class="form-control select_office">
-                                                        <option value="">---Select Office---</option>
-                                                        {{ getOfficeList(isset($officeDetails) ? $officeDetails?->id : '') }}
-                                                    </select>
-                                                </div>
-                                                <div class="action_btn">
-                                                    <a href="javascript:void(0)"
-                                                        class="btn btn-primary searchCustomerOffice">
-                                                        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        </form>
+                                            </form>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
+                        {{-- ********************************************************************************* --}}
                         <div class="tab-contentUncaught TypeError: Failed to execute 'getComputedStyle' on 'Window': parameter 1 is not of type 'Element'. pdf-section "
                             id="pills-tabContent">
                             <div class="tab-pane fade show active" id="pills-user" role="tabpanel"
@@ -74,8 +170,8 @@
                                 <form action="{{ route('agreement.add') }}" class="formSubmit fileUpload"
                                     id="addAgremmetForm" method="post" enctype="multipart/form-data">
                                     @csrf
-                                    <input type="hidden" name="agreement_id" id="agreement_id" value="">
-
+                                    <input type="hidden" name="agreement_id" id="agreement_id"
+                                        value="{{ isset($datas->uuid) ? $datas?->uuid: '' }}">
                                     <div class="modal-body mainBody">
                                         <div class="addnumodal">
                                             {{-- ***********************Header ***************************************** --}}
@@ -88,18 +184,15 @@
                                                                 alt="" style="height: 100px; width:250px"></a>
                                                     </div>
                                                 </div>
-
                                                 <div class="col-md-4">
                                                     <div class="col-md-6">
                                                         <div class=" d-flex flex-wrap justify-content-center">
-                                                            <h3 class="form-title head-title"
+                                                            <h3 class="form-title head-title" id="head-title"
                                                                 style="line-break: anywhere;">Enter Title</h3>
                                                             <span class="add-heading edit-title"><i class="fas fa-edit"
                                                                     style="color: #07d6f1;"></i></span>
-
                                                             {{-- <span class="title-save"><i class="fa-solid fa-check"
                                                                     style="color: #228505;"></i></span> --}}
-
                                                         </div>
                                                     </div>
                                                 </div>
@@ -194,7 +287,7 @@
                                                 {{-- ********************************Customer Address**************** --}}
                                                 <div class="col-lg-6 col-md-6 col-sm-12">
                                                     <div class="address-card">
-                                                        <div class="section-title"><b>Address</b></div>
+                                                        <div class="section-title mb-3"><b>Address</b></div>
                                                         <div class="row">
                                                             <input type="hidden" name="customer[uuid]"
                                                                 id="uuid" class="uuid"
@@ -295,10 +388,10 @@
                                                         </div>
                                                     </div>
                                                 </div>
-                                                {{-- ********************************Billing Address***************************************** --}}
+                                                {{-- ********************************Billing Address************************* --}}
                                                 <div class="col-lg-6 col-md-6 col-sm-12">
                                                     <div class="address-card">
-                                                        <div class="section-title"><b>Billing Address</b></div>
+                                                        <div class="section-title mb-3"><b>Billing Address</b></div>
                                                         <div class="row">
                                                             <input type="hidden" name="customer_bill[uuid]"
                                                                 id="uuid" class="billing_uuid"
@@ -331,7 +424,7 @@
                                                                             id="billing_street"
                                                                             name="customer_bill[billing_street]"
                                                                             value="{{ $customerDetails?->billingDitails?->street ?? '' }}"
-                                                                            {{-- {{ isset($customerDetails?->billingDitails?->street) ? 'readonly' : '' }} --}}>
+                                                                            {{-- {{ isset($customerDetails?->billingDitails?->street) ? 'readonly' : 'style=display:none;' }} --}}>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -440,12 +533,12 @@
                                                         </div>
                                                     </div>
                                                 </div>
-                                                {{-- ************************************************************ --}}
+                                                {{-- ************************************************************************ --}}
                                             </div>
-                                            {{-- ******************************** Service Plans Section***************************************** --}}
+                                            {{-- ******************************** Service Plans Section************************* --}}
                                             <div class="mb-4">
-                                                <h4 class="section-title"><strong>Service Plans</strong></h4>
-                                                <div class="mb-3">
+                                                <h5 class="section-title mb-3 "><b>Service Plans</b></h5>
+                                                <div class="mb-3 ">
                                                     <div class="form-check form-check-inline">
                                                         <input
                                                             class="form-check-input check-service-plan drywood_and_subterranean_termite_service"
@@ -455,7 +548,6 @@
                                                         <label class="form-check-label" for="servicePlan1">Drywood and
                                                             Subterranean Termite Service</label>
                                                     </div>
-
                                                     <div class="form-check form-check-inline">
                                                         <input
                                                             class="form-check-input check-service-plan drywood_only_service"
@@ -465,7 +557,6 @@
                                                             Only
                                                             Service</label>
                                                     </div>
-
                                                     <div class="form-check form-check-inline">
                                                         <input
                                                             class="form-check-input check-service-plan subterranean_only_service"
@@ -486,10 +577,10 @@
                                                     treatment
                                                     or fumigation.</p>
                                             </div>
-                                            {{-- ********************************One-Time Services Section***************************************** --}}
+                                            {{-- ********************************One-Time Services Section********************* --}}
                                             <div class="mb-4">
-                                                <h4 class="section-title"><b>One-Time Services</b></h4>
-                                                <div class="mb-3 d-flex flex-wrap">
+                                                <h5 class="section-title mb-3"><b>One-Time Services</b></h5>
+                                                <div class="mb-3 d-flex flex-wrap ">
                                                     <div class="form-check form-check-inline">
                                                         <input class="form-check-input" type="checkbox"
                                                             id="fumigationCheck" name="services[fumigation][]"
@@ -605,9 +696,10 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            {{-- ********************************Description Section***************************************** --}}
+                                            {{-- ********************************Description Section************************ --}}
                                             <div class="row">
-                                                <div class="section-title"><b>Description of Services and Vendor for
+                                                <div class="section-title mb-3"><b>Description of Services and Vendor
+                                                        for
                                                         Repairs (if applicable)</b></div>
                                                 <div class="mb-3">
                                                     <div class="form-check form-check-inline">
@@ -618,10 +710,9 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            {{-- ********************************Payment and Terms Section***************************************** --}}
+                                            {{-- ********************************Payment and Terms Section**************************** --}}
                                             <div class="row">
-                                                <div class="section-title"><b>Payment and Terms</b></div>
-
+                                                <div class="section-title mb-3"><b>Payment and Terms</b></div>
                                                 <div class="mb-3">
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="totalInitial">Total
@@ -629,7 +720,6 @@
                                                         <input class="form-control" type="text" id="totalInitial"
                                                             name="payment[total_initial]">
                                                     </div>
-
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="totalYearlyRenewal">Total
                                                             Yearly
@@ -638,7 +728,6 @@
                                                             id="totalYearlyRenewal"
                                                             name="payment[total_yearly_renewal]">
                                                     </div>
-
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="monthlyRenewal">Monthly
                                                             Renewal</label>
@@ -647,8 +736,9 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            {{-- ******************************** Editable Dynamic Text Box Section***************************************** --}}
+                                            {{-- ******************************** Editable Dynamic Text Box Section****************** --}}
                                             <div class="row">
+                                                <div class="section-title mb-3"><b>Editable Dynamic</b></div>
                                                 <div class="mb-3">
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="dynamicTextBox1">Editable
@@ -664,7 +754,6 @@
                                                             name="dynamicTextBox[dynamic_text_box_one][initial_here_one]">
                                                     </div>
                                                 </div>
-
                                                 <div class="mb-3">
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="dynamicTextBox2">Editable
@@ -680,7 +769,6 @@
                                                             name="dynamicTextBox[dynamic_text_box_two][initial_here_two]">
                                                     </div>
                                                 </div>
-
                                                 <div class="mb-3">
                                                     <div class="form-check form-check-inline">
                                                         <label class="form-check-label" for="dynamicTextBox3">Editable
@@ -690,7 +778,6 @@
                                                             cols="100"></textarea>
                                                     </div>
                                                 </div>
-
                                                 <div class="mb-3">
                                                     <h5>Customer Signature</h5>
                                                     <div class="form-check form-check-inline">
@@ -706,18 +793,12 @@
                                         </div>
                                     </div>
                                     <div class="modal-footer">
-                                        <button type="button" class="btn btn-secondary"
+                                        <button type="button" class="btn btn-danger cancle-page"
                                             data-bs-dismiss="modal">CANCEL</button>
-                                        <a href="javascript:void(0)" class="btn btn-primary  saveAndNext"
+                                        <a href="javascript:void(0)" class="btn btn-info  saveAndNext"
                                             id="saveAndNext">Save & Next -></a>
-
                                         <a href="javascript:void(0)" class="btn btn-primary addAgremmet saveAndUpload"
                                             id="saveAndUpload">Save & PDF</a>
-                                        {{-- <button type="submit" class="btn btn-primary addAgremmet saveAndUpload"
-                                            id="saveAndUpload">Save & PDF</button> --}}
-                                        {{-- <a href="javascript:;" class="dwn" id="download_report">
-                                            Download PDF
-                                        </a> --}}
                                     </div>
                                 </form>
                             </div>
@@ -727,15 +808,30 @@
             </div>
         </div>
     </section>
-
     {{-- // *********************************************************************************** --}}
     <script src="https://code.jquery.com/jquery-3.6.3.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script type="text/javascript" src="https://html2canvas.hertzen.com/dist/html2canvas.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.3/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script src="{{ asset('assets/js/common.js') }}"></script>
 
     <script>
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+        var APP_URL = {!! json_encode(url('/')) !!};
+        var TOAST_POSITION = 'top-right';
+    </script>
+    <script>
+        $(document).on("click", ".cancle-page", function() {
+            window.location.href = "{{ route('agreement.list') }}";
+        });
+        // ************************************************************************************************
         $(document).ready(function() {
             setDropdownValues();
             setbillingDropdownValues();
@@ -743,25 +839,16 @@
             $('.search_form').hide();
             $('.saveAndUpload').hide();
         });
-        // ********************************************************
-        // $(".addAgremmet").on('click', function(e) {
-        //     generatePDF();
-        // });
-        // ********************************************************
-
+        // ************************************************************************************************
         $(".saveAndNext").on('click', function(e) {
             $('.office_cancle').hide();
             $('.addres_bill_cancle').hide();
             $('.saveAndNext').hide();
             $('.search_form').show();
+            // $('.searchCustomerOffice').prop('disabled', true);
             $('.saveAndUpload').show();
         });
-        // ***********************************************************************************
-        // $(".searchCustomerOffice").on('click', function(e) {
-        //     $("#search_form").submit();
-        // });
-        // agremmetAdd
-        // *****************************Header******************************************************
+        // *****************************Header****************************************************************
         $(document).on("click", ".add-heading", function() {
             // let id = $(this).siblings("h3.form-title.head-title");
             $(".edit-title").hide();
@@ -771,7 +858,6 @@
                     type: 'text',
                     id: 'fileInput',
                     name: 'title',
-
                 }).on('input', function() {
                     // Update the h3 tag with the input value
                     const inputValue = $(this).val();
@@ -780,10 +866,6 @@
                     }
                     $('.head-title').text(inputValue);
                 })
-
-                // $(this).replaceWith(
-                //     '<span class="addres_bill_cancle"><i class="fas fa-times" style="color: #f70707;"></i></span>'
-                //     );
             );
         });
         $(document).on("click", ".title-save", function() {
@@ -791,7 +873,6 @@
             $(".edit-title").show();
             $(".title-save").hide();
         });
-
         $(document).on("click", ".img-upload", function() {
             // let id = $(this).siblings("h3.form-title.head-title");
             $(".office-logo").replaceWith(
@@ -807,7 +888,6 @@
                         reader.onload = function(e) {
                             // Remove any existing image
                             $('.office-logo').remove();
-
                             // Create and insert the new image
                             const img = $('<img>').attr({
                                 src: e.target.result,
@@ -821,30 +901,23 @@
                 })
             );
         });
-
         $(document).on("click", ".office_cancle", function() {
             let id = $(this).siblings("input");
             id.closest('div').remove();
             console.log(id);
             // alert("cancel");
         });
-
-        // $(document).on("click", ".upload-img", function() {
-
-        // });
-        // **************************Addres & Billing Delete Input Filed**********************************************************
+        // **************************Addres & Billing Delete Input Filed****************************
         $(document).on("click", ".addres_bill_cancle", function() {
             let id = $(this).closest('div').parent();
             id.remove();
-            // console.log(id);
-            // alert("cancel");
         });
-
-        // *************************Service Plans**********************************************************
+        // *************************Service Plans***************************************************
         $(document).on("click", ".check-service-plan", function() {
             let id = $(this).attr("id");
             let label = $("label[for='" + id + "']").html();
             let val = $("#" + id).val();
+
             let appData = ` <div class="mb-3 ${id }">
                             <div>
                             ${label}
@@ -853,7 +926,6 @@
                                 <label class="form-check-label" for="${id}">Initial</label>
                                 <input class="form-control initial_${val}" type="text" id="${id}" name="service_plan[${val}][initial]" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                             </div>
-
                             <div class="form-check form-check-inline">
                                 <label class="form-check-label" for="${id}">Yearly
                                     Renewal</label>
@@ -870,14 +942,12 @@
             } else {
                 $('.service-plan-detail').find(`.${id}`).remove();
             }
-
         });
 
         $(document).on("input", ".form-control", function() {
             let totalInitial = 0;
             let totalYearlyRenewal = 0;
             let monthlyRenewal = 0;
-
             $(".form-control").each(function() {
                 let classList = $(this).attr('class').split(/\s+/);
                 $.each(classList, function(index, item) {
@@ -890,7 +960,6 @@
                     }
                 }.bind(this));
             });
-
             $("#totalInitial").val(totalInitial.toFixed(2));
             $("#totalYearlyRenewal").val(totalYearlyRenewal.toFixed(2));
             $("#monthlyRenewal").val(monthlyRenewal.toFixed(2));
@@ -900,24 +969,20 @@
             // Find the closest input field to the checkbox
             $(this).closest('.form-check').find('.form-control').prop('disabled', !this.checked);
         });
-
         // *************************Country ,state,city***************************
         $(document).on("change", ".cust_country", function() {
             let country = $(this).val();
             stateByCountry(country, ".cust_state");
         });
-
         $(document).on("change", ".cust_state", function() {
             let state = $(this).val();
             getCity(state, ".cust_city");
         });
-
         // **************************************Billing*************************
         $(document).on("change", ".billing_select_country", function() {
             let country = $(this).val();
             stateByCountry(country, ".billing_select_state");
         });
-
         $(document).on("change", ".billing_select_state", function() {
             let state = $(this).val();
             getCity(state, ".billing_select_city");
@@ -933,14 +998,12 @@
                 if (countryId) {
                     $('#cust_country').val(countryId).trigger('change'); // Trigger change to update states
                 }
-
                 // Set selected value for State
                 if (stateId) {
                     $('#cust_state').val(stateId).trigger('change'); // Trigger change to update cities
                     // alert(stateId)
                     getCity(stateId, "#cust_city");
                 }
-
                 // // Set selected value for City
                 setTimeout(function() {
                     if (cityId) {
@@ -949,7 +1012,6 @@
                             'change'); // Trigger change to ensure any dependent logic is executed
                     }
                 }, 1000);
-
             }
         }
 
@@ -959,19 +1021,16 @@
                 var billingCountryId = "{{ $customerDetails->billingDitails->country_id ?? '' }}";
                 var billingstateId = "{{ $customerDetails->billingDitails->state_id ?? '' }}";
                 var billingcityId = "{{ $customerDetails->billingDitails->city_id ?? '' }}";
-
                 // Set selected value for Country
                 if (billingCountryId) {
                     $('#billing_country_id').val(billingCountryId).trigger(
                         'change'); // Trigger change to update states
                 }
-
                 // Set selected value for State
                 if (billingstateId) {
                     $('#billing_state_id').val(billingstateId).trigger('change'); // Trigger change to update cities
                     getCity(billingstateId, "#billing_city_id");
                 }
-
                 // // Set selected value for City
                 setTimeout(function() {
                     if (billingcityId) {
@@ -981,86 +1040,127 @@
                 }, 1000);
             }
         }
-        // **********************************************************************
+        // ******************************************************************************
+        function stateByCountry(country, stateClass) {
+            $.ajax({
+                type: "POST",
+                url: APP_URL + "/ajax/state-by-country",
+                data: {
+                    id: country
+                },
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') // Include CSRF token
+                },
+                success: function(response) {
+                    let stateHtml = response.status ?
+                        response.data.map(element =>
+                            `<option value="${element.id}">${element.name}</option>`).join('') :
+                        `<option value="">---Select---</option>`;
+                    $(stateClass).html(stateHtml);
+                },
+                error: function() {
+                    $(stateClass).html(`<option value="">---Select---</option>`);
+                },
+            });
+        }
+        // Function to get cities by state
+        function getCity(stateId, cityClass) {
+            $.ajax({
+                type: "POST",
+                url: APP_URL + "/ajax/city-by-state",
+                data: {
+                    id: stateId // Corrected variable name here
+                },
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content') // Include CSRF token
+                },
+                success: function(response) {
+                    let cityHtml = response.status ?
+                        response.data.map(element =>
+                            `<option value="${element.id}">${element.name}</option>`).join('') :
+                        `<option value="">---Select---</option>`;
+                    $(cityClass).html(cityHtml);
+                },
+                error: function() {
+                    $(cityClass).html(`<option value="">---Select---</option>`);
+                },
+            });
+        }
+        // ******************************************************************************
         function deleteImage(index) {
             let imgId = 'img' + index;
             let previewImgId = 'previewimg' + index;
             let deleteBtnId = 'delete' + index;
-
             document.getElementById(imgId).value = '';
             document.getElementById(previewImgId).src = `{{ asset('assets/images/blank${index}.png') }}`;
             document.getElementById(deleteBtnId).style.display = 'none';
         }
-        // **************************Make a pdf use canva*******************************************
+        // **************************Make a pdf use canva  with submit a form**************
         document.getElementById('saveAndUpload').addEventListener('click', async function() {
-            // alert("aaaaaaaaaa")
-            $("#fileInput").hide();
-            const {
-                jsPDF
-            } = window.jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = 220; // A4 width in mm
-            const pdfHeight = 297; // A4 height in mm (corrected to standard A4 height)
-            const margin = 10; // Margin to ensure borders are not clipped
-            const contentDivs = document.querySelectorAll('.mainBody');
-
-            // Apply styles to each element in the NodeList
-            contentDivs.forEach(div => {
-                div.style.fontSize = '1.65rem';
-                div.style.border = 'none';
-            });
-
-            for (const div of contentDivs) {
-                const canvas = await html2canvas(div, {
-                    scale: 1,
-                    useCORS: true,
-                    backgroundColor: null,
-                    logging: true,
-                });
-
-                const imgData = canvas.toDataURL('image/png');
-                const imgWidth = pdfWidth - margin * 2;
-                const imgHeight = (canvas.height * imgWidth / canvas.width);
-
-                // Check if the image exceeds the page height
-                if (imgHeight > pdfHeight - margin * 2) {
+            if ($('#fileInput').length > 0) {
+                $('#fileInput').hide();
+                const {
+                    jsPDF
+                } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const margin = 10;
+                const contentDivs = document.querySelectorAll('.mainBody');
+                // Apply temporary styles
+                contentDivs.forEach(div => Object.assign(div.style, {
+                    fontSize: '1.65rem',
+                    border: 'none'
+                }));
+                for (const div of contentDivs) {
+                    const canvas = await html2canvas(div, {
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor: null,
+                    });
+                    const imgData = canvas.toDataURL('image/png');
+                    const imgWidth = pdfWidth - margin * 2;
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                    // alert("height" + imgHeight)
+                    let y = margin;
                     let remainingHeight = imgHeight;
-                    let positionY = margin;
-
-                    // Add pages while the remaining height is greater than the page height
-                    while (remainingHeight > pdfHeight - margin * 2) {
-                        pdf.addImage(imgData, 'PNG', margin, positionY, imgWidth, pdfHeight - margin * 2);
-                        remainingHeight -= (pdfHeight - margin * 2);
-                        positionY = pdfHeight - margin; // Move to the bottom of the page
-                        // pdf.addPage(); // Add a new page
-                    }
-                    // alert(margin + '/' + positionY + '/' + imgWidth + '/' + remainingHeight);
-                    // Add the remaining part of the image
-                    pdf.addImage(imgData, 'PNG', margin, positionY, imgWidth, remainingHeight);
-                } else {
-                    // If it fits on one page, just add it normally
-                    pdf.addImage(imgData, 'PNG', margin, margin, imgWidth, imgHeight);
+                    // alert("remainingHeight" + remainingHeight)
+                    const renderHeight = Math.min(remainingHeight, pdfHeight - margin * 2);
+                    pdf.addImage(imgData, 'PNG', margin, y, imgWidth, renderHeight);
+                    remainingHeight -= renderHeight;
+                }
+                pdf.save("document.pdf");
+                // Reset styles
+                contentDivs.forEach(div => Object.assign(div.style, {
+                    fontSize: '',
+                    border: '1px solid #002947'
+                }));
+                document.getElementById('addAgremmetForm').submit();
+            } else {
+                const headTitleElement = document.querySelector('.head-title');
+                if (headTitleElement) {
+                    showToast("Please Enter Title", "warning");
                 }
             }
 
-            pdf.save("pdf");
-
-            // Reset styles after capturing
-            contentDivs.forEach(div => {
-                div.style.fontSize = '';
-                div.style.border = '1px solid #002947';
-            });
-
-            $("#addAgremmetForm").submit();
-
-
         });
-
         // ********************************************************************************
         $(document).on("click", '.searchCustomerOffice', function() {
             const officeId = $('.select_office').val();
             const customerId = $('.select_customer').val();
-
+            // alert(officeId)
+            if (!customerId || customerId.trim() === "") {
+                showToast("Please Select a Valid Customer", "warning");
+                return;
+            }
+            if (!officeId || officeId.trim() === "") {
+                showToast("Please Select a Valid Office", "warning");
+                return;
+            }
+            if (!customerId && !officeId) {
+                showToast("Please Select a Valid  Customer & Office", "warning");
+                return;
+            }
             $.ajax({
                 url: "{{ route('ajax.fetchOfficeDetails') }}",
                 type: "GET",
@@ -1071,8 +1171,10 @@
                 success: function(response) {
                     console.log(response);
                     // ***********************Header ************************************
-                    if (response.officeDetails.logo) {
+                    if (response.officeDetails && response.officeDetails.logo) {
                         $('.no_img').hide();
+                        $('.office-logo').remove();
+                        // Append the new image
                         const img = $('<img>').attr({
                             src: response.officeDetails.logo_path,
                             class: 'office-logo',
@@ -1080,11 +1182,12 @@
                         });
                         $('.upload-img').after(img);
                     }
-
-
-
+                    // **********************************************************
+                    if (response.officeDetails.color) {
+                        $('.section-title').css('background-color', response
+                            .officeDetails.color);
+                    }
                     // ***********************Office Details ************************************
-
                     $('.office_id').val(response.officeDetails.uuid);
                     if ($('.office_name').length > 0) {
                         $('.office_name').val(response.officeDetails.name);
@@ -1115,10 +1218,12 @@
                         $('.cust_name').val(response.customerDetails.name);
                     }
                     if ($('.cust_country').length > 0) {
-                        $('.cust_country').val(response.customerDetails.profile.country_id);
+                        $('.cust_country').val(response.customerDetails.profile
+                            .country_id);
                     }
                     if ($('.cust_zip_code').length > 0) {
-                        $('.cust_zip_code').val(response.customerDetails.profile.zip_code);
+                        $('.cust_zip_code').val(response.customerDetails.profile
+                            .zip_code);
                     }
                     if ($('.cust_state').length > 0) {
                         $('.cust_state').val(response.customerDetails.profile.state_id);
@@ -1129,38 +1234,38 @@
                     if ($('.cust_city').length > 0) {
                         $('.cust_city').val(response.customerDetails.profile.city_id);
                     }
-
                     // // ***********************Billing Details ************************************
                     if ($('.billing_uuid').length > 0) {
                         $('.billing_uuid').val(response.billingDetails.uuid);
                     }
                     if ($('.billing_building_number').length > 0) {
-                        $('.billing_building_number').val(response.billingDetails.building_number);
+                        $('.billing_building_number').val(response.billingDetails
+                            .building_number);
                     }
                     if ($('.billing_street').length > 0) {
                         $('.billing_street').val(response.billingDetails.street);
                     }
                     if ($('.billing_unit_number').length > 0) {
-                        $('.billing_unit_number').val(response.billingDetails.unit_number);
+                        $('.billing_unit_number').val(response.billingDetails
+                            .unit_number);
                     }
                     if ($('.billing_select_country').length > 0) {
-                        $('.billing_select_country').val(response.billingDetails.country_id);
+                        $('.billing_select_country').val(response.billingDetails
+                            .country_id);
                     }
                     if ($('.billing_zip_code').length > 0) {
                         $('.billing_zip_code').val(response.billingDetails.zip_code);
                     }
                     if ($('.billing_select_state').length > 0) {
-                        $('.billing_select_state').val(response.billingDetails.state_id);
+                        $('.billing_select_state').val(response.billingDetails
+                            .state_id);
                     }
                     if ($('.billing_ac_no').length > 0) {
                         $('.billing_ac_no').val(response.billingDetails.ac_no);
                     }
                 }
             });
-
         });
-
-
         // ********************************************************************************
     </script>
 </body>
