@@ -1,3 +1,48 @@
+
+function issuelistMaterials(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
+
+    $materials = Materials::where('company_id', $authCompany)
+        ->whereHas('invIssuesDetails', fn($query) => $query->whereNotNull('materials_id'))
+        ->with('inventorys') // Eager load to reduce queries
+        ->get();
+
+    $filteredMaterials = $materials->map(function ($material) {
+        $totalQty = $material->inventorys->total_qty ?? 0;
+        $material->total_stk_qty = $totalQty > 0 ? $totalQty : null;
+        return $material;
+    })->filter(fn($material) => !is_null($material->total_stk_qty));
+
+    return $this->responseJson(true, 200, 'Fetch Materials List Successfully', $filteredMaterials);
+}
+
+function issuelistMachine(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
+
+    $machines = Assets::where('company_id', $authCompany)
+        ->whereHas('invIssuesDetails', fn($query) => $query->whereNotNull('assets_id'))
+        ->with('inventory') // Eager load to reduce queries
+        ->get();
+
+    $filteredMachines = $machines->map(function ($machine) {
+        $totalQty = $machine->inventory->total_qty ?? 0;
+        $machine->total_stk_qty = $totalQty > 0 ? $totalQty : null;
+        return $machine;
+    })->filter(fn($machine) => !is_null($machine->total_stk_qty));
+
+    return $this->responseJson(true, 200, 'Fetch Machine List Successfully', $filteredMachines);
+}
+
+
+
+
+
+
+
+
+
 function issuelistMaterials(Request $request)
     {
         $authCompany = Auth::guard('company-api')->user()->company_id;
