@@ -1,3 +1,35 @@
+public function materialsList(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
+    $projectId = $request->project_id;
+    $goodsType = $request->goods_type;
+    $type = $request->type;
+
+    $query = ($goodsType === 'materials') ? Materials::where('company_id', $authCompany) : Assets::where('company_id', $authCompany);
+
+    $relation = ($type === 'issue') ? 'invIssuesDetails' : 'invInwardGoodDetails';
+    $foreignKey = ($goodsType === 'materials') ? 'materials_id' : 'assets_id';
+
+    $materialList = $query
+        ->whereHas($relation, fn($q) => $q->whereNotNull($foreignKey))
+        ->with('inventorys') // Eager loading for performance
+        ->get()
+        ->map(function ($item) {
+            $totalQty = $item->inventorys->total_qty ?? 0;
+            $item->total_stk_qty = ($totalQty > 0) ? $totalQty : null; // Only keep valid stock values
+            return $item;
+        })
+        ->filter(fn($item) => !is_null($item->total_stk_qty)); // Filter out null values
+
+    return $this->responseJson(true, 200, 'Materials List Fetched Successfully', IssueMaterialResource::collection($materialList));
+}
+
+
+
+
+
+
+
 
 public function materialsList(Request $request)
     {
