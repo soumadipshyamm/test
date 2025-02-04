@@ -1,4 +1,73 @@
 
+public function materialsList(Request $request)
+    {
+        $authCompany = Auth::guard('company-api')->user()->company_id;
+
+        $projectId = $request->project_id;
+        if ($request->type == 'issue') {
+            if ($request->goods_type == 'materials') {
+                $materialList = Materials::where('company_id', $authCompany)
+                    ->whereHas('invInwardGoodDetails', function ($query) {
+                        $query->whereNotNull('materials_id');
+                    })
+                    ->get()
+                    ->map(function ($material) {
+                        $material->total_stk_qty = $material->inventorys->total_qty ?? 0; // Use null coalescing to handle potential null
+                        return $material;
+                    });
+                $message =  'Fetch Materials List Successfully';
+            } else {
+                $materialList = Assets::where('company_id', $authCompany)
+                    ->whereHas('invInwardGoodDetails', function ($quer) {
+                        $quer->whereNotNull('assets_id');
+                    })->get()
+                    ->map(function ($material) {
+                        $material->total_stk_qty = $material->inventory->total_qty ?? 0; // Use null coalescing to handle potential null
+                        return $material;
+                    });
+                $message =  'Fetch Materials List Successfully';
+            }
+        } else {
+            if ($request->goods_type == 'materials') {
+                $materialList = Materials::where('company_id', $authCompany)
+                    ->whereHas('invIssuesDetails', function ($quer) {
+                        $quer->whereNotNull('materials_id');
+                    })->get()->map(function ($material) {
+                        $material->total_stk_qty = $material->inventorys->total_qty ?? 0; // Use null coalescing to handle potential null
+                        return $material;
+                    });
+                $message =  'Fetch Materials List Successfully';
+            } else {
+                $materialList = Assets::where('company_id', $authCompany)
+                    ->whereHas('invIssuesDetails', function ($quer) {
+                        $quer->whereNotNull('assets_id');
+                    })->get()->map(function ($material) {
+                        $material->total_stk_qty = $material->inventory->total_qty ?? 0; // Use null coalescing to handle potential null
+                        return $material;
+                    });
+                $message =  'Fetch Materials List Successfully';
+            }
+        }
+        $message = 'Materials List Fetch Successfullsy';
+        // return $this->responseJson(true, 200, $message, $materialList);
+        return $this->responseJson(true, 200, $message, IssueMaterialResource::collection($materialList));
+        // return $this->responseJson(true, 201, $message, InwardMaterialListResources::collection($fetchMaterial));
+
+        // return $this->responseJson(true, 201, $message, InventoryDtailsResources::collection($materialList));
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
 function issuelistMaterials(Request $request)
 {
     $authCompany = Auth::guard('company-api')->user()->company_id;
