@@ -1,4 +1,48 @@
-  <div class="col-md-12">
+<div class="col-md-12">
+    @php
+        $issueGoods = $datas->invIssueGoods->first();
+        $type = $issueGoods->type ?? 'materials';
+        $isMaterial = $type === 'materials';
+    @endphp
+
+    <h3>{{ $isMaterial ? 'Material' : 'Assets' }}</h3>
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Sl No.</th>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Specification</th>
+                <th>Units</th>
+                <th>Issue Qty</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach ($issueGoods->invIssueDetails ?? [] as $key => $val)
+                @php
+                    $item = $val->type === 'machines' ? $val->assets : $val->materials;
+                @endphp
+                <tr>
+                    <td>{{ $loop->iteration }}</td>
+                    <td class="td-line-break">{{ $item->code ?? 'N/A' }}</td>
+                    <td>{{ $item->name ?? 'N/A' }}</td>
+                    <td class="td-line-break">{{ $item->specification ?? 'N/A' }}</td>
+                    <td>{{ $item->units->unit ?? 'N/A' }}</td>
+                    <td>{{ $val->issue_qty > 0 ? $val->issue_qty : 'N/A' }}</td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+</div>
+
+
+
+
+
+
+
+<div class="col-md-12">
         <h3>{{ $datas->invIssueGoods->first()->type == 'materials' ? 'Material' : 'Assets' }}</h3>
         <table border="1">
             <thead>
