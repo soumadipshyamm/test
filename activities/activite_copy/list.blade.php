@@ -1,3 +1,51 @@
+  <div class="col-md-12">
+        <h3>{{ $datas->invIssueGoods->first()->type == 'materials' ? 'Material' : 'Assets' }}</h3>
+        <table border="1">
+            <thead>
+                <th>Slno.</th>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Specification</th>
+                <th>Units</th>
+                <th>Issue Qty</th>
+                {{-- <th>Acivities</th> --}}
+            </thead>
+            <tbody>
+                @foreach ($datas->invIssueGoods->first()->invIssueDetails as $key => $val)
+                    <tr>
+                        @php
+                            $typess = '';
+                            if ($val->type == 'machines') {
+                                $typess = $val->assets;
+                            } else {
+                                $typess = $val->materials;
+                            }
+                        @endphp
+                        <td>{{ $key + 1 }}</td>
+                        <td class="td-line-break">{{ $typess->code ?? '' }}</td>
+                        <td>{{ $typess->name ?? '' }}</td>
+                        <td class="td-line-break">{{ $typess->specification ?? '' }}</td>
+                        <td>{{ $typess->units->unit ?? '' }}</td>
+                        <td>{{ $val->issue_qty ?? 0 }}</td>
+
+                        {{-- <td>{{ $val->reject_qty ?? 0 }}</td>
+                        <td>{{ $val->accept_qty ?? 0 }}</td>
+                        <td>{{ $val->price ?? 0 }}</td>
+                        <td>{{ $val->accept_qty * $val->price ?? 0 }}</td>
+                        <td>{{ $val->remarkes ?? '' }}</td> --}}
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+
+
+
+
+
+
+
+
 public function materialsList(Request $request)
 {
     $authCompany = Auth::guard('company-api')->user()->company_id;
