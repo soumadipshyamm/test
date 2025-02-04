@@ -1,3 +1,101 @@
+array:2 [ // resources\views/common/pdf/issue.blade.php
+  0 => array:18 [
+    "id" => 232
+    "uuid" => "6817f444-495e-46d6-909d-da726cdebd20"
+    "inv_issues_id" => 93
+    "materials_id" => null
+    "issue_no" => "672710"
+    "date" => "2025-01-31"
+    "type" => "materials"
+    "inv_issue_lists_id" => 2
+    "img" => null
+    "remarkes" => null
+    "company_id" => 14
+    "is_active" => 1
+    "created_at" => "2025-01-31T10:27:19.000000Z"
+    "updated_at" => "2025-01-31T10:27:19.000000Z"
+    "deleted_at" => null
+    "tag_id" => null
+    "inv_issue_details" => []
+    "inv_issue_list" => array:8 [
+      "id" => 2
+      "uuid" => "fbd15aeb-a0c6-4509-9b52-1402f3da6c91"
+      "name" => "Contractor"
+      "slug" => "contractor"
+      "remarkes" => null
+      "is_active" => 1
+      "created_at" => "2024-04-10T02:16:10.000000Z"
+      "updated_at" => "2024-04-10T02:16:10.000000Z"
+    ]
+  ]
+  1 => array:18 [
+    "id" => 233
+    "uuid" => "83a657d2-42ff-45bf-9ca8-714cb2e3e8f1"
+    "inv_issues_id" => 93
+    "materials_id" => null
+    "issue_no" => "735955"
+    "date" => "2025-01-31"
+    "type" => "materials"
+    "inv_issue_lists_id" => 2
+    "img" => null
+    "remarkes" => null
+    "company_id" => 14
+    "is_active" => 1
+    "created_at" => "2025-01-31T10:27:41.000000Z"
+    "updated_at" => "2025-01-31T10:42:31.000000Z"
+    "deleted_at" => null
+    "tag_id" => null
+    "inv_issue_details" => array:1 [
+      0 => array:17 [
+        "id" => 233
+        "uuid" => "f39f2cb1-36af-48e0-8d6c-397b4c947094"
+        "inv_issue_goods_id" => 233
+        "materials_id" => 46
+        "activities_id" => 968
+        "issue_qty" => "25"
+        "stock_qty" => 1673
+        "remarkes" => null
+        "type" => "materials"
+        "company_id" => 14
+        "is_active" => 1
+        "created_at" => "2025-01-31T10:41:32.000000Z"
+        "updated_at" => "2025-01-31T10:42:11.000000Z"
+        "deleted_at" => null
+        "assets_id" => null
+        "assets" => null
+        "materials" => array:13 [
+          "id" => 46
+          "uuid" => "48e08edc-79e5-4dac-9d53-a928f6d2a43c"
+          "name" => "Binding wire"
+          "class" => "B"
+          "code" => "M016925"
+          "specification" => null
+          "unit_id" => 31
+          "company_id" => 14
+          "is_active" => 1
+          "deleted_at" => null
+          "created_at" => "2025-01-03T10:31:58.000000Z"
+          "updated_at" => "2025-01-03T10:31:58.000000Z"
+          "type" => null
+        ]
+      ]
+    ]
+    "inv_issue_list" => array:8 [
+      "id" => 2
+      "uuid" => "fbd15aeb-a0c6-4509-9b52-1402f3da6c91"
+      "name" => "Contractor"
+      "slug" => "contractor"
+      "remarkes" => null
+      "is_active" => 1
+      "created_at" => "2024-04-10T02:16:10.000000Z"
+      "updated_at" => "2024-04-10T02:16:10.000000Z"
+    ]
+  ]
+]
+
+
+
+
 <div class="col-md-12">
     @php
         $issueGoods = $datas->invIssueGoods->first();
