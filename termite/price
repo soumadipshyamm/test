@@ -1,3 +1,32 @@
+
+Here’s the updated version of your email:
+
+---
+
+**Subject:** Leave Request from March 3rd to March 7th  
+
+Dear [Manager's Name],  
+
+I hope you are doing well. I would like to formally request leave from March 3rd to March 7th as I will be attending my elder brother’s and childhood friend’s weddings. I will resume work on March 10th.
+
+To ensure continuity in my absence, I kindly request that a resource be assigned to oversee my project. I will ensure a proper handover before my leave and remain available for any critical escalations if needed.
+
+Please let me know if any further information is required. I appreciate your support and consideration.
+
+Best regards,  
+[Your Name]
+
+---  
+
+Let me know if this works for you or if you'd like any adjustments!
+
+
+
+
+
+
+
+
 public function inspactionCreate(Request $request)
 {
     // Convert start_datetime to Carbon instance
