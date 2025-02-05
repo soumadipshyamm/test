@@ -1,0 +1,71 @@
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateServicePlansTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('service_plans', function (Blueprint $table) {
+            $table->id();
+            $table->string('customer_name');
+            $table->string('drywood_and_subterranean_service_plan');
+            $table->decimal('drywood_and_subterranean_initial_price', 8, 2);
+            $table->decimal('drywood_and_subterranean_recurring_price', 8, 2);
+            $table->enum('drywood_and_subterranean_recurring_period', ['Monthly', 'Annual']);
+            $table->boolean('drywood_and_subterranean_schedule')->default(false);
+            
+            $table->string('dry_wood_service_plan');
+            $table->decimal('dry_wood_initial_price', 8, 2);
+            $table->decimal('dry_wood_recurring_price', 8, 2);
+            $table->enum('dry_wood_recurring_period', ['Monthly', 'Annual']);
+            $table->boolean('dry_wood_schedule')->default(false);
+            
+            $table->string('subterranean_service_plan');
+            $table->decimal('subterranean_initial_price', 8, 2);
+            $table->decimal('subterranean_recurring_price', 8, 2);
+            $table->enum('subterranean_recurring_period', ['Monthly', 'Annual']);
+            $table->boolean('subterranean_schedule')->default(false);
+            
+            $table->boolean('fumigation')->default(false);
+            $table->decimal('fumigation_price', 8, 2)->nullable();
+            $table->boolean('fumigation_schedule')->default(false);
+            
+            $table->boolean('preventive')->default(false);
+            $table->decimal('preventive_price', 8, 2)->nullable();
+            $table->boolean('preventive_schedule')->default(false);
+            
+            $table->boolean('one_time_local')->default(false);
+            $table->decimal('one_time_local_price', 8, 2)->nullable();
+            $table->boolean('one_time_local_schedule')->default(false);
+            
+            $table->boolean('wood_repairs')->default(false);
+            $table->decimal('wood_repairs_price', 8, 2)->nullable();
+            $table->boolean('wood_repairs_schedule')->default(false);
+            
+            $table->boolean('tile_warranty')->default(false);
+            $table->decimal('tile_warranty_price', 8, 2)->nullable();
+            $table->boolean('tile_warranty_schedule')->default(false);
+            
+            $table->boolean('insulation')->default(false);
+            $table->boolean('insulation_schedule')->default(false);
+            
+            $table->boolean('inspection_fee')->default(false);
+            $table->boolean('inspection_fee_waved')->default(false);
+            
+            $table->string('other_description')->nullable();
+            $table->decimal('other_price', 8, 2)->nullable();
+            $table->boolean('other_schedule')->default(false);
+            
+            $table->decimal('discount_amount', 8, 2)->nullable();
+            $table->boolean('discount_schedule')->default(false);
+            
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('service_plans');
+    }
+}
