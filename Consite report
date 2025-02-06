@@ -1,4 +1,71 @@
- @foreach ($datas as $key => $value)
+
+$pdf = PDF::loadView('your.view.name', compact('datas'))->setPaper('A4', 'portrait');
+return $pdf->stream('daily_progress_report.pdf');
+
+
+
+
+
+@foreach ($datas as $key => $value)
+    <div style="page-break-before: {{ $key > 0 ? 'always' : 'auto' }};">
+        <h1>Daily Progress Report</h1>
+
+        <div class="date">
+            <strong>Date:</strong> {{ $value->date ?? '' }}
+        </div>
+
+        <div class="projects">
+            <div class="project"><strong>Project:</strong> {{ $value->projects->project_name ?? '' }}</div>
+            <div class="subproject"><strong>Sub-Project:</strong> {{ $value->subProjects->name ?? '' }}</div>
+        </div>
+
+        <h3>Activities</h3>
+        <table border="1" cellspacing="0" cellpadding="5" width="100%">
+            <thead>
+                <tr>
+                    <th>Sr.No</th>
+                    <th>Work Details</th>
+                    <th>Unit</th>
+                    <th>Qty</th>
+                    <th>Completion</th>
+                    <th>Balance Qty</th>
+                    <th>Contractor</th>
+                    <th>Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!empty($value->activities))
+                    @foreach ($value->activities as $index => $activity)
+                        <tr>
+                            <td>{{ $index + 1 }}</td>
+                            <td>{{ $activity->activities->activities ?? 'N/A' }}</td>
+                            <td>{{ $activity->unit ?? 'N/A' }}</td>
+                            <td>{{ $activity->qty ?? 0 }}</td>
+                            <td>{{ $activity->completion ?? 0 }}</td>
+                            <td>{{ $activity->remaining_qty ?? 0 }}</td>
+                            <td>{{ $activity->vendors->name ?? 'N/A' }}</td>
+                            <td>{{ $activity->remarks ?? '' }}</td>
+                        </tr>
+                    @endforeach
+                @else
+                    <tr>
+                        <td colspan="8" style="text-align: center;">No activities available</td>
+                    </tr>
+                @endif
+            </tbody>
+        </table>
+    </div>
+@endforeach
+
+
+
+
+
+
+
+
+
+@foreach ($datas as $key => $value)
         {{-- @dd($value) --}}
         <h1>Daily Progress Report</h1>
         <div class="date">
