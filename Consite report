@@ -1,3 +1,86 @@
+
+
+
+
+
+
+
+laravel send data of array  this is a respons array:2 [ // app\Http\Controllers\API\ReportController.php:108
+  0 => array:22 [
+    "id" => 134
+    "uuid" => "07ce7ab9-f3e5-4b16-882b-94d524eaae61"
+    "dpr_no" => "041722"
+    "name" => "2025-01-31"
+    "date" => "2025-01-31"
+    "staps" => 3
+    "is_active" => 1
+    "projects_id" => 39
+  
+    "user_id" => 34
+    "assets" => array:1 [
+      0 => array:14 [
+        "id" => 78
+        "uuid" => "4db53a0c-f46c-426d-8ffd-d2e85945903a"
+        "assets_id" => 167
+        "qty" => 1
+        "activities_id" => null
+        
+      ]
+    ]
+    "activities" => []
+    "labour" => []
+    "material" => []
+    "historie" => []
+    "safetie" => []
+  ]
+  1 => array:22 [
+    "id" => 136
+    "uuid" => "4b682e49-991f-4e06-a9d8-a9b05eb05d25"
+   
+   
+    "user_id" => 34
+    "assets" => array:1 [
+      0 => array:14 [
+        "id" => 78
+        "uuid" => "4db53a0c-f46c-426d-8ffd-d2e85945903a"
+        "assets_id" => 167
+        "qty" => 1
+        "activities_id" => null
+        "vendors_id" => null
+    
+      ]
+    ]
+    "activities" => []
+    "labour" => []
+    "material" => []
+    "historie" => []
+    "safetie" => []
+  ]
+]
+  PDF::loadView('your.view.name', $data);  
+when array of index 1 start it's must be start new page 
+how to customize 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class ActivitesImport implements ToModel, WithHeadingRow
 {
     protected $project;
