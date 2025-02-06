@@ -1,4 +1,46 @@
-
+ @foreach ($datas as $key => $value)
+        {{-- @dd($value) --}}
+        <h1>Daily Progress Report</h1>
+        <div class="date">
+            Date:{{ $value->date ?? '' }}
+        </div>
+        <div class="projects">
+            <div class="priject"> Projects:{{ $value->projects->project_name ?? '' }}</div>
+            <div class="subpriject"> Sub-Projects:{{ $value->subProjects->name ?? '' }}</div>
+        </div>
+        <h3>Activities</h3>
+        <table border="1">
+            <thead>
+                <th>Sr.No</th>
+                <th>Work Details</th>
+                <th>Unit</th>
+                <th>Qty</th>
+                <th>Completion</th>
+                <th>Balance Qty</th>
+                <th>Contractor</th>
+                <th>Remarks</th>
+            </thead>
+            <tbody>
+                @if (isset($value->activities))
+                    @foreach ($value->activities as $key => $activity)
+                        <tr>
+                            <td>{{ $activity->activities->activities ?? '' }}</td>
+                            <td>{{ $activity->qty ?? '' }}</td>
+                            <td>{{ $activity->total_qty ?? '' }}</td>
+                            <td>{{ $activity->remaining_qty ?? '' }}</td>
+                            <td>{{ $activity->completion ?? '' }}</td>
+                            <td>{{ $activity->qty ? $activity->qty : $activity->remaining_qty ?? '' }}</td>
+                            <td>{{ $activity->vendors->name ?? '' }}</td>
+                            <td>{{ $activity->remarkes ?? '' }}</td>
+                        </tr>
+                    @endforeach
+                @endif
+            </tbody>
+        </table>
+        @if ($key < count($datas) - 1)
+            <div class="page-break"></div>
+        @endif
+    @endforeach
 
 
 
