@@ -1,4 +1,103 @@
 
+            foreach($combinedArray as $key => $subscription){
+                $serviceId =SubscriptionPlan::where('uuid',$subscription['service_uuid'])->first();
+                // $serviceId = uuidtoid($subscription['service_uuid'],'subscription_plans');
+                // $data['customer_id'] = uuidtoid($datas['customer_uuid'],'users')??null;
+                // $data['inspactor_id'] = auth()->user()->id??null;
+                // $data['type'] = $datas['type']?? null;
+
+                // dd($serviceId);
+                if($subscription['type']==0 &&  $serviceId->slug =='drywood-and-subterranean-subscription'){
+                // dd($serviceId);
+                    $data['drywood_and_subterranean_service_plan_id']=$datas['subscriptions']['service_uuid'];
+                    $data['drywood_and_subterranean_initial_price']=$datas['subscriptions']['initial_price'];
+                    $data['drywood_and_subterranean_recurring_price']=$datas['subscriptions']['renewal'];
+                    $data['drywood_and_subterranean_recurring_period']=$datas['subscriptions']['reoccurring'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==0 &&  $serviceId->slug =='drywood-only-subscription'){
+                // dd($serviceId);
+                    $data['dry_wood_service_plan_id']=$datas['subscriptions']['service_uuid'];
+                    $data['dry_wood_initial_price']=$datas['subscriptions']['initial_price'];
+                    $data['dry_wood_recurring_price']=$datas['subscriptions']['renewal'];
+                    $data['dry_wood_recurring_period']=$datas['subscriptions']['reoccurring'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==0 &&  $serviceId->slug =='subterranean-only'){
+                // dd($serviceId);
+                    $data['subterranean_service_plan_id']=$datas['subscriptions']['service_uuid'];
+                    $data['subterranean_initial_price']=$datas['subscriptions']['initial_price'];
+                    $data['subterranean_recurring_price']=$datas['subscriptions']['renewal'];
+                    $data['subterranean_recurring_period']=$datas['subscriptions']['reoccurring'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                //one time service
+                if($subscription['type']==1 &&  $serviceId->slug =='fumigation'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==1 &&  $serviceId->slug =='tile-warranty'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==1 &&  $serviceId->slug =='fume-tile'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==1 &&  $serviceId->slug =='preventive-treatment'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==1 &&  $serviceId->slug =='one-time-local-treat'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==1 &&  $serviceId->slug =='wood-repairs'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==1 &&  $serviceId->slug =='wdo-inspections'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==1 &&  $serviceId->slug =='insulation'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+                if($subscription['type']==1 &&  $serviceId->slug =='bundle-discount'){
+                // dd($serviceId);
+                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['status']=$datas['subscriptions']['status'];
+                }
+
+            }
+
+
+
+
+
+
+
+
+
+
 
 namespace App\Http\Controllers;
 
