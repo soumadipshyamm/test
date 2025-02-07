@@ -1,4 +1,157 @@
 
+$serviceMappings = [
+    // Subscription Services (type 0)
+    'drywood-and-subterranean-subscription' => 'drywood_and_subterranean',
+    'drywood-only-subscription' => 'dry_wood',
+    'subterranean-only' => 'subterranean',
+
+    // One-Time Services (type 1)
+    'fumigation' => 'fumigation',
+    'tile-warranty' => 'tile_warranty',
+    'fume-tile' => 'other_description',
+    'preventive-treatment' => 'preventive',
+    'one-time-local-treat' => 'one_time_local',
+    'wood-repairs' => 'wood_repairs',
+    'wdo-inspections' => 'inspection_fee',
+    'insulation' => 'insulation',
+    'bundle-discount' => 'discount_amount',
+];
+
+foreach ($combinedArray as $key => $subscription) {
+    $serviceId = SubscriptionPlan::where('uuid', $subscription['service_uuid'])->first(['slug']);
+
+    if (!$serviceId) {
+        continue; // Skip iteration if service is not found
+    }
+
+    $slug = $serviceId->slug;
+
+    if (isset($serviceMappings[$slug])) {
+        $prefix = $serviceMappings[$slug];
+
+        if ($subscription['type'] == 0) {
+            // Subscription-based services
+            $data["{$prefix}_service_plan_id"] = $datas['subscriptions']['service_uuid'];
+            $data["{$prefix}_initial_price"] = $datas['subscriptions']['initial_price'];
+            $data["{$prefix}_recurring_price"] = $datas['subscriptions']['renewal'];
+            $data["{$prefix}_recurring_period"] = $datas['subscriptions']['reoccurring'];
+        } elseif ($subscription['type'] == 1) {
+            // One-time services
+            $data["{$prefix}_id"] = $datas['subscriptions']['service_uuid'];
+            $data["{$prefix}_price"] = $datas['subscriptions']['initial_price'];
+
+            if ($slug === 'fume-tile') {
+                $data["{$prefix}"] = $datas['subscriptions']['initial_price'];
+            }
+        }
+
+        $data['status'] = $datas['subscriptions']['status'];
+    }
+}
+
+
+
+
+
+
+
+
+
+
+// Mapping slugs to keys for easier assignment
+$serviceMapping = [
+    'drywood-and-subterranean-subscription' => [
+        'key_prefix' => 'drywood_and_subterranean',
+        'type' => 0
+    ],
+    'drywood-only-subscription' => [
+        'key_prefix' => 'dry_wood',
+        'type' => 0
+    ],
+    'subterranean-only' => [
+        'key_prefix' => 'subterranean',
+        'type' => 0
+    ],
+    'fumigation' => [
+        'key' => 'fumigation',
+        'type' => 1
+    ],
+    'tile-warranty' => [
+        'key' => 'tile_warranty',
+        'type' => 1
+    ],
+    'fume-tile' => [
+        'key' => 'other_description',
+        'type' => 1
+    ],
+    'preventive-treatment' => [
+        'key' => 'preventive',
+        'type' => 1
+    ],
+    'one-time-local-treat' => [
+        'key' => 'one_time_local',
+        'type' => 1
+    ],
+    'wood-repairs' => [
+        'key' => 'wood_repairs',
+        'type' => 1
+    ],
+    'wdo-inspections' => [
+        'key' => 'inspection_fee',
+        'type' => 1
+    ],
+    'insulation' => [
+        'key' => 'insulation',
+        'type' => 1
+    ],
+    'bundle-discount' => [
+        'key' => 'discount_amount',
+        'type' => 1
+    ]
+];
+
+foreach ($combinedArray as $key => $subscription) {
+    $serviceId = SubscriptionPlan::where('uuid', $subscription['service_uuid'])->first();
+
+    if ($serviceId) {
+        $slug = $serviceId->slug;
+        
+        // Check if the slug exists in the mapping array
+        if (isset($serviceMapping[$slug])) {
+            $serviceDetails = $serviceMapping[$slug];
+            
+            // Subscription type handling (0 for subscription services, 1 for one-time services)
+            if ($subscription['type'] == $serviceDetails['type']) {
+                $keyPrefix = $serviceDetails['key_prefix'] ?? $serviceDetails['key'];
+                
+                // For subscription services (type = 0)
+                if ($subscription['type'] == 0) {
+                    $data["{$keyPrefix}_service_plan_id"] = $datas['subscriptions']['service_uuid'];
+                    $data["{$keyPrefix}_initial_price"] = $datas['subscriptions']['initial_price'];
+                    $data["{$keyPrefix}_recurring_price"] = $datas['subscriptions']['renewal'];
+                    $data["{$keyPrefix}_recurring_period"] = $datas['subscriptions']['reoccurring'];
+                    $data['status'] = $datas['subscriptions']['status'];
+                }
+                
+                // For one-time services (type = 1)
+                if ($subscription['type'] == 1) {
+                    $data["{$keyPrefix}_id"] = $datas['subscriptions']['service_uuid'];
+                    $data["{$keyPrefix}_price"] = $datas['subscriptions']['initial_price'];
+                    $data['status'] = $datas['subscriptions']['status'];
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
                 foreach($combinedArray as $key => $subscription){
                 $serviceId =SubscriptionPlan::where('uuid',$subscription['service_uuid'])->first();
                 // $serviceId = uuidtoid($subscription['service_uuid'],'subscription_plans');
