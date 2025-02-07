@@ -1,3 +1,48 @@
+
+
+namespace App\Http\Controllers;
+
+use App\Models\ServicePlan;
+use Illuminate\Http\Request;
+
+class ServicePlanController extends Controller
+{
+    public function store(Request $request)
+    {
+        // Validate request
+        $validated = $request->validate([
+            'customer_uuid' => 'required|uuid',
+            'subscriptions' => 'nullable|array',
+            'subscriptions.*.service_uuid' => 'required|uuid',
+            'subscriptions.*.initial_price' => 'required|numeric',
+            'subscriptions.*.status' => 'required|boolean',
+            'subscriptions.*.reoccurring' => 'nullable|numeric',
+            'subscriptions.*.renewal' => 'nullable|in:month,year',
+            'subscriptions.*.type' => 'required|integer',
+
+            'standalone_options' => 'nullable|array',
+            'standalone_options.*.service_uuid' => 'required|uuid',
+            'standalone_options.*.initial_price' => 'required|numeric',
+            'standalone_options.*.status' => 'required|boolean',
+            'standalone_options.*.type' => 'required|integer',
+            'standalone_options.*.other_details' => 'nullable|string',
+        ]);
+
+        // Store data in the database
+        $servicePlan = ServicePlan::create($validated);
+
+        return response()->json([
+            'message' => 'Service Plan created successfully',
+            'data' => $servicePlan
+        ], 201);
+    }
+}
+
+
+
+
+
+
 array:4 [ // app\Services\Pricing\PricingService.php:47
   "customer_uuid" => "3f657489-3704-4afd-b829-99102a72f71f"
   "subscriptions" => array:3 [
