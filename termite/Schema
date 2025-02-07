@@ -1,5 +1,6 @@
 
             foreach($combinedArray as $key => $subscription){
+                foreach($combinedArray as $key => $subscription){
                 $serviceId =SubscriptionPlan::where('uuid',$subscription['service_uuid'])->first();
                 // $serviceId = uuidtoid($subscription['service_uuid'],'subscription_plans');
                 // $data['customer_id'] = uuidtoid($datas['customer_uuid'],'users')??null;
@@ -40,53 +41,53 @@
                 }
                 if($subscription['type']==1 &&  $serviceId->slug =='tile-warranty'){
                 // dd($serviceId);
-                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
-                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['tile_warranty_id']=$datas['subscriptions']['service_uuid'];
+                    $data['tile_warranty_price']=$datas['subscriptions']['initial_price'];
                     $data['status']=$datas['subscriptions']['status'];
                 }
                 if($subscription['type']==1 &&  $serviceId->slug =='fume-tile'){
                 // dd($serviceId);
-                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
-                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['other_description_id']=$datas['subscriptions']['service_uuid'];
+                    $data['other_description']=$datas['subscriptions']['initial_price'];
+                    $data['other_price']=$datas['subscriptions']['initial_price'];
                     $data['status']=$datas['subscriptions']['status'];
                 }
                 if($subscription['type']==1 &&  $serviceId->slug =='preventive-treatment'){
                 // dd($serviceId);
-                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
-                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['preventive_id']=$datas['subscriptions']['service_uuid'];
+                    $data['preventive_price']=$datas['subscriptions']['initial_price'];
                     $data['status']=$datas['subscriptions']['status'];
                 }
                 if($subscription['type']==1 &&  $serviceId->slug =='one-time-local-treat'){
                 // dd($serviceId);
-                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
-                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['one_time_local_id']=$datas['subscriptions']['service_uuid'];
+                    $data['one_time_local_price']=$datas['subscriptions']['initial_price'];
                     $data['status']=$datas['subscriptions']['status'];
                 }
                 if($subscription['type']==1 &&  $serviceId->slug =='wood-repairs'){
                 // dd($serviceId);
-                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
-                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['wood_repairs_id']=$datas['subscriptions']['service_uuid'];
+                    $data['wood_repairs_price']=$datas['subscriptions']['initial_price'];
                     $data['status']=$datas['subscriptions']['status'];
                 }
                 if($subscription['type']==1 &&  $serviceId->slug =='wdo-inspections'){
                 // dd($serviceId);
-                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
-                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['inspection_fee_id']=$datas['subscriptions']['service_uuid'];
+                    $data['inspection_price']=$datas['subscriptions']['initial_price'];
                     $data['status']=$datas['subscriptions']['status'];
                 }
                 if($subscription['type']==1 &&  $serviceId->slug =='insulation'){
                 // dd($serviceId);
-                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
-                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['insulation_id']=$datas['subscriptions']['service_uuid'];
+                    $data['insulation_price']=$datas['subscriptions']['initial_price'];
                     $data['status']=$datas['subscriptions']['status'];
                 }
                 if($subscription['type']==1 &&  $serviceId->slug =='bundle-discount'){
                 // dd($serviceId);
-                    $data['fumigation_id']=$datas['subscriptions']['service_uuid'];
-                    $data['fumigation_price']=$datas['subscriptions']['initial_price'];
+                    $data['discount_amount_id']=$datas['subscriptions']['service_uuid'];
+                    $data['discount_price']=$datas['subscriptions']['initial_price'];
                     $data['status']=$datas['subscriptions']['status'];
                 }
-
             }
 
 
