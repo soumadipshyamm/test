@@ -1,5 +1,4 @@
 
-            foreach($combinedArray as $key => $subscription){
                 foreach($combinedArray as $key => $subscription){
                 $serviceId =SubscriptionPlan::where('uuid',$subscription['service_uuid'])->first();
                 // $serviceId = uuidtoid($subscription['service_uuid'],'subscription_plans');
