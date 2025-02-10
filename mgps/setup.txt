@@ -1,3 +1,118 @@
+
+Here’s an **advanced folder structure** for a **Node.js + MongoDB + TypeScript + EJS** API project with middleware and utilities:
+
+```
+my-project/
+│── src/
+│   ├── config/             # Configuration files (e.g., environment, DB connection)
+│   │   ├── db.ts
+│   │   ├── env.ts
+│   │   ├── logger.ts
+│   │   ├── index.ts
+│   │
+│   ├── controllers/        # Controllers handle request logic
+│   │   ├── auth.controller.ts
+│   │   ├── user.controller.ts
+│   │   ├── index.ts
+│   │
+│   ├── middleware/         # Express middlewares
+│   │   ├── auth.middleware.ts
+│   │   ├── error.middleware.ts
+│   │   ├── index.ts
+│   │
+│   ├── models/             # Mongoose models (schemas)
+│   │   ├── user.model.ts
+│   │   ├── index.ts
+│   │
+│   ├── routes/             # Routes definition
+│   │   ├── auth.routes.ts
+│   │   ├── user.routes.ts
+│   │   ├── index.ts
+│   │
+│   ├── services/           # Business logic (service layer)
+│   │   ├── auth.service.ts
+│   │   ├── user.service.ts
+│   │   ├── index.ts
+│   │
+│   ├── utils/              # Utility functions/helpers
+│   │   ├── response.util.ts
+│   │   ├── hash.util.ts
+│   │   ├── index.ts
+│   │
+│   ├── views/              # EJS templates
+│   │   ├── layouts/
+│   │   │   ├── main.ejs
+│   │   │   ├── header.ejs
+│   │   │   ├── footer.ejs
+│   │   ├── pages/
+│   │   │   ├── home.ejs
+│   │   │   ├── login.ejs
+│   │   │   ├── dashboard.ejs
+│   │   ├── index.ejs
+│   │
+│   ├── app.ts              # Express app setup
+│   ├── server.ts           # Server entry point
+│
+│── tests/                  # Unit and integration tests
+│   ├── auth.test.ts
+│   ├── user.test.ts
+│
+│── .env                    # Environment variables
+│── .gitignore               # Git ignore file
+│── package.json             # Dependencies and scripts
+│── tsconfig.json            # TypeScript configuration
+│── README.md                # Project documentation
+```
+
+### Explanation:
+- `config/`: Handles configurations like DB, logging, and environment variables.
+- `controllers/`: Manages HTTP request logic.
+- `middleware/`: Contains Express middlewares like authentication, error handling, etc.
+- `models/`: Defines Mongoose schemas.
+- `routes/`: Stores API endpoints.
+- `services/`: Contains business logic and interacts with models.
+- `utils/`: Utility functions like password hashing, response formatting.
+- `views/`: EJS templates for rendering frontend pages.
+- `tests/`: Unit and integration tests.
+
+---
+
+## Setting Up the Project
+Run the following commands to initialize:
+
+```sh
+mkdir my-project && cd my-project
+npm init -y
+npm install express mongoose dotenv ejs bcryptjs jsonwebtoken winston cors helmet
+npm install --save-dev typescript @types/node @types/express @types/mongoose @types/bcryptjs @types/jsonwebtoken jest ts-jest @types/jest supertest
+```
+
+### Configure `tsconfig.json`:
+```json
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "CommonJS",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true
+  }
+}
+```
+
+---
+
+Would you like sample files (`app.ts`, `server.ts`, etc.) to go along with this setup?
+
+
+
+
+
+
+
+
+
 I'll generate a **Node.js + TypeScript + MongoDB + EJS** project following the **advanced structure** and implement **CRUD operations with file upload and proper validation**.  
 
 ---
