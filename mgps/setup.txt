@@ -1,0 +1,466 @@
+I'll generate a **Node.js + TypeScript + MongoDB + EJS** project following the **advanced structure** and implement **CRUD operations with file upload and proper validation**.  
+
+---
+
+### **🚀 Steps I'll Follow**  
+1️⃣ **Set up the project** with the correct structure.  
+2️⃣ **Configure Express, Mongoose, and Multer** for file uploads.  
+3️⃣ **Implement CRUD operations** for a resource (e.g., Products).  
+4️⃣ **Add validation** using **Express-Validator**.  
+5️⃣ **Handle errors and logs** properly.  
+6️⃣ **Ensure TypeScript support** with proper interfaces.  
+
+---
+
+### **📦 Setting Up the Project**  
+
+#### **1️⃣ Create a New Project**  
+```sh
+mkdir node-mongo-ts-ejs-api && cd node-mongo-ts-ejs-api
+npm init -y
+```
+
+#### **2️⃣ Install Dependencies**  
+```sh
+npm install express mongoose multer dotenv express-validator bcryptjs jsonwebtoken ejs winston cors method-override
+npm install --save-dev typescript ts-node @types/express @types/node @types/mongoose @types/jsonwebtoken @types/bcryptjs nodemon
+```
+
+#### **3️⃣ Configure TypeScript**  
+```sh
+npx tsc --init
+```
+Edit **`tsconfig.json`**:
+```json
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "CommonJS",
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true
+  }
+}
+```
+
+#### **4️⃣ Update `package.json` Scripts**
+```json
+"scripts": {
+  "start": "node dist/server.js",
+  "dev": "ts-node src/server.ts",
+  "build": "tsc"
+}
+```
+
+---
+
+### **📂 Project Structure**
+```
+node-mongo-ts-ejs-api/
+│── 📂 src/
+│   ├── 📂 config/
+│   │   ├── db.ts
+│   │   ├── env.ts
+│   │   ├── logger.ts
+│   │
+│   ├── 📂 controllers/
+│   │   ├── product.controller.ts
+│   │
+│   ├── 📂 models/
+│   │   ├── product.model.ts
+│   │
+│   ├── 📂 routes/
+│   │   ├── product.routes.ts
+│   │   ├── index.routes.ts
+│   │
+│   ├── 📂 middlewares/
+│   │   ├── error.middleware.ts
+│   │   ├── validation.middleware.ts
+│   │
+│   ├── 📂 services/
+│   │   ├── product.service.ts
+│   │
+│   ├── 📂 utils/
+│   │   ├── fileUpload.ts
+│   │   ├── responseHandler.ts
+│   │
+│   ├── 📂 views/
+│   │   ├── layouts/
+│   │   │   ├── main.ejs
+│   │   ├── pages/
+│   │   │   ├── index.ejs
+│   │   │   ├── products.ejs
+│   │
+│   ├── 📂 public/
+│   │   ├── uploads/  # For storing uploaded files
+│   │
+│   ├── 📂 types/
+│   │   ├── product.interface.ts
+│   │
+│   ├── app.ts
+│   ├── server.ts
+│
+│── .env
+│── .gitignore
+│── package.json
+│── tsconfig.json
+│── README.md
+```
+
+---
+
+## **📌 Step 1: Configure MongoDB Connection**
+📄 **`src/config/db.ts`**
+```ts
+import mongoose from "mongoose";
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI as string);
+    console.log("✅ MongoDB Connected");
+  } catch (error) {
+    console.error("❌ MongoDB Connection Error:", error);
+    process.exit(1);
+  }
+};
+
+export default connectDB;
+```
+
+---
+
+## **📌 Step 2: Define the Product Model**
+📄 **`src/models/product.model.ts`**
+```ts
+import mongoose, { Schema, Document } from "mongoose";
+
+interface IProduct extends Document {
+  name: string;
+  description: string;
+  price: number;
+  image: string;
+}
+
+const ProductSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    description: { type: String, required: true },
+    price: { type: Number, required: true },
+    image: { type: String, required: false },
+  },
+  { timestamps: true }
+);
+
+export default mongoose.model<IProduct>("Product", ProductSchema);
+```
+
+---
+
+## **📌 Step 3: Implement Product Controller**
+📄 **`src/controllers/product.controller.ts`**
+```ts
+import { Request, Response } from "express";
+import Product from "../models/product.model";
+import { validationResult } from "express-validator";
+
+export const getProducts = async (req: Request, res: Response) => {
+  const products = await Product.find();
+  res.render("pages/products", { products });
+};
+
+export const addProduct = async (req: Request, res: Response) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    const { name, description, price } = req.body;
+    const image = req.file ? req.file.filename : "";
+
+    const newProduct = new Product({ name, description, price, image });
+    await newProduct.save();
+
+    res.redirect("/products");
+  } catch (error) {
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+```
+
+---
+
+## **📌 Step 4: Set Up Routes**
+📄 **`src/routes/product.routes.ts`**
+```ts
+import { Router } from "express";
+import { getProducts, addProduct } from "../controllers/product.controller";
+import upload from "../utils/fileUpload";
+import { check } from "express-validator";
+
+const router = Router();
+
+router.get("/", getProducts);
+
+router.post(
+  "/add",
+  upload.single("image"),
+  [
+    check("name").notEmpty().withMessage("Name is required"),
+    check("description").notEmpty().withMessage("Description is required"),
+    check("price").isNumeric().withMessage("Price must be a number"),
+  ],
+  addProduct
+);
+
+export default router;
+```
+
+📄 **`src/routes/index.routes.ts`**
+```ts
+import { Router } from "express";
+import productRoutes from "./product.routes";
+
+const router = Router();
+
+router.use("/products", productRoutes);
+
+export default router;
+```
+
+---
+
+## **📌 Step 5: Set Up File Upload Utility**
+📄 **`src/utils/fileUpload.ts`**
+```ts
+import multer from "multer";
+import path from "path";
+
+const storage = multer.diskStorage({
+  destination: "public/uploads/",
+  filename: (req, file, cb) => {
+    cb(null, file.fieldname + "-" + Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
+
+export default upload;
+```
+
+---
+
+## **📌 Step 6: Configure Express App**
+📄 **`src/app.ts`**
+```ts
+import express from "express";
+import dotenv from "dotenv";
+import path from "path";
+import connectDB from "./config/db";
+import routes from "./routes/index.routes";
+
+dotenv.config();
+connectDB();
+
+const app = express();
+app.set("view engine", "ejs");
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
+
+app.use("/", routes);
+
+export default app;
+```
+
+📄 **`src/server.ts`**
+```ts
+import app from "./app";
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+```
+
+---
+
+### **🚀 Run the Project**
+```sh
+npm run dev
+```
+
+Now, visit **`http://localhost:5000/products`** to view and manage products.
+
+Would you like me to add authentication (JWT) 
+or an admin panel?
+
+
+
+
+
+
+
+
+
+
+### **📌 Step 1: Configuration Setup**  
+
+To keep configurations organized, we'll set up a **`config/`** directory to handle database connections, environment variables, and logging.
+
+---
+
+### **📂 Folder Structure**
+```
+📂 src/
+│── 📂 config/
+│   ├── db.ts            # MongoDB Connection
+│   ├── env.ts           # Environment Variables
+│   ├── logger.ts        # Logger Setup
+│── .env                 # Environment Variables File
+```
+
+---
+
+## **1️⃣ Configure Environment Variables**  
+
+📄 **`.env`**  
+```env
+PORT=5000
+MONGO_URI=mongodb://localhost:27017/node-mongo-ts
+JWT_SECRET=your_secret_key
+NODE_ENV=development
+```
+
+---
+
+## **2️⃣ Load Environment Variables**  
+
+📄 **`src/config/env.ts`**  
+```ts
+import dotenv from "dotenv";
+import path from "path";
+
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
+const config = {
+  port: process.env.PORT || 5000,
+  mongoURI: process.env.MONGO_URI || "mongodb://localhost:27017/default",
+  jwtSecret: process.env.JWT_SECRET || "default_secret",
+  nodeEnv: process.env.NODE_ENV || "development",
+};
+
+export default config;
+```
+
+---
+
+## **3️⃣ Setup MongoDB Connection**  
+
+📄 **`src/config/db.ts`**  
+```ts
+import mongoose from "mongoose";
+import config from "./env";
+import logger from "./logger";
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(config.mongoURI);
+    logger.info("✅ MongoDB Connected");
+  } catch (error) {
+    logger.error("❌ MongoDB Connection Error:", error);
+    process.exit(1);
+  }
+};
+
+export default connectDB;
+```
+
+---
+
+## **4️⃣ Configure Logger**  
+
+📄 **`src/config/logger.ts`**  
+```ts
+import winston from "winston";
+
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.printf(({ timestamp, level, message }) => {
+      return `${timestamp} [${level.toUpperCase()}]: ${message}`;
+    })
+  ),
+  transports: [
+    new winston.transports.Console(),
+    new winston.transports.File({ filename: "logs/error.log", level: "error" }),
+  ],
+});
+
+export default logger;
+```
+
+---
+
+## **5️⃣ Integrate Configurations in `app.ts`**  
+
+📄 **`src/app.ts`**  
+```ts
+import express from "express";
+import path from "path";
+import dotenv from "dotenv";
+import connectDB from "./config/db";
+import routes from "./routes/index.routes";
+import logger from "./config/logger";
+import config from "./config/env";
+
+dotenv.config();
+connectDB();
+
+const app = express();
+app.set("view engine", "ejs");
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, "public")));
+
+// Log incoming requests
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.url}`);
+  next();
+});
+
+app.use("/", routes);
+
+export default app;
+```
+
+---
+
+## **6️⃣ Start the Server**  
+
+📄 **`src/server.ts`**  
+```ts
+import app from "./app";
+import config from "./config/env";
+import logger from "./config/logger";
+
+const PORT = config.port;
+
+app.listen(PORT, () => logger.info(`🚀 Server running on port ${PORT}`));
+```
+
+---
+
+## **✅ Summary**
+- `.env` manages environment variables.
+- `config/env.ts` loads and centralizes configurations.
+- `config/db.ts` connects to MongoDB.
+- `config/logger.ts` logs events/errors using **Winston**.
+- `app.ts` integrates everything.
+
+Now, you can start your project with:
+```sh
+npm run dev
+```
+
+Would you like **Docker support** or **Swagger API documentation** added next?
