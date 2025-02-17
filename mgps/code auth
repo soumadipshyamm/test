@@ -1,3 +1,94 @@
+
+import { Request, Response } from "express";
+import { StatusCodes } from "http-status-codes";
+import memberModel from "../models/memberModel";
+import service from "../services";
+import MESSAGE from "../utils/messages";
+
+export const emailVerification = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const { type, email, otp } = req.body;
+        console.log("Email Verification Request:", req.body);
+
+        if (!email || !type) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                message: MESSAGE.custom("Email or type is missing!")
+            });
+        }
+
+        if (type === "email") {
+            const generatedOtp = await service.common.generateOtp();
+            const emailExists = await service.auth.isRegisteredEmailService(memberModel, email);
+            const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // OTP expires in 5 minutes
+
+            if (!emailExists) {
+                return res.status(StatusCodes.BAD_REQUEST).json({
+                    message: MESSAGE.custom("Email is not registered!")
+                });
+            }
+
+            await memberModel.findOneAndUpdate(
+                { email },
+                { otp: generatedOtp, expiresAt },
+                { new: true }
+            );
+
+            return res.status(StatusCodes.OK).json({
+                message: "OTP sent successfully!"
+            });
+        }
+
+        if (type === "otp") {
+            const member = await memberModel.findOne({ email });
+
+            if (!member) {
+                return res.status(StatusCodes.BAD_REQUEST).json({
+                    message: MESSAGE.custom("Email not found!")
+                });
+            }
+
+            if (!member.otp || !member.expiresAt || member.expiresAt < new Date()) {
+                return res.status(StatusCodes.BAD_REQUEST).json({
+                    message: MESSAGE.custom("OTP expired or invalid!")
+                });
+            }
+
+            if (member.otp !== otp) {
+                return res.status(StatusCodes.BAD_REQUEST).json({
+                    message: MESSAGE.custom("Invalid OTP!")
+                });
+            }
+
+            // OTP verified, clear it from the database
+            await memberModel.findOneAndUpdate(
+                { email },
+                { otp: null, expiresAt: null }
+            );
+
+            return res.status(StatusCodes.OK).json({
+                message: MESSAGE.custom("OTP Verified Successfully!"),
+                member
+            });
+        }
+
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            message: MESSAGE.custom("Invalid request type!")
+        });
+
+    } catch (error) {
+        console.error("Error in email verification:", error);
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            message: MESSAGE.custom("Email verification failed!"),
+            error
+        });
+    }
+};
+
+
+
+
+
+
 export const emailVerification = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const {
