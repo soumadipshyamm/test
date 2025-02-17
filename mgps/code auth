@@ -1,3 +1,66 @@
+import jwt from "jsonwebtoken";
+import { StatusCodes } from "http-status-codes";
+import { ROLES } from "../constants"; // Assuming ROLES is defined somewhere
+import { employeeModel } from "../models"; // Assuming employeeModel is defined
+
+const memberAuth = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // Check if the Authorization header is present
+        const token = req.headers.authorization?.replace("Bearer ", "");
+        
+        if (!token) {
+            return res.status(StatusCodes.UNAUTHORIZED).json({
+                message: "Access denied. No token provided"
+            });
+        }
+
+        // Check if JWT_KEY is set in the environment variables
+        if (!process.env.JWT_KEY) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                message: "Token secret key not found in environment variables."
+            });
+        }
+
+        // Decode and verify the token
+        const decoded = jwt.verify(token, process.env.JWT_KEY) as Record<string, any>;
+
+        // Check if the role is 'member'
+        if (decoded.role !== ROLES.member) {
+            return res.status(StatusCodes.UNAUTHORIZED).json({
+                message: "Access denied. Invalid Token!"
+            });
+        }
+
+        // Attach user data to the request
+        req.user = decoded;
+        req.user["read_access"] = false; // Example of dynamic access control
+        req.user["write_access"] = false;
+
+        // Attach member-specific data if the user is a member
+        if (req.user.role === ROLES.member) {
+            const { _id } = req.user;
+            const employeeData = await employeeModel.findOne({ _id, role: ROLES.member });
+            if (employeeData) {
+                req.user.info = employeeData; // Attach employee data to user info
+            }
+        }
+
+        // Proceed to the next middleware or route handler
+        next();
+    } catch (error) {
+        return res.status(StatusCodes.UNAUTHORIZED).json({
+            message: "Invalid Token!",
+            error: error.message || error,
+            token: req.header("Authorization")
+        });
+    }
+};
+
+export default memberAuth;
+
+
+
+
 const memberAuth = async (req: Request, res: Response, next: NextFunction) => {
 	try {
 		if (!req.headers.authorization) {
@@ -68,6 +131,16 @@ export const comparePassword = async (inputPassword: string, dbPassword: string)
 };
 
 
+
+
+
+if (!old_password || old_password === null) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "Old password is required!"
+    });
+}
+
+const isMatch = await service.auth.comparePassword(old_password, oldPassword);
 
 
 
