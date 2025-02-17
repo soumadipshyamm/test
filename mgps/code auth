@@ -1,4 +1,74 @@
 export const memberRegistration = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const {
+            role, first_name, middle_name, last_name, user_name, password, email, gender,
+            address_line_1, address_line_2, city, state, country, ZIP, contact_label,
+            phone_number, phone_extension
+        } = req.body;
+
+        console.log("Registration Request:", req.body);
+
+        // **Step 1: Perform Duplicate Checks in Parallel**
+        const [emailExists, phoneExistsMember, usernameExistsMember, phoneExistsGroup, usernameExistsGroup] = await Promise.all([
+            service.auth.isDuplicateGroupOwnerEmailService(memberModel, email),
+            service.auth.isDuplicateValueCheckService(memberModel, 'phone_number', phone_number),
+            service.auth.isDuplicateValueCheckService(memberModel, 'user_name', user_name),
+            service.auth.isDuplicateValueCheckService(GroupOwnerModel, 'phone_number', phone_number),
+            service.auth.isDuplicateValueCheckService(GroupOwnerModel, 'user_name', user_name)
+        ]);
+
+        // **Step 2: Collect all errors instead of returning multiple responses**
+        const errors = [];
+
+        if (emailExists) errors.push(`Duplicate Email! ${email} already exists!`);
+        if (phoneExistsMember || phoneExistsGroup) errors.push(`Duplicate Phone Number! ${phone_number} already exists!`);
+        if (usernameExistsMember || usernameExistsGroup) errors.push(`Duplicate Username! ${user_name} already exists!`);
+
+        if (errors.length > 0) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                message: MESSAGE.custom(errors.join(" "))
+            });
+        }
+
+        // **Step 3: Prepare Data for Insertion**
+        const hashedPassword = await service.auth.hashPassword(password);
+        const newMember = new memberModel({
+            member_id: service.common.generateId("M", 6),
+            role, first_name, middle_name, last_name, user_name,
+            password: hashedPassword, email, gender,
+            address_line_1, address_line_2, city, state, country, ZIP,
+            contact_label, phone_number, phone_extension
+        });
+
+        // **Step 4: Save Member Data**
+        await newMember.save();
+        console.log("Member registered successfully:", newMember);
+
+        return res.status(StatusCodes.CREATED).json({
+            message: MESSAGE.custom("Registration Successful!"),
+            member: newMember
+        });
+
+    } catch (error) {
+        console.error("Registration Error:", error);
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            message: MESSAGE.custom("Registration Unsuccessful!"),
+            error
+        });
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+export const memberRegistration = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const {
 			role,
