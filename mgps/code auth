@@ -1,3 +1,78 @@
+export const emailVerification = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const {
+			type, email, otp
+		} = req.body;
+		console.log("Registration Request: ", req.body);
+		if (type === 'email') {
+			const otp = await service.common.generateOtp();
+			const emailVerification = await service.auth.isRegisteredEmailService(memberModel, email);
+			const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+			if (emailVerification) {
+				await memberModel.findOneAndUpdate({ email }, { otp, expiresAt });
+				return res.json({ message: "OTP sent successfully!" });
+			} else {
+				return res.status(StatusCodes.BAD_REQUEST).json({
+					message: MESSAGE.custom("Email is missing!")
+				});
+			}
+		}
+
+		if (type === 'otp') {
+			const member = await memberModel.findOne({ email });
+
+			if (!member) {
+				return res.status(StatusCodes.BAD_REQUEST).json({
+					message: MESSAGE.custom("Email not found!")
+				});
+			}
+
+			// Check if the OTP matches
+			if (member.otp === otp) {
+				// OTP is valid, proceed with the update or any other logic
+				member.otp = null; // Clear the OTP after successful verification
+				await member.save();
+
+				return res.status(StatusCodes.OK).json({
+					message: MESSAGE.custom("OTP Verified Successfully!"),
+					member
+				});
+			} else {
+				return res.status(StatusCodes.BAD_REQUEST).json({
+					message: MESSAGE.custom("Invalid OTP!")
+				});
+			}
+		}
+
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.custom("Email or OTP is missing!")
+		});
+
+
+	} catch (error) {
+		console.log(error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.custom("Registration Unsuccessful!"),
+			error
+		});
+	}
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import { Request, Response } from "express";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
