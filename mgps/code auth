@@ -1,3 +1,82 @@
+const memberAuth = async (req: Request, res: Response, next: NextFunction) => {
+	try {
+		if (!req.headers.authorization) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: MESSAGE.custom("Access denied. No token provided")
+			});
+		}
+
+		const token = req.headers.authorization.replace("Bearer ", "");
+
+		if (!token) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: MESSAGE.custom("Access denied. No token provided")
+			});
+		}
+
+		if (!process.env.JWT_KEY) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: MESSAGE.custom("Token not found")
+			});
+		}
+		const decoded = jwt.verify(token, process.env.JWT_KEY) as Record<string, unknown>;
+
+		if (!(decoded.role === ROLES.member)) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: MESSAGE.custom("Access denied. Invalid Token!"),
+				token: req.header("token")
+			});
+		}
+
+		req.user = decoded;
+		req.user["read_access"] = false;
+		req.user["write_access"] = false;
+
+		if (req.user.role === ROLES.member) {
+			const { _id } = req.user;
+			const employeeData = await employeeModel.findOne({
+				$and: [{ _id }, { role: ROLES.member }]
+			});
+			req.user.info = employeeData;
+		}
+
+		next();
+	} catch (error) {
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.custom("Invalid Token!"),
+			error: error,
+			token: req.header("token")
+		});
+	}
+};
+
+router.route("/password-change").post(memberAuth, validator(validators.changePasswordValidator, null), changePassword);
+
+
+
+
+		const isMatch = await service.auth.comparePassword(old_password, oldPassword);
+Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.ts(2345)
+export const comparePassword = async (inputPassword: string, dbPassword: string): Promise<boolean> => {
+	const compare = await bcrypt.compare(inputPassword, dbPassword);
+
+	// console.log("Password Bcrypt Comparison", compare);
+
+	if (compare) return true;
+	else return false;
+};
+
+
+
+
+
+
+
+
+
+
+
 export const memberRegistration = async (req: Request, res: Response): Promise<any> => {
     try {
         const {
