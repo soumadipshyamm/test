@@ -1,3 +1,19 @@
+No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '(req: Request, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>' is not assignable to parameter of type 'RequestHandlerParams<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+      Type '(req: Request, res: Response, next: NextFunction) => Promise<Response<any, Record<string, any>> | undefined>' is not assignable to type 'RequestHandler<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+        Type 'Promise<Response<any, Record<string, any>> | undefined>' is not assignable to type 'void | Promise<void>'.
+          Type 'Promise<Response<any, Record<string, any>> | undefined>' is not assignable to type 'Promise<void>'.
+            Type 'Response<any, Record<string, any>> | undefined' is not assignable to type 'void'.
+              Type 'Response<any, Record<string, any>>' is not assignable to type 'void'.ts(2769)
+index.d.ts(207, 5): The last overload is declared here.
+
+
+
+
+
+
+
 import jwt from "jsonwebtoken";
 import { StatusCodes } from "http-status-codes";
 import { ROLES } from "../constants"; // Assuming ROLES is defined somewhere
