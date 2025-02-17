@@ -1,0 +1,56 @@
+import { Request, Response } from "express";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
+import Otp from "../models/Otp";
+
+const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// Configure Nodemailer
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+// Generate and send OTP
+export const sendOtp = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+
+    await Otp.create({ email, otp, expiresAt });
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: "Your OTP Code",
+      text: `Your OTP code is ${otp}. It expires in 5 minutes.`,
+    });
+
+    res.json({ message: "OTP sent successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Error sending OTP", error });
+  }
+};
+
+// Verify OTP
+export const verifyOtp = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    const otpRecord = await Otp.findOne({ email, otp });
+
+    if (!otpRecord) return res.status(400).json({ message: "Invalid OTP" });
+
+    if (otpRecord.expiresAt < new Date())
+      return res.status(400).json({ message: "OTP expired" });
+
+    await Otp.deleteOne({ email, otp });
+
+    res.json({ message: "OTP verified successfully!" });
+  } catch (error) {
+    res.status(500).json({ message: "Error verifying OTP", error });
+  }
+};
