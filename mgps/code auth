@@ -1,1 +1,165 @@
 
+Here’s how you can implement **user-wise Stripe payments** and store payment details in **MongoDB** using **Node.js & TypeScript**.  
+
+---
+
+### **1. Install Dependencies**
+```sh
+npm install stripe express dotenv cors mongoose body-parser
+npm install --save-dev @types/express @types/node @types/cors @types/mongoose
+```
+
+---
+
+### **2. Setup MongoDB Model (`paymentModel.ts`)**
+Create a file to define the payment schema for MongoDB.
+
+```ts
+import mongoose from "mongoose";
+
+const PaymentSchema = new mongoose.Schema(
+  {
+    userId: { type: String, required: true },
+    amount: { type: Number, required: true },
+    currency: { type: String, default: "usd" },
+    paymentIntentId: { type: String, required: true },
+    status: { type: String, required: true },
+  },
+  { timestamps: true }
+);
+
+export const Payment = mongoose.model("Payment", PaymentSchema);
+```
+
+---
+
+### **3. Create a Stripe Service (`stripeService.ts`)**
+Encapsulate payment processing logic.
+
+```ts
+import Stripe from "stripe";
+import dotenv from "dotenv";
+import { Payment } from "./paymentModel";
+
+dotenv.config();
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
+  apiVersion: "2023-10-16",
+});
+
+export const processPayment = async (userId: string, amount: number, currency: string) => {
+  try {
+    // Create Stripe Payment Intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency,
+    });
+
+    // Store payment in MongoDB
+    const payment = new Payment({
+      userId,
+      amount,
+      currency,
+      paymentIntentId: paymentIntent.id,
+      status: paymentIntent.status,
+    });
+
+    await payment.save();
+
+    return { clientSecret: paymentIntent.client_secret, paymentId: payment._id };
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : "Unknown error");
+  }
+};
+```
+
+---
+
+### **4. Setup Express API (`server.ts`)**
+Use the Stripe service in your API.
+
+```ts
+import express, { Request, Response } from "express";
+import dotenv from "dotenv";
+import cors from "cors";
+import mongoose from "mongoose";
+import { processPayment } from "./stripeService";
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// MongoDB Connection
+mongoose
+  .connect(process.env.MONGO_URI as string)
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("MongoDB connection error:", err));
+
+app.use(cors());
+app.use(express.json());
+
+// API Route for User Payment
+app.post("/pay", async (req: Request, res: Response) => {
+  try {
+    const { userId, amount, currency } = req.body;
+    if (!userId || !amount) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const result = await processPayment(userId, amount, currency);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Unknown error" });
+  }
+});
+
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+```
+
+---
+
+### **5. Test the API**
+Start the server:
+```sh
+ts-node server.ts
+```
+Make a **POST** request to `http://localhost:3000/pay` with a JSON body:
+```json
+{
+  "userId": "user123",
+  "amount": 5000,
+  "currency": "usd"
+}
+```
+**Expected Response:**
+```json
+{
+  "clientSecret": "pi_XXXXXXXX_secret_XXXXXXXX",
+  "paymentId": "65f2a4d8e12b4b0f9c8762d4"
+}
+```
+
+---
+
+### **6. View Payments in MongoDB**
+You can check stored payments in **MongoDB** using **MongoDB Compass** or **Mongoose queries**.
+
+```ts
+import { Payment } from "./paymentModel";
+
+const payments = await Payment.find({ userId: "user123" });
+console.log(payments);
+```
+
+---
+
+### **✅ Features Implemented**
+- **User-wise payment processing**  
+- **Stripe Payment Intent creation**  
+- **Storing payment details in MongoDB**  
+- **Modular architecture with TypeScript**  
+
+---
+
+Would you like to add **refunds**, **subscriptions**, or **webhooks** next?
