@@ -1,0 +1,53 @@
+public function activitiesList(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
+    $subprojectId = $request->subproject;
+    $projectId = $request->project;
+
+    if ($projectId === null) {
+        return $this->responseJson(true, 200, 'Activities List Data Not Found', []);
+    }
+
+    // Fetch activities with relationships
+    $fetchActivities = Activities::with(['units', 'project', 'subproject', 'activitiesHistory', 'children.children'])
+        ->where('type', 'heading')
+        ->where('project_id', $projectId)
+        ->where('company_id', $authCompany)
+        ->when($subprojectId, function ($query, $subprojectId) {
+            return $query->where('subproject_id', $subprojectId);
+        })
+        ->when($request->has('search_keyword') && !empty($request->search_keyword), function ($query) use ($request) {
+            return $query->where('activities', 'LIKE', '%' . $request->search_keyword . '%');
+        })
+        ->get();
+
+    if ($fetchActivities->isEmpty()) {
+        return $this->responseJson(true, 200, 'Activities List Data Not Found', []);
+    }
+
+    // Flatten the hierarchy into a single list
+    $activities = [];
+    foreach ($fetchActivities as $activity) {
+        $activities[] = $activity;
+        if ($activity->children->isNotEmpty()) {
+            foreach ($activity->children as $childActivity) {
+                $activities[] = $childActivity;
+                if ($childActivity->children->isNotEmpty()) {
+                    foreach ($childActivity->children as $siblingActivity) {
+                        $activities[] = $siblingActivity;
+                    }
+                }
+            }
+        }
+    }
+
+    // Apply search filtering on final result
+    if ($request->has('search_keyword') && !empty($request->search_keyword)) {
+        $searchKeyword = strtolower($request->search_keyword);
+        $activities = collect($activities)->filter(function ($activity) use ($searchKeyword) {
+            return str_contains(strtolower($activity->activities), $searchKeyword);
+        })->values();
+    }
+
+    return $this->responseJson(true, 200, 'Fetch Activities List Successfully', ActiviteiesResources::collection($activities));
+}
