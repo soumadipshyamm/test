@@ -1,0 +1,67 @@
+require("dotenv").config();
+const express = require("express");
+const mongoose = require("mongoose");
+const uploadFiles = require("./utils/uploadFiles"); // Import common upload function
+
+const app = express();
+
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log("MongoDB Connected"))
+  .catch((err) => console.error(err));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded files statically
+app.use("/uploads", express.static("uploads"));
+
+// ✅ **MongoDB Schema (User + Files)**
+const UserFileSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  files: [
+    {
+      filename: String,
+      path: String,
+      size: Number,
+    },
+  ],
+});
+
+const UserFileModel = mongoose.model("UserFile", UserFileSchema);
+
+// ✅ **API: Upload Files + User Data**
+app.post("/upload", uploadFiles.array("files", 10), async (req, res) => {
+  try {
+    const { name, email } = req.body; // Get user data
+    const files = req.files.map((file) => ({
+      filename: file.filename,
+      path: file.path,
+      size: file.size,
+    }));
+
+    // Save user + files in MongoDB
+    const userFile = new UserFileModel({ name, email, files });
+    await userFile.save();
+
+    res.status(201).json({ message: "Files uploaded successfully", userFile });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ✅ **API: Get All Users + Files**
+app.get("/users", async (req, res) => {
+  try {
+    const users = await UserFileModel.find();
+    res.status(200).json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Start Server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
