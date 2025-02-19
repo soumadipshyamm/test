@@ -1,0 +1,723 @@
+Here's a **full advanced structure** for a **Node.js + MongoDB** application that handles:  
+
+✅ **Wallet Recharge** (Add funds to the user wallet)  
+✅ **Subscription Purchase** (Deduct funds and activate subscription)  
+✅ **Transaction Table** (Track all wallet & subscription transactions)  
+✅ **Stripe Integration** (For real payments)  
+✅ **Common Payment Function** (Reusable for recharge & subscriptions)  
+
+---
+
+## **📂 Project Folder Structure**
+```
+/your_project
+│-- /config
+│   ├── db.js              # MongoDB Connection
+│   ├── stripe.js          # Stripe Configuration
+│-- /controllers
+│   ├── paymentController.js # Payment Logic
+│   ├── walletController.js  # Wallet Recharge Logic
+│   ├── subscriptionController.js # Subscription Purchase Logic
+│-- /models
+│   ├── Transaction.js     # Transaction Schema
+│   ├── User.js            # User Schema
+│-- /routes
+│   ├── paymentRoutes.js   # Routes for payments
+│-- server.js              # Main Server File
+│-- .env                   # Environment Variables
+│-- package.json           # Dependencies
+```
+
+---
+
+# **📌 1. Install Dependencies**
+```sh
+npm install express mongoose dotenv stripe body-parser cors
+```
+
+---
+
+# **📌 2. Set Up Configuration Files**
+### **🔹 MongoDB Connection (`config/db.js`)**
+```javascript
+const mongoose = require("mongoose");
+require("dotenv").config();
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
+    console.log("✅ MongoDB Connected");
+  } catch (error) {
+    console.error("❌ MongoDB Connection Error:", error);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+```
+
+---
+
+### **🔹 Stripe Configuration (`config/stripe.js`)**
+```javascript
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+module.exports = stripe;
+```
+
+---
+
+# **📌 3. Create MongoDB Models**
+### **🔹 User Model (`models/User.js`)**
+```javascript
+const mongoose = require("mongoose");
+
+const UserSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  walletBalance: { type: Number, default: 0 },
+  subscription: {
+    type: String,
+    enum: ["none", "basic", "premium"],
+    default: "none",
+  },
+});
+
+module.exports = mongoose.model("User", UserSchema);
+```
+
+---
+
+### **🔹 Transaction Model (`models/Transaction.js`)**
+```javascript
+const mongoose = require("mongoose");
+
+const TransactionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+  type: { type: String, enum: ["wallet_recharge", "subscription_purchase"] },
+  amount: Number,
+  status: { type: String, enum: ["pending", "success", "failed"], default: "pending" },
+  transactionId: String,
+});
+
+module.exports = mongoose.model("Transaction", TransactionSchema);
+```
+
+---
+
+# **📌 4. Create Controllers**
+### **🔹 Common Payment Function (`controllers/paymentController.js`)**
+```javascript
+const stripe = require("../config/stripe");
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
+
+exports.processPayment = async (userId, amount, type) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) throw new Error("User not found");
+
+    // Create a Stripe Payment Intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount * 100, // Convert to cents
+      currency: "usd",
+      metadata: { userId, type },
+    });
+
+    // Save transaction in DB
+    const transaction = new Transaction({
+      userId,
+      type,
+      amount,
+      transactionId: paymentIntent.id,
+      status: "pending",
+    });
+
+    await transaction.save();
+
+    return { success: true, clientSecret: paymentIntent.client_secret, transactionId: paymentIntent.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+```
+
+---
+
+### **🔹 Wallet Recharge (`controllers/walletController.js`)**
+```javascript
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
+const { processPayment } = require("./paymentController");
+
+exports.rechargeWallet = async (req, res) => {
+  try {
+    const { userId, amount } = req.body;
+    if (amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+
+    const paymentResponse = await processPayment(userId, amount, "wallet_recharge");
+
+    if (!paymentResponse.success) {
+      return res.status(500).json({ error: paymentResponse.error });
+    }
+
+    res.status(200).json(paymentResponse);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+```
+
+---
+
+### **🔹 Subscription Purchase (`controllers/subscriptionController.js`)**
+```javascript
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
+
+exports.buySubscription = async (req, res) => {
+  try {
+    const { userId, plan } = req.body;
+    const planPrices = { basic: 10, premium: 20 };
+
+    if (!planPrices[plan]) return res.status(400).json({ error: "Invalid plan" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (user.walletBalance < planPrices[plan]) {
+      return res.status(400).json({ error: "Insufficient balance. Please recharge your wallet." });
+    }
+
+    // Deduct wallet balance
+    user.walletBalance -= planPrices[plan];
+    user.subscription = plan;
+    await user.save();
+
+    // Save transaction
+    const transaction = new Transaction({
+      userId,
+      type: "subscription_purchase",
+      amount: planPrices[plan],
+      status: "success",
+    });
+
+    await transaction.save();
+
+    res.status(200).json({ message: `Subscription to ${plan} activated successfully` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+```
+
+---
+
+# **📌 5. Set Up Routes (`routes/paymentRoutes.js`)**
+```javascript
+const express = require("express");
+const { rechargeWallet } = require("../controllers/walletController");
+const { buySubscription } = require("../controllers/subscriptionController");
+
+const router = express.Router();
+
+router.post("/recharge-wallet", rechargeWallet);
+router.post("/buy-subscription", buySubscription);
+
+module.exports = router;
+```
+
+---
+
+# **📌 6. Set Up Server (`server.js`)**
+```javascript
+require("dotenv").config();
+const express = require("express");
+const connectDB = require("./config/db");
+const cors = require("cors");
+const paymentRoutes = require("./routes/paymentRoutes");
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Database Connection
+connectDB();
+
+// Routes
+app.use("/api/payments", paymentRoutes);
+
+// Start Server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+```
+
+---
+
+# **📌 7. Testing the API**
+### ✅ **Recharge Wallet**
+```http
+POST http://localhost:5000/api/payments/recharge-wallet
+Content-Type: application/json
+
+{
+  "userId": "65d4a1a5f1d3d0487b0e9c5b",
+  "amount": 50
+}
+```
+
+### ✅ **Buy Subscription**
+```http
+POST http://localhost:5000/api/payments/buy-subscription
+Content-Type: application/json
+
+{
+  "userId": "65d4a1a5f1d3d0487b0e9c5b",
+  "plan": "premium"
+}
+```
+
+---
+
+## **✅ Features Included**
+✔ **Wallet System**  
+✔ **Subscription System**  
+✔ **Transaction Tracking**  
+✔ **Stripe Integration**  
+✔ **Modular Code Structure**  
+
+Would you like to add auto-renewal for subscriptions? 🚀
+
+
+
+
+
+
+
+
+
+
+*************************************************************************************************
+
+You can move this function into a **utilities file** (e.g., `utils/paymentUtils.js`) and make it reusable across your project.  
+
+---
+
+### **📌 1. Create `utils/paymentUtils.js`**
+Create a new file in your project:  
+📁 **`/utils/paymentUtils.js`**
+
+```javascript
+const stripe = require("../config/stripe");
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
+
+/**
+ * Common function to process payments via Stripe.
+ * 
+ * @param {String} userId - The ID of the user making the payment.
+ * @param {Number} amount - The amount to be charged (in dollars).
+ * @param {String} type - Type of payment (wallet_recharge, subscription_purchase).
+ * @returns {Object} - Returns payment status and transaction details.
+ */
+const processPayment = async (userId, amount, type) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) throw new Error("User not found");
+
+    // Create a Stripe Payment Intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amount * 100, // Convert to cents
+      currency: "usd",
+      metadata: { userId, type },
+    });
+
+    // Save transaction in MongoDB
+    const transaction = new Transaction({
+      userId,
+      type,
+      amount,
+      transactionId: paymentIntent.id,
+      status: "pending",
+    });
+
+    await transaction.save();
+
+    return { success: true, clientSecret: paymentIntent.client_secret, transactionId: paymentIntent.id };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
+module.exports = { processPayment };
+```
+
+---
+
+### **📌 2. Use the Common Function in Controllers**
+Now, you can use `processPayment` in your **wallet recharge** and **subscription purchase** controllers.
+
+---
+
+### **🔹 `controllers/walletController.js`**
+```javascript
+const { processPayment } = require("../utils/paymentUtils");
+
+exports.rechargeWallet = async (req, res) => {
+  try {
+    const { userId, amount } = req.body;
+    if (amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+
+    const paymentResponse = await processPayment(userId, amount, "wallet_recharge");
+
+    if (!paymentResponse.success) {
+      return res.status(500).json({ error: paymentResponse.error });
+    }
+
+    res.status(200).json(paymentResponse);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+```
+
+---
+
+### **🔹 `controllers/subscriptionController.js`**
+```javascript
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
+
+exports.buySubscription = async (req, res) => {
+  try {
+    const { userId, plan } = req.body;
+    const planPrices = { basic: 10, premium: 20 };
+
+    if (!planPrices[plan]) return res.status(400).json({ error: "Invalid plan" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (user.walletBalance < planPrices[plan]) {
+      return res.status(400).json({ error: "Insufficient balance. Please recharge your wallet." });
+    }
+
+    // Deduct wallet balance
+    user.walletBalance -= planPrices[plan];
+    user.subscription = plan;
+    await user.save();
+
+    // Save transaction
+    const transaction = new Transaction({
+      userId,
+      type: "subscription_purchase",
+      amount: planPrices[plan],
+      status: "success",
+    });
+
+    await transaction.save();
+
+    res.status(200).json({ message: `Subscription to ${plan} activated successfully` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+```
+
+---
+
+### **✅ Final Summary**
+✔ **Moved payment logic to `utils/paymentUtils.js`**  
+✔ **Reused common `processPayment` function in controllers**  
+✔ **Maintained clean and modular code structure**  
+
+Now, your payment logic is **centralized** and can be used in multiple places easily! 🚀
+*************************************************************************************************
+
+Here's a **more optimized and structured** version of the **common payment function**, improving **reusability, error handling, and modularity**.  
+
+---
+
+## **📌 1. Optimize `utils/paymentUtils.js`**
+- Added **logging** for better debugging  
+- Wrapped functions inside a **class-based utility** for better structure  
+- Improved **error handling**  
+- Centralized **Stripe metadata and MongoDB interactions**  
+
+---
+
+### **🔹 `utils/paymentUtils.js`**
+```javascript
+const stripe = require("../config/stripe");
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
+
+class PaymentService {
+  /**
+   * Process a payment via Stripe.
+   * @param {String} userId - The ID of the user making the payment.
+   * @param {Number} amount - The amount to be charged (in dollars).
+   * @param {String} type - Type of payment (wallet_recharge, subscription_purchase).
+   * @returns {Object} - Returns payment status and transaction details.
+   */
+  static async processPayment(userId, amount, type) {
+    try {
+      const user = await User.findById(userId);
+      if (!user) throw new Error("User not found");
+
+      // Validate amount
+      if (amount <= 0) throw new Error("Invalid amount");
+
+      // Create a Stripe Payment Intent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount * 100, // Convert to cents
+        currency: "usd",
+        metadata: { userId, type },
+      });
+
+      // Save transaction in MongoDB
+      const transaction = await Transaction.create({
+        userId,
+        type,
+        amount,
+        transactionId: paymentIntent.id,
+        status: "pending",
+      });
+
+      console.log(`[PaymentService] Payment initialized: ${paymentIntent.id}`);
+
+      return {
+        success: true,
+        clientSecret: paymentIntent.client_secret,
+        transactionId: paymentIntent.id,
+      };
+    } catch (error) {
+      console.error(`[PaymentService] Error processing payment: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Finalize a transaction after Stripe confirms payment success.
+   * @param {String} transactionId - The Stripe transaction ID.
+   * @returns {Object} - Returns the final status of the transaction.
+   */
+  static async finalizeTransaction(transactionId) {
+    try {
+      const transaction = await Transaction.findOne({ transactionId });
+      if (!transaction) throw new Error("Transaction not found");
+
+      // Verify payment status from Stripe
+      const paymentIntent = await stripe.paymentIntents.retrieve(transactionId);
+      if (paymentIntent.status !== "succeeded") {
+        return { success: false, message: "Payment not completed" };
+      }
+
+      // Update transaction status
+      transaction.status = "success";
+      await transaction.save();
+
+      // Update user wallet if it's a wallet recharge
+      if (transaction.type === "wallet_recharge") {
+        await User.findByIdAndUpdate(transaction.userId, {
+          $inc: { walletBalance: transaction.amount },
+        });
+      }
+
+      console.log(`[PaymentService] Payment finalized: ${transactionId}`);
+      return { success: true, message: "Payment successful" };
+    } catch (error) {
+      console.error(`[PaymentService] Error finalizing payment: ${error.message}`);
+      return { success: false, error: error.message };
+    }
+  }
+}
+
+module.exports = PaymentService;
+```
+
+---
+
+## **📌 2. Update Controllers to Use Optimized Payment Utility**
+Now, **controllers will be much cleaner** since all logic is handled in `PaymentService`.
+
+---
+
+### **🔹 Update `controllers/walletController.js`**
+```javascript
+const PaymentService = require("../utils/paymentUtils");
+
+exports.rechargeWallet = async (req, res) => {
+  try {
+    const { userId, amount } = req.body;
+
+    const paymentResponse = await PaymentService.processPayment(userId, amount, "wallet_recharge");
+
+    if (!paymentResponse.success) {
+      return res.status(500).json({ error: paymentResponse.error });
+    }
+
+    res.status(200).json(paymentResponse);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Confirm Payment After Success
+exports.confirmWalletRecharge = async (req, res) => {
+  try {
+    const { transactionId } = req.body;
+
+    const response = await PaymentService.finalizeTransaction(transactionId);
+    if (!response.success) return res.status(400).json({ error: response.message });
+
+    res.status(200).json(response);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+```
+
+---
+
+### **🔹 Update `controllers/subscriptionController.js`**
+```javascript
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
+
+exports.buySubscription = async (req, res) => {
+  try {
+    const { userId, plan } = req.body;
+    const planPrices = { basic: 10, premium: 20 };
+
+    if (!planPrices[plan]) return res.status(400).json({ error: "Invalid plan" });
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (user.walletBalance < planPrices[plan]) {
+      return res.status(400).json({ error: "Insufficient balance. Please recharge your wallet." });
+    }
+
+    // Deduct wallet balance and activate subscription
+    user.walletBalance -= planPrices[plan];
+    user.subscription = plan;
+    await user.save();
+
+    // Save transaction
+    await Transaction.create({
+      userId,
+      type: "subscription_purchase",
+      amount: planPrices[plan],
+      status: "success",
+    });
+
+    res.status(200).json({ message: `Subscription to ${plan} activated successfully` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+```
+
+---
+
+## **📌 3. Update Routes (`routes/paymentRoutes.js`)**
+```javascript
+const express = require("express");
+const { rechargeWallet, confirmWalletRecharge } = require("../controllers/walletController");
+const { buySubscription } = require("../controllers/subscriptionController");
+
+const router = express.Router();
+
+router.post("/recharge-wallet", rechargeWallet);
+router.post("/confirm-recharge", confirmWalletRecharge);
+router.post("/buy-subscription", buySubscription);
+
+module.exports = router;
+```
+
+---
+
+## **📌 4. Update Server (`server.js`)**
+```javascript
+require("dotenv").config();
+const express = require("express");
+const connectDB = require("./config/db");
+const cors = require("cors");
+const paymentRoutes = require("./routes/paymentRoutes");
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Database Connection
+connectDB();
+
+// Routes
+app.use("/api/payments", paymentRoutes);
+
+// Start Server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+```
+
+---
+
+## **✅ Final Optimizations**
+✔ **Created `PaymentService` utility class** ✅  
+✔ **Added `finalizeTransaction` to update payment status** ✅  
+✔ **Improved error handling** ✅  
+✔ **Refactored controllers for cleaner logic** ✅  
+✔ **Added `confirm-recharge` API for wallet updates** ✅  
+
+---
+
+## **📌 5. API Requests**
+### **Recharge Wallet**
+```http
+POST http://localhost:5000/api/payments/recharge-wallet
+Content-Type: application/json
+
+{
+  "userId": "65d4a1a5f1d3d0487b0e9c5b",
+  "amount": 50
+}
+```
+### **Confirm Recharge**
+```http
+POST http://localhost:5000/api/payments/confirm-recharge
+Content-Type: application/json
+
+{
+  "transactionId": "pi_3KkZTf2eZvKYlo2CeX9O"
+}
+```
+### **Buy Subscription**
+```http
+POST http://localhost:5000/api/payments/buy-subscription
+Content-Type: application/json
+
+{
+  "userId": "65d4a1a5f1d3d0487b0e9c5b",
+  "plan": "premium"
+}
+```
+
+---
+
+### **🚀 Now, everything is fully optimized & structured!**
+Would you like to add **webhooks** for auto-updating payment status? 🎯
+*************************************************************************************************
+*************************************************************************************************
+*************************************************************************************************
+*************************************************************************************************
+*************************************************************************************************
+*************************************************************************************************
+*************************************************************************************************
