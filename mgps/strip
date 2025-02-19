@@ -716,6 +716,212 @@ Content-Type: application/json
 Would you like to add **webhooks** for auto-updating payment status? 🎯
 *************************************************************************************************
 *************************************************************************************************
+To add transaction logging to a **log file** as part of the common function, I'll extend the existing `PaymentService` to write transaction details to a log file located in a specific directory (e.g., `/logs/transactions.log`). This ensures that every payment attempt or completion is logged for future reference.
+
+---
+
+## **📌 1. Implement Logging in `utils/paymentUtils.js`**
+We'll create a **log file** using the **`fs` (File System)** module, and every time a transaction is processed or finalized, details will be logged. Here's how to extend your current setup.
+
+---
+
+### **🔹 Update `utils/paymentUtils.js` to log transactions**
+```javascript
+const fs = require("fs");
+const path = require("path");
+const stripe = require("../config/stripe");
+const User = require("../models/User");
+const Transaction = require("../models/Transaction");
+
+class PaymentService {
+  /**
+   * Process a payment via Stripe.
+   * @param {String} userId - The ID of the user making the payment.
+   * @param {Number} amount - The amount to be charged (in dollars).
+   * @param {String} type - Type of payment (wallet_recharge, subscription_purchase).
+   * @returns {Object} - Returns payment status and transaction details.
+   */
+  static async processPayment(userId, amount, type) {
+    try {
+      const user = await User.findById(userId);
+      if (!user) throw new Error("User not found");
+
+      // Validate amount
+      if (amount <= 0) throw new Error("Invalid amount");
+
+      // Create a Stripe Payment Intent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount * 100, // Convert to cents
+        currency: "usd",
+        metadata: { userId, type },
+      });
+
+      // Save transaction in MongoDB
+      const transaction = await Transaction.create({
+        userId,
+        type,
+        amount,
+        transactionId: paymentIntent.id,
+        status: "pending",
+      });
+
+      // Log transaction to file
+      this.logTransaction({
+        userId,
+        type,
+        amount,
+        transactionId: paymentIntent.id,
+        status: "pending",
+        message: "Payment initialized"
+      });
+
+      return {
+        success: true,
+        clientSecret: paymentIntent.client_secret,
+        transactionId: paymentIntent.id,
+      };
+    } catch (error) {
+      this.logTransaction({ userId, amount, type, message: `Error: ${error.message}`, status: "failed" });
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Finalize a transaction after Stripe confirms payment success.
+   * @param {String} transactionId - The Stripe transaction ID.
+   * @returns {Object} - Returns the final status of the transaction.
+   */
+  static async finalizeTransaction(transactionId) {
+    try {
+      const transaction = await Transaction.findOne({ transactionId });
+      if (!transaction) throw new Error("Transaction not found");
+
+      // Verify payment status from Stripe
+      const paymentIntent = await stripe.paymentIntents.retrieve(transactionId);
+      if (paymentIntent.status !== "succeeded") {
+        return { success: false, message: "Payment not completed" };
+      }
+
+      // Update transaction status
+      transaction.status = "success";
+      await transaction.save();
+
+      // Update user wallet if it's a wallet recharge
+      if (transaction.type === "wallet_recharge") {
+        await User.findByIdAndUpdate(transaction.userId, {
+          $inc: { walletBalance: transaction.amount },
+        });
+      }
+
+      // Log transaction finalization
+      this.logTransaction({
+        userId: transaction.userId,
+        transactionId,
+        type: transaction.type,
+        amount: transaction.amount,
+        status: "success",
+        message: "Payment finalized successfully"
+      });
+
+      return { success: true, message: "Payment successful" };
+    } catch (error) {
+      this.logTransaction({ transactionId, message: `Error finalizing payment: ${error.message}`, status: "failed" });
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Logs the transaction to a log file located in /logs/transactions.log
+   * @param {Object} logData - The data to be logged
+   */
+  static logTransaction(logData) {
+    const logDir = path.join(__dirname, "../logs");
+    const logFilePath = path.join(logDir, "transactions.log");
+
+    // Ensure the logs directory exists
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir);
+    }
+
+    // Format log message
+    const logMessage = `${new Date().toISOString()} | User: ${logData.userId || "N/A"} | Type: ${logData.type || "N/A"} | Amount: $${logData.amount || 0} | Transaction ID: ${logData.transactionId || "N/A"} | Status: ${logData.status} | Message: ${logData.message}\n`;
+
+    // Write log message to file
+    fs.appendFile(logFilePath, logMessage, (err) => {
+      if (err) {
+        console.error(`[PaymentService] Error logging transaction: ${err.message}`);
+      } else {
+        console.log(`[PaymentService] Transaction logged successfully.`);
+      }
+    });
+  }
+}
+
+module.exports = PaymentService;
+```
+
+---
+
+## **📌 2. How the `logTransaction` Works**
+The `logTransaction` method will write a detailed log to a **`transactions.log`** file located in a `/logs` folder. The log file will be created if it doesn't already exist.
+
+### **Example of Log Entries in `transactions.log`:**
+```
+2025-02-20T14:30:22.123Z | User: 65d4a1a5f1d3d0487b0e9c5b | Type: wallet_recharge | Amount: $50 | Transaction ID: pi_3KkZTf2eZvKYlo2CeX9O | Status: pending | Message: Payment initialized
+2025-02-20T14:31:40.321Z | User: 65d4a1a5f1d3d0487b0e9c5b | Type: wallet_recharge | Amount: $50 | Transaction ID: pi_3KkZTf2eZvKYlo2CeX9O | Status: success | Message: Payment finalized successfully
+```
+
+---
+
+## **📌 3. Update Controllers to Use the Optimized Logging**
+Since the logging is handled within `PaymentService`, you don’t need to change anything in the controllers.
+
+---
+
+### **Controller Example (No Changes Needed)**
+```javascript
+const PaymentService = require("../utils/paymentUtils");
+
+exports.rechargeWallet = async (req, res) => {
+  try {
+    const { userId, amount } = req.body;
+
+    const paymentResponse = await PaymentService.processPayment(userId, amount, "wallet_recharge");
+
+    if (!paymentResponse.success) {
+      return res.status(500).json({ error: paymentResponse.error });
+    }
+
+    res.status(200).json(paymentResponse);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+```
+
+---
+
+## **📌 4. Logging File Location**
+The **log file** is created in the `/logs` directory relative to your project:
+
+```
+📁 project-root
+    └── 📁 logs
+        └── 📄 transactions.log
+```
+
+Make sure that your application has **write access** to this directory.
+
+---
+
+## **✅ Summary of Changes**
+- Created a **transaction log file** located in `/logs/transactions.log`
+- Each payment or transaction update is logged with a timestamp, user ID, transaction type, amount, status, and a message
+- This log can be used for debugging or auditing purposes
+
+---
+
+Would you like to add a feature to **view/download logs via API** or **filter specific logs**?
 *************************************************************************************************
 *************************************************************************************************
 *************************************************************************************************
