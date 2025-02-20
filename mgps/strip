@@ -1,3 +1,47 @@
+{
+  "error": {
+    "code": "parameter_unknown",
+    "doc_url": "https://stripe.com/docs/error-codes/parameter-unknown",
+    "message": "Received unknown parameter: paymentIntentMethodTypes. Did you mean payment_method_types?",
+    "param": "paymentIntentMethodTypes",
+    "request_log_url": "https://dashboard.stripe.com/test/logs/req_1F44lxBX8Kp5kz?t=1740048334",
+    "type": "invalid_request_error"
+  }
+}
+
+
+export const processPayment = async (memberId: string, amount: number, currency: string, type: string) => {
+
+	const paymentIntent = await stripe.paymentIntents.create({
+		amount: amount * 100,
+		currency: currency,
+		metadata: { memberId, type },
+		description: 'Payment for dog',
+		payment_method_types: ['card'],
+	});
+	return paymentIntent;
+
+}
+
+parameter_unknown - paymentIntentMethodTypes
+Received unknown parameter: paymentIntentMethodTypes. Did you mean payment_method_types?
+correction and update this code
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Here's a **full advanced structure** for a **Node.js + MongoDB** application that handles:  
 
 ✅ **Wallet Recharge** (Add funds to the user wallet)  
