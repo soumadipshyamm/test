@@ -1,3 +1,50 @@
+dog req.body [
+  {
+    fieldname: 'img',
+    originalname: '66e7f82d4721d548642540.avif',
+    encoding: '7bit',
+    mimetype: 'image/avif',
+    buffer: <Buffer 00 00 00 18 66 74 79 70 61 76 69 66 00 00 00 00 6d 69 66 31 6d 69 61 66 00 00 00 d2 6d 65 74 61 00 00 00 00 00 00 00 21 68 64 6c 72 00 00 00 00 00 00 ... 21790 more bytes>,
+    size: 21840
+  },
+  {
+    fieldname: 'img',
+    originalname: '800px-Rottweiler_standing_facing_left.jpg',
+    encoding: '7bit',
+    mimetype: 'image/jpeg',
+    buffer: <Buffer ff d8 ff e2 02 40 49 43 43 5f 50 52 4f 46 49 4c 45 00 01 01 00 00 02 30 41 44 42 45 02 10 00 00 6d 6e 74 72 52 47 42 20 58 59 5a 20 07 cf 00 06 00 03 ... 193869 more bytes>,
+    size: 193919
+  },
+  {
+    fieldname: 'img',
+    originalname: 'images.jpg',
+    encoding: '7bit',
+    mimetype: 'image/jpeg',
+    buffer: <Buffer ff d8 ff e0 00 10 4a 46 49 46 00 01 01 00 00 01 00 01 00 00 ff db 00 84 00 09 06 07 13 13 12 15 12 12 13 15 15 15 15 15 15 15 15 15 15 17 15 15 15 15 ... 48527 more bytes>,
+    size: 48577
+  }
+]
+
+router.route("/details/add").post(upload.array('img', 5), createDog);
+
+
+import multer from "multer";
+
+const storage = multer.memoryStorage();
+export const upload = multer({ storage: storage });
+
+files [
+  { filename: undefined, path: undefined, size: 21840 },
+  { filename: undefined, path: undefined, size: 193919 },
+  { filename: undefined, path: undefined, size: 48577 }
+]
+solved this issue
+
+
+
+
+
+
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
