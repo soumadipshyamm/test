@@ -1,180 +1,213 @@
-import multer from "multer";
-import path from "path";
+Here’s how you can create **User** routes with **CRUD (Create, Read, Update, Delete)** functionality in **TypeScript**. I'll guide you through creating the routes, controllers, and services for handling user-related actions.
 
-// Define allowed file types
-const allowedMimeTypes = ["image/jpeg", "image/png", "image/avif", "image/jpg"];
+### **1. User Model (Interface)**
 
-// Configure multer storage
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, "uploads/"); // Ensure "uploads" directory exists
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
+Define an interface for the user data.
 
-// File filter function
-const fileFilter = (req: Express.Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    if (allowedMimeTypes.includes(file.mimetype)) {
-        cb(null, true);
-    } else {
-        cb(new Error("Invalid file type. Only images are allowed."));
-    }
-};
+#### **`models/userModel.ts`**
+```typescript
+export interface User {
+    id: number;
+    name: string;
+    email: string;
+    age: number;
+}
+```
 
-// Create upload middleware
-export const upload = multer({
-    storage: storage,
-    fileFilter: fileFilter,
-    limits: { fileSize: 5 * 1024 * 1024 } // Limit file size to 5MB
-});
+### **2. User Routes**
 
+Define the routes to handle the **CRUD** operations.
 
+#### **`routes/userRoutes.ts`**
+```typescript
+import express from "express";
+import { createUser, getUser, updateUser, deleteUser } from "../controllers/userController";
+
+const router = express.Router();
+
+// Create a new user
+router.post("/user", createUser);
+
+// Get user by ID
+router.get("/user/:id", getUser);
+
+// Update user by ID
+router.put("/user/:id", updateUser);
+
+// Delete user by ID
+router.delete("/user/:id", deleteUser);
+
+export default router;
+```
+
+### **3. User Controller**
+
+Create the controller that handles requests and interacts with the service layer.
+
+#### **`controllers/userController.ts`**
+```typescript
 import { Request, Response } from "express";
+import { createNewUser, findUserById, updateUserById, deleteUserById } from "../services/userService";
+import { User } from "../models/userModel";
 
-// Handle file upload in controller
-export const createDog = async (req: Request, res: Response): Promise<Response> => {
+// Create a new user
+export const createUser = async (req: Request, res: Response): Promise<Response> => {
     try {
-        if (!req.files || (req.files as Express.Multer.File[]).length === 0) {
-            return res.status(400).json({ message: "No files uploaded!" });
-        }
-
-        const files = (req.files as Express.Multer.File[]).map(file => ({
-            filename: file.filename,
-            path: file.path,
-            mimetype: file.mimetype,
-            size: file.size
-        }));
-
-        console.log("Uploaded Files:", files);
-
-        return res.status(201).json({ message: "Files uploaded successfully!", files });
+        const { name, email, age } = req.body;
+        const user: User = { id: Date.now(), name, email, age }; // Generate ID for simplicity
+        const newUser = await createNewUser(user);
+        return res.status(201).json(newUser);
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: "Internal Server Error" });
+        return res.status(500).json({ message: "Error creating user" });
     }
 };
 
+// Get user by ID
+export const getUser = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const userId = parseInt(req.params.id);
+        const user = await findUserById(userId);
+        if (user) {
+            return res.status(200).json(user);
+        } else {
+            return res.status(404).json({ message: "User not found" });
+        }
+    } catch (error) {
+        return res.status(500).json({ message: "Error retrieving user" });
+    }
+};
 
+// Update user by ID
+export const updateUser = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const userId = parseInt(req.params.id);
+        const updatedData: Partial<User> = req.body; // Partial to allow partial updates
+        const updatedUser = await updateUserById(userId, updatedData);
+        if (updatedUser) {
+            return res.status(200).json(updatedUser);
+        } else {
+            return res.status(404).json({ message: "User not found" });
+        }
+    } catch (error) {
+        return res.status(500).json({ message: "Error updating user" });
+    }
+};
 
+// Delete user by ID
+export const deleteUser = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const userId = parseInt(req.params.id);
+        const isDeleted = await deleteUserById(userId);
+        if (isDeleted) {
+            return res.status(200).json({ message: "User deleted successfully" });
+        } else {
+            return res.status(404).json({ message: "User not found" });
+        }
+    } catch (error) {
+        return res.status(500).json({ message: "Error deleting user" });
+    }
+};
+```
 
+### **4. User Service**
 
+Service layer to handle logic like interacting with the database or in-memory store.
 
+#### **`services/userService.ts`**
+```typescript
+import { User } from "../models/userModel";
 
+let users: User[] = []; // Simple in-memory user list
 
-dog req.body [
-  {
-    fieldname: 'img',
-    originalname: '66e7f82d4721d548642540.avif',
-    encoding: '7bit',
-    mimetype: 'image/avif',
-    buffer: <Buffer 00 00 00 18 66 74 79 70 61 76 69 66 00 00 00 00 6d 69 66 31 6d 69 61 66 00 00 00 d2 6d 65 74 61 00 00 00 00 00 00 00 21 68 64 6c 72 00 00 00 00 00 00 ... 21790 more bytes>,
-    size: 21840
-  },
-  {
-    fieldname: 'img',
-    originalname: '800px-Rottweiler_standing_facing_left.jpg',
-    encoding: '7bit',
-    mimetype: 'image/jpeg',
-    buffer: <Buffer ff d8 ff e2 02 40 49 43 43 5f 50 52 4f 46 49 4c 45 00 01 01 00 00 02 30 41 44 42 45 02 10 00 00 6d 6e 74 72 52 47 42 20 58 59 5a 20 07 cf 00 06 00 03 ... 193869 more bytes>,
-    size: 193919
-  },
-  {
-    fieldname: 'img',
-    originalname: 'images.jpg',
-    encoding: '7bit',
-    mimetype: 'image/jpeg',
-    buffer: <Buffer ff d8 ff e0 00 10 4a 46 49 46 00 01 01 00 00 01 00 01 00 00 ff db 00 84 00 09 06 07 13 13 12 15 12 12 13 15 15 15 15 15 15 15 15 15 15 17 15 15 15 15 ... 48527 more bytes>,
-    size: 48577
-  }
-]
+// Create a new user
+export const createNewUser = async (user: User): Promise<User> => {
+    users.push(user);
+    return user;
+};
 
-router.route("/details/add").post(upload.array('img', 5), createDog);
+// Find user by ID
+export const findUserById = async (id: number): Promise<User | undefined> => {
+    return users.find(user => user.id === id);
+};
 
+// Update user by ID
+export const updateUserById = async (id: number, updatedData: Partial<User>): Promise<User | undefined> => {
+    const userIndex = users.findIndex(user => user.id === id);
+    if (userIndex !== -1) {
+        users[userIndex] = { ...users[userIndex], ...updatedData };
+        return users[userIndex];
+    }
+    return undefined;
+};
 
-import multer from "multer";
+// Delete user by ID
+export const deleteUserById = async (id: number): Promise<boolean> => {
+    const userIndex = users.findIndex(user => user.id === id);
+    if (userIndex !== -1) {
+        users.splice(userIndex, 1);
+        return true;
+    }
+    return false;
+};
+```
 
-const storage = multer.memoryStorage();
-export const upload = multer({ storage: storage });
+### **5. App Setup**
 
-files [
-  { filename: undefined, path: undefined, size: 21840 },
-  { filename: undefined, path: undefined, size: 193919 },
-  { filename: undefined, path: undefined, size: 48577 }
-]
-solved this issue
+Set up the **Express** app to use the routes.
 
-
-
-
-
-
-require("dotenv").config();
-const express = require("express");
-const mongoose = require("mongoose");
-const uploadFiles = require("./utils/uploadFiles"); // Import common upload function
+#### **`index.ts`**
+```typescript
+import express from "express";
+import userRoutes from "./routes/userRoutes";
 
 const app = express();
 
-// Connect to MongoDB
-mongoose
-  .connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.error(err));
+app.use(express.json()); // Middleware to parse JSON
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Use user routes
+app.use("/api", userRoutes);
 
-// Serve uploaded files statically
-app.use("/uploads", express.static("uploads"));
-
-// ✅ **MongoDB Schema (User + Files)**
-const UserFileSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  files: [
-    {
-      filename: String,
-      path: String,
-      size: Number,
-    },
-  ],
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
+```
 
-const UserFileModel = mongoose.model("UserFile", UserFileSchema);
+---
 
-// ✅ **API: Upload Files + User Data**
-app.post("/upload", uploadFiles.array("files", 10), async (req, res) => {
-  try {
-    const { name, email } = req.body; // Get user data
-    const files = req.files.map((file) => ({
-      filename: file.filename,
-      path: file.path,
-      size: file.size,
-    }));
+### **6. Test Using Postman or Curl**
 
-    // Save user + files in MongoDB
-    const userFile = new UserFileModel({ name, email, files });
-    await userFile.save();
-
-    res.status(201).json({ message: "Files uploaded successfully", userFile });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+- **Create a User (POST)**:  
+  `POST http://localhost:3000/api/user`  
+  Body (JSON):
+  ```json
+  {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "age": 25
   }
-});
+  ```
 
-// ✅ **API: Get All Users + Files**
-app.get("/users", async (req, res) => {
-  try {
-    const users = await UserFileModel.find();
-    res.status(200).json(users);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+- **Get User by ID (GET)**:  
+  `GET http://localhost:3000/api/user/1`
+
+- **Update User (PUT)**:  
+  `PUT http://localhost:3000/api/user/1`  
+  Body (JSON):
+  ```json
+  {
+    "name": "Jane Doe",
+    "email": "jane@example.com"
   }
-});
+  ```
 
-// Start Server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+- **Delete User (DELETE)**:  
+  `DELETE http://localhost:3000/api/user/1`
+
+---
+
+### ✅ **This Setup is Ready for:**
+- **Creating**, **Reading**, **Updating**, and **Deleting** users using TypeScript and Express.
+- This can easily be expanded to work with a real database (e.g., MySQL, MongoDB) by replacing the in-memory logic with database operations.
+
+Would you like to see this connected with a database or anything else?
