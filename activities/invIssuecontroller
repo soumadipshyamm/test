@@ -1,3 +1,100 @@
+public function materialsList(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
+    $projectId = $request->project_id;
+    $goodsType = $request->goods_type;
+    $type = $request->type;
+
+    // Identify foreign key based on goods type
+    $foreignKey = ($goodsType === 'materials') ? 'materials_id' : 'assets_id';
+
+    // Helper to get relevant material/asset IDs based on type
+    $materialOrAssetIds = $this->getMaterialOrAssetIds($authCompany, $projectId, $goodsType, $type, $foreignKey);
+
+    // If no material/asset IDs are found, return empty response
+    if ($materialOrAssetIds->isEmpty()) {
+        return $this->responseJson(true, 200, 'No Materials/Assets Found', []);
+    }
+
+    // Fetch materials/assets based on relevant IDs
+    $query = ($goodsType === 'materials') ? Materials::whereIn('id', $materialOrAssetIds) : Assets::whereIn('id', $materialOrAssetIds);
+
+    // Determine relationship for stock data
+    $relation = ($type === 'issue') ? 'invInwardGoodDetails' : 'invIssuesDetails';
+
+    // Fetch and filter materials/assets with stock data
+    $materialList = $query
+        ->whereHas($relation, fn($q) => $q->whereNotNull($foreignKey))
+        ->with('inventorys') // Load inventory stock details
+        ->get()
+        ->map(function ($item) {
+            $totalQty = optional($item->inventorys)->total_qty ?? 0;
+            $item->total_stk_qty = ($totalQty > 0) ? $totalQty : null; // Only keep valid stock values
+            return $item;
+        })
+        ->filter(fn($item) => !is_null($item->total_stk_qty)); // Remove null values
+
+    // Return response
+    return $this->responseJson(true, 200, 'Materials List Fetched Successfully', IssueMaterialResource::collection($materialList));
+}
+
+// Helper method to extract relevant material/asset IDs
+private function getMaterialOrAssetIds($authCompany, $projectId, $goodsType, $type, $foreignKey)
+{
+    if ($type === 'issue') {
+        // Fetch Inward Goods with related data
+        $fetchInwardGoods = InvInward::with('invInwardGood.invInwardGoodDetails')
+            ->where('company_id', $authCompany)
+            ->where('projects_id', $projectId)
+            ->whereHas('invInwardGood', function ($query) use ($goodsType) {
+                $query->where('type', $goodsType);
+            })
+            ->get();
+
+        // Extract relevant invInwardGoodDetails that contain materials/assets
+        return $fetchInwardGoods->flatMap(function ($item) {
+            return $item->invInwardGood->flatMap(function ($good) {
+                return $good->invInwardGoodDetails;
+            });
+        })->pluck($foreignKey)->filter()->unique();
+    }
+
+    if ($type === 'return') {
+        // Fetch Issue Goods with related data
+        $fetchIssueGoods = InvIssue::with('invIssueGoods.invIssueDetails')
+            ->where('company_id', $authCompany)
+            ->where('projects_id', $projectId)
+            ->whereHas('invIssueGoods', function ($query) use ($goodsType) {
+                $query->where('type', $goodsType);
+            })
+            ->get();
+
+        // Extract relevant invIssueDetails that contain materials/assets
+        return $fetchIssueGoods->flatMap(function ($item) {
+            return $item->invIssueGoods->flatMap(function ($good) {
+                return $good->invIssueDetails;
+            });
+        })->pluck($foreignKey)->filter()->unique();
+    }
+
+    return collect(); // Return an empty collection if type doesn't match
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 public function materialsList(Request $request)
