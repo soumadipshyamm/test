@@ -1,4 +1,62 @@
- public function materialsList(Request $request)
+
+
+public function materialsList(Request $request)
+{
+    $authCompany = Auth::guard('company-api')->user()->company_id;
+    $projectId = $request->project_id;
+    $goodsType = $request->goods_type;
+    $type = $request->type;
+
+    // Identify foreign key based on goods type
+    $foreignKey = ($goodsType === 'materials') ? 'materials_id' : 'assets_id';
+
+    // Determine the model and relationships dynamically
+    $goodsModel = ($type === 'issue') ? InvInward::class : InvIssue::class;
+    $goodsRelation = ($type === 'issue') ? 'invInwardGood.invInwardGoodDetails' : 'invIssueGoods.invIssueDetails';
+
+    // Fetch Goods with related data
+    $fetchGoods = $goodsModel::with($goodsRelation)
+        ->where('company_id', $authCompany)
+        ->where('projects_id', $projectId)
+        ->whereHas(explode('.', $goodsRelation)[0], function ($query) use ($goodsType) {
+            $query->where('type', $goodsType);
+        })
+        ->get();
+
+    // Extract relevant material/asset IDs
+    $materialOrAssetIds = $fetchGoods->flatMap(function ($item) use ($goodsRelation) {
+        return data_get($item, $goodsRelation, []);
+    })->pluck($foreignKey)->filter()->unique();
+
+    // If no relevant IDs are found, return an empty response early
+    if ($materialOrAssetIds->isEmpty()) {
+        return $this->responseJson(true, 200, 'No Materials Found', []);
+    }
+
+    // Fetch materials/assets only if we have relevant IDs
+    $query = ($goodsType === 'materials') ? Materials::query() : Assets::query();
+
+    $materialList = $query->whereIn('id', $materialOrAssetIds)
+        ->with('inventorys') // Load inventory stock details
+        ->get()
+        ->map(function ($item) {
+            $totalQty = optional($item->inventorys)->total_qty ?? 0;
+            $item->total_stk_qty = ($totalQty > 0) ? $totalQty : null; // Only keep valid stock values
+            return $item;
+        })
+        ->filter(fn($item) => !is_null($item->total_stk_qty)); // Remove null values
+
+    // Return response
+    return $this->responseJson(true, 200, 'Materials List Fetched Successfully', IssueMaterialResource::collection($materialList));
+}
+
+
+
+
+
+
+
+public function materialsList(Request $request)
  {
         $authCompany = Auth::guard('company-api')->user()->company_id;
         $projectId = $request->project_id;
