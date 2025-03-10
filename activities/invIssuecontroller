@@ -1,0 +1,216 @@
+ public function materialsList(Request $request)
+    {
+        $authCompany = Auth::guard('company-api')->user()->company_id;
+        $projectId = $request->project_id;
+        $goodsType = $request->goods_type;
+        $type = $request->type;
+
+        $fetchInwardGoods = InvInward::with('invInwardGood.invInwardGoodDetails')
+        ->where('company_id', $authCompany)
+        ->where('projects_id', $projectId)
+        ->whereHas('invInwardGood', function ($query) use ($goodsType) {
+            $query->where('type', $goodsType);
+        })
+        ->get();
+    
+    $invInwardGoodDetails = [];
+    
+    // // Iterate over the fetched inward goods
+    foreach ($fetchInwardGoods as $item) {
+        // Check if 'invInwardGood' relationship has been loaded
+        if ($item->invInwardGood) {
+            foreach ($item->invInwardGood as $good) {
+                // Check if 'invInwardGoodDetails' relationship has been loaded
+                if ($good->invInwardGoodDetails) {
+                    // Merge the details into the main array
+                    $invInwardGoodDetails = array_merge($invInwardGoodDetails, $good->invInwardGoodDetails->toArray());
+                }
+            }
+        }
+    }
+    
+    // Now $invInwardGoodDetails will contain all inv_inward_good_details in one array
+      dd($fetchInwardGoods->toArray());
+
+        // $query = 
+        $query = ($goodsType === 'materials') ? Materials::where('company_id', $authCompany) : Assets::where('company_id', $authCompany);
+
+        $relation = ($type === 'issue') ? 'invInwardGoodDetails':'invIssuesDetails';
+        $foreignKey = ($goodsType === 'materials') ? 'materials_id' : 'assets_id';
+
+        $materialList = $query
+            ->whereHas($relation, fn($q) => $q->whereNotNull($foreignKey))
+            ->with('inventorys') // Eager loading for performance
+            ->get()
+            ->map(function ($item) {
+                $totalQty = $item->inventorys->total_qty ?? 0;
+                $item->total_stk_qty = ($totalQty > 0) ? $totalQty : null; // Only keep valid stock values
+                return $item;
+            })
+            ->filter(fn($item) => !is_null($item->total_stk_qty)); // Filter out null values
+
+            // dd($materialList);
+        return $this->responseJson(true, 200, 'Materials List Fetched Successfully', IssueMaterialResource::collection($materialList));
+    }
+
+
+
+
+array:2 [ // app/Http/Controllers/API/inventory/InvIssueController.php:83
+  0 => array:14 [
+    "id" => 127
+    "uuid" => "0cfc7b6f-6844-4588-9e5c-49d815ebb01a"
+    "name" => "2025-02-28"
+    "date" => "2025-02-27"
+    "details" => null
+    "remarks" => null
+    "projects_id" => 45
+    "store_id" => null
+    "user_id" => 34
+    "company_id" => 14
+    "is_active" => 1
+    "created_at" => "2025-02-27T19:01:36.000000Z"
+    "updated_at" => "2025-02-27T19:01:36.000000Z"
+    "inv_inward_good" => array:1 [
+      0 => array:20 [
+        "id" => 121
+        "uuid" => "66696e48-9f56-4dd7-b51c-3f73c16d2a75"
+        "inv_inwards_id" => 127
+        "materials_id" => null
+        "type" => "materials"
+        "grn_no" => "935650"
+        "date" => "2025-02-28"
+        "inv_inward_entry_types_id" => 1
+        "delivery_ref_copy_no" => "255"
+        "delivery_ref_copy_date" => "2025-02-28"
+        "img" => null
+        "remarkes" => "undefined"
+        "company_id" => 14
+        "is_active" => 1
+        "created_at" => "2025-02-27T19:02:45.000000Z"
+        "updated_at" => "2025-02-27T19:02:45.000000Z"
+        "deleted_at" => null
+        "vendors_id" => null
+        "vendor_id" => 40
+        "inv_inward_good_details" => array:2 [
+          0 => array:17 [
+            "id" => 123
+            "uuid" => "e6196094-c569-4b71-b0c6-13fb7c5adc0b"
+            "inward_goods_id" => 121
+            "materials_id" => 32
+            "recipt_qty" => "5"
+            "reject_qty" => 2
+            "remarkes" => null
+            "price" => null
+            "po_qty" => null
+            "accept_qty" => 3
+            "type" => "materials"
+            "company_id" => 14
+            "is_active" => 1
+            "created_at" => "2025-02-27T19:04:19.000000Z"
+            "updated_at" => "2025-02-27T19:13:37.000000Z"
+            "deleted_at" => null
+            "assets_id" => null
+          ]
+          1 => array:17 [
+            "id" => 124
+            "uuid" => "7a15bd5a-0cf5-46f5-bde8-8903e9402159"
+            "inward_goods_id" => 121
+            "materials_id" => 28
+            "recipt_qty" => "2"
+            "reject_qty" => 1
+            "remarkes" => null
+            "price" => null
+            "po_qty" => null
+            "accept_qty" => 1
+            "type" => "materials"
+            "company_id" => 14
+            "is_active" => 1
+            "created_at" => "2025-02-27T19:04:19.000000Z"
+            "updated_at" => "2025-02-27T19:13:37.000000Z"
+            "deleted_at" => null
+            "assets_id" => null
+          ]
+        ]
+      ]
+    ]
+  ]
+  1 => array:14 [
+    "id" => 128
+    "uuid" => "a37f935a-0afc-4142-be4a-60cbb2c12532"
+    "name" => "2025-02-28"
+    "date" => "2025-02-27"
+    "details" => null
+    "remarks" => null
+    "projects_id" => 45
+    "store_id" => null
+    "user_id" => 34
+    "company_id" => 14
+    "is_active" => 1
+    "created_at" => "2025-02-27T19:06:27.000000Z"
+    "updated_at" => "2025-02-27T19:06:27.000000Z"
+    "inv_inward_good" => array:1 [
+      0 => array:20 [
+        "id" => 120
+        "uuid" => "2a801dad-66d3-4484-bb92-d97f3da347c4"
+        "inv_inwards_id" => 128
+        "materials_id" => null
+        "type" => "materials"
+        "grn_no" => "913548"
+        "date" => "2025-02-22"
+        "inv_inward_entry_types_id" => 1
+        "delivery_ref_copy_no" => "1222"
+        "delivery_ref_copy_date" => "2025-02-22"
+        "img" => null
+        "remarkes" => "okau"
+        "company_id" => 14
+        "is_active" => 1
+        "created_at" => "2025-02-22T07:49:10.000000Z"
+        "updated_at" => "2025-03-10T12:34:03.000000Z"
+        "deleted_at" => null
+        "vendors_id" => null
+        "vendor_id" => 40
+        "inv_inward_good_details" => array:2 [
+          0 => array:17 [
+            "id" => 121
+            "uuid" => "a12a26bb-5be5-4057-a09a-e3ac3093c359"
+            "inward_goods_id" => 120
+            "materials_id" => 27
+            "recipt_qty" => "10"
+            "reject_qty" => 1
+            "remarkes" => null
+            "price" => null
+            "po_qty" => null
+            "accept_qty" => 9
+            "type" => "materials"
+            "company_id" => 14
+            "is_active" => 1
+            "created_at" => "2025-02-22T07:49:31.000000Z"
+            "updated_at" => "2025-03-10T12:34:10.000000Z"
+            "deleted_at" => null
+            "assets_id" => null
+          ]
+          1 => array:17 [
+            "id" => 122
+            "uuid" => "8d86c8b1-9ed7-4037-85ec-5d1f8d97648a"
+            "inward_goods_id" => 120
+            "materials_id" => 25
+            "recipt_qty" => "5"
+            "reject_qty" => 2
+            "remarkes" => null
+            "price" => null
+            "po_qty" => null
+            "accept_qty" => 3
+            "type" => "materials"
+            "company_id" => 14
+            "is_active" => 1
+            "created_at" => "2025-02-22T07:49:31.000000Z"
+            "updated_at" => "2025-03-10T12:34:10.000000Z"
+            "deleted_at" => null
+            "assets_id" => null
+          ]
+        ]
+      ]
+    ]
+  ]
+]
