@@ -1,3 +1,4 @@
+ public function materialsList(Request $request)
  {
         $authCompany = Auth::guard('company-api')->user()->company_id;
         $projectId = $request->project_id;
