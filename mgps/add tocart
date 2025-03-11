@@ -1,0 +1,51 @@
+export const addToCartDogs = async (req: Request, res: Response): Promise<any> => {
+	console.log(req.body);
+	const { member_id, dogs, price, tax, platformCharges, paybleAmount } = req.body;
+
+	if (!member_id || !dogs || !Array.isArray(dogs) || dogs.length === 0) {
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: "Invalid input data. Please provide valid member_id and dogs array.",
+		});
+	}
+	try {
+		// Create a new member subscription
+		const addToCart = await addToCartModel.create({
+			member_id,
+			dogs,
+			price,
+			tax,
+			platformCharges,
+			paybleAmount
+		});
+		return res.status(200).json({
+			message: "Add to Cart  created successfully!",
+			data: addToCart
+		});
+	}
+	catch (error) {
+		console.log(error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.custom("Dog updated unsuccessful!"),
+			error
+		});
+	}
+
+}
+
+{
+member_id: '67bef37dc34ccc925695635d',
+  dogs: [
+    {
+      dog_id: '67ce91976046a9c845a62f77',
+      unit_qty: 4,
+      unit_price: 12.11
+    },
+    { dog_id: '67ce913010df93267750bcbf', unit_qty: 5, unit_price: 10 }
+  ],
+  price: 22.11,
+  tax: 5,
+  platformCharges: 10,
+  paybleAmount: 37.11
+}
+
+
