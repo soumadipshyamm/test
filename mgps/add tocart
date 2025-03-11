@@ -1,75 +1,28 @@
-import { Request, Response } from 'express';
-import { StatusCodes } from 'http-status-codes';
-import { addToCartModel } from './models'; // Adjust the import according to your project structure
+export interface IAddToCartSchema extends ICreated {
+	member_id: Types.ObjectId;
+	dogs: [{
+		dog_id: Types.ObjectId;
+		unit_qty: number | 0.00;
+		unit_price: number | 0.00;
+	}];
+	price: number | 0.00;
+	tax: number | 0.00;
+	platformCharges: number | 0.00;
+	paybleAmount: number | 0.00;
+	date: SchemaDefinitionProperty<Date>;
+	status:
+	{
+		type: string,
+		enum: ['pending', 'active', 'inactive', 'cancelled'],
+		default: 'pending'
+	}
+}
 
-export const addOrUpdateDogInCart = async (req: Request, res: Response): Promise<Response> => {
-  const { member_id, dog_id, unit_qty, unit_price } = req.body;
-
-  // Validate input data
-  if (!member_id || !dog_id || !unit_qty || !unit_price) {
-    return res.status(StatusCodes.BAD_REQUEST).json({
-      message: 'Missing required fields: member_id, dog_id, unit_qty, and unit_price are required.',
-    });
-  }
-
-  try {
-    // Find the member by member_id
-    const member = await addToCartModel.findOne({ member_id });
-
-    if (member) {
-      // Check if the dog already exists in the member's dogs array
-      const existingDogIndex = member.dogs.findIndex(dog => dog.dog_id === dog_id);
-
-      if (existingDogIndex !== -1) {
-        // Dog exists, update the unit_qty
-        member.dogs[existingDogIndex].unit_qty += unit_qty;
-      } else {
-        // Dog doesn't exist, add a new entry
-        member.dogs.push({ dog_id, unit_qty, unit_price });
-      }
-
-      // Save the updated member document
-      await member.save();
-
-      return res.status(StatusCodes.OK).json({
-        message: 'Cart updated successfully!',
-        data: member,
-      });
-    } else {
-      // Member doesn't exist, create a new member with the dog information
-      const newMember = new addToCartModel({
-        member_id,
-        dogs: [{ dog_id, unit_qty, unit_price }],
-      });
-
-      // Save the new member document
-      await newMember.save();
-
-      return res.status(StatusCodes.CREATED).json({
-        message: 'New member created and dog added to cart.',
-        data: newMember,
-      });
-    }
-  } catch (error) {
-    console.error('Error adding/updating dog in cart:', error);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      message: 'An error occurred while updating the cart.',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-};
-
-
-
-
-
-
-
-
+export interface IAddtoCart extends IAddToCartSchema, IObjectId { }
 
 
 export const addToCartDogs = async (req: Request, res: Response): Promise<any> => {
-console.log(req.body);
+	console.log(req.body);
 	const { member_id, dogs, price, tax, platformCharges, paybleAmount } = req.body;
 
 	if (!member_id || !dogs || !Array.isArray(dogs) || dogs.length === 0) {
@@ -102,6 +55,29 @@ console.log(req.body);
 
 }
 
+const addToCartSchema: Schema<IAddtoCart> = new Schema<IAddtoCart>(
+	{
+		member_id: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredObjectId,
+			ref: "member"
+		},
+		dogs: [{
+			dog_id: SCHEMA_DEFINITION_PROPERTY.requiredObjectId, // Auto generated for workers and adminstrator member
+			unit_qty: SCHEMA_DEFINITION_PROPERTY.requiredNumber, // Auto generated for workers and adminstrator member
+			unit_price: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber // Auto generated for workers and adminstrator member
+		}],
+		price: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+		tax: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+		platformCharges: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+		paybleAmount: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+		date: SCHEMA_DEFINITION_PROPERTY.requiredDate,
+		status: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+			enum: [SUBSCRIPTION_STATUS.pending, SUBSCRIPTION_STATUS.active, SUBSCRIPTION_STATUS.inactive, SUBSCRIPTION_STATUS.cancelled, null],
+		},
+	},
+
+
 {
 member_id: '67bef37dc34ccc925695635d',
   dogs: [
@@ -117,5 +93,3 @@ member_id: '67bef37dc34ccc925695635d',
   platformCharges: 10,
   paybleAmount: 37.11
 }
-
-
