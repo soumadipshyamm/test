@@ -1,4 +1,14 @@
 
+MongoDB First Connection mongodb://127.0.0.1:27017/Greyhound_Management_Portal
+[ERROR] 18:37:06 ⨯ Unable to compile TypeScript:
+src/api/v1/controllers/addToCart/addToCart.controller.ts(33,48): error TS2339: Property 'findIndex' does not exist on type '{ dog_id: ObjectId; unit_qty: number; unit_price: number; }'.
+src/api/v1/controllers/addToCart/addToCart.controller.ts(39,6): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ dog_id: ObjectId; unit_qty: number; unit_price: number; }'.
+src/api/v1/controllers/addToCart/addToCart.controller.ts(42,24): error TS2339: Property 'push' does not exist on type '{ dog_id: ObjectId; unit_qty: number; unit_price: number; }'.
+
+
+
+
+
 export const addToCartDogs = async (req: Request, res: Response): Promise<any> => {
     console.log(req.body);
     const { member_id, dogs, price, tax, platformCharges, paybleAmount } = req.body;
