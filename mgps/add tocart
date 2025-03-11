@@ -1,3 +1,85 @@
+
+export const addToCartDogs = async (req: Request, res: Response): Promise<any> => {
+    console.log(req.body);
+    const { member_id, dogs, price, tax, platformCharges, paybleAmount } = req.body;
+
+    if (!member_id || !dogs || !Array.isArray(dogs) || dogs.length === 0) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            message: "Invalid input data. Please provide valid member_id and dogs array.",
+        });
+    }
+
+    try {
+        // Find existing cart for the member
+        let existingCart = await addToCartModel.findOne({ member_id });
+
+        if (existingCart) {
+            // Update existing cart
+            dogs.forEach((newDog: any) => {
+                const existingDogIndex = existingCart.dogs.findIndex(
+                    (dog: any) => dog.dog_id.toString() === newDog.dog_id
+                );
+
+                if (existingDogIndex > -1) {
+                    // Update quantity if dog exists
+                    existingCart.dogs[existingDogIndex].unit_qty += newDog.unit_qty;
+                } else {
+                    // Add new dog entry
+                    existingCart.dogs.push(newDog);
+                }
+            });
+
+            // Update price-related fields
+            existingCart.price += price;
+            existingCart.tax += tax;
+            existingCart.platformCharges += platformCharges;
+            existingCart.paybleAmount += paybleAmount;
+
+            await existingCart.save();
+
+            return res.status(200).json({
+                message: "Cart updated successfully!",
+                data: existingCart
+            });
+
+        } else {
+            // Create a new cart if it doesn't exist
+            const addToCart = await addToCartModel.create({
+                member_id,
+                dogs,
+                price,
+                tax,
+                platformCharges,
+                paybleAmount
+            });
+
+            return res.status(201).json({
+                message: "Cart created successfully!",
+                data: addToCart
+            });
+        }
+    } catch (error) {
+        console.error(error);
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            message: "An error occurred while updating the cart.",
+            error
+        });
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export interface IAddToCartSchema extends ICreated {
 	member_id: Types.ObjectId;
 	dogs: [{
