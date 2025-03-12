@@ -1,3 +1,163 @@
+
+Here’s an optimized and corrected version of your function with **vehicle-wise fare calculation based on total distance**.
+
+### **Key Fixes & Improvements:**
+1. **Ensuring Proper Distance Calculation**:
+   - Extract total distance in **kilometers**.
+   - Convert duration to **minutes**.
+2. **Fetching Vehicles and Their Fare Categories**:
+   - Include `category.fares` in the query to ensure fare calculation.
+3. **Calculating Fares Per Vehicle Category**:
+   - Multiply total distance by vehicle fare rates.
+4. **Finding Nearest Vehicles Per Category**:
+   - Sorting vehicles based on **distance from user**.
+
+---
+
+### **Optimized Code**
+```php
+public function getFareByLocation(Request $request)
+{
+    try {
+        // Fetch online drivers
+        $driversOnlineList = $this->userService->findUserByRole([
+            'is_online' => true,
+            'is_blocked' => false
+        ], 'driver');
+
+        // Extract user IDs from online drivers
+        $driverIds = $driversOnlineList->pluck('id')->toArray();
+
+        // Fetch vehicles belonging to online drivers
+        $vehicles = Vehicle::with('category.fares')
+            ->whereIn('user_id', $driverIds)
+            ->where('is_primary', 1)
+            ->orderBy('id', 'desc')
+            ->get();
+
+        if ($vehicles->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Vehicles Available'), []);
+        }
+
+        // Calculate distances
+        $distances = $this->calculateDistances($request->pickup, $request->drop);
+
+        // Extract total distance & duration
+        $totalDistanceKm = $distances['totalDistance']; // in km
+        $totalDurationMin = $distances['totalduration']; // in minutes
+
+        // Get current location if provided
+        $currentLat = $request->input('lat');
+        $currentLng = $request->input('lng');
+
+        if ($currentLat && $currentLng) {
+            // Calculate distance from current location to each vehicle
+            $vehicles->each(function ($vehicle) use ($currentLat, $currentLng) {
+                $vehicle->distance = getFareLocCulateDistance($currentLat, $currentLng, $vehicle->user->latitude, $vehicle->user->longitude);
+            });
+        }
+
+        // Group vehicles by category
+        $groupedVehicles = $vehicles->groupBy('category_id');
+
+        // Find the nearest vehicle per category and calculate fares
+        $nearestVehicles = $groupedVehicles->map(function ($vehicles) use ($totalDistanceKm) {
+            $nearestVehicle = $vehicles->sortBy('distance')->first();
+            
+            if ($nearestVehicle && $nearestVehicle->category && $nearestVehicle->category->fares) {
+                $fareRate = $nearestVehicle->category->fares->per_km_rate ?? 0;
+                $baseFare = $nearestVehicle->category->fares->base_fare ?? 0;
+
+                $totalFare = $baseFare + ($fareRate * $totalDistanceKm);
+                $nearestVehicle->total_fare = round($totalFare, 2);
+            }
+
+            return $nearestVehicle;
+        });
+
+        return $this->responseJson(true, 200, __('Vehicle Found Successfully'), VehicleNewResource::collection($nearestVehicles));
+
+    } catch (\Exception $e) {
+        logger()->error($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+        return $this->responseJson(false, 500, __('Something Went Wrong'));
+    }
+}
+```
+
+---
+
+### **Improvements in Fare Calculation**
+1. **Fetching the Fare Rate from `category.fares`**:
+   - `base_fare`: Fixed initial charge.
+   - `per_km_rate`: Cost per kilometer.
+   - **Total Fare Formula**:  
+     \[
+     \text{total\_fare} = \text{base\_fare} + (\text{per\_km\_rate} \times \text{total\_distance\_km})
+     \]
+2. **Sorting Vehicles by Distance from User**:
+   - Ensures we select the **nearest** vehicle per category.
+
+---
+
+### **Optimized Distance Calculation**
+```php
+public function calculateDistances($pickup, $drop)
+{
+    $params = [
+        'origins' => "{$pickup['lat']},{$pickup['lng']}",
+        'destinations' => implode('|', array_map(function ($drop) {
+            return "{$drop['lat']},{$drop['lng']}";
+        }, $drop)),
+        'key' => config('constants.GOOGLE_MAP_API_KEY'),
+        'mode' => 'driving'
+    ];
+
+    $response = Http::get(config('constants.GOOGLE_MAP_DISTANCE_URL'), $params);
+    $distances = $response->json();
+
+    if ($distances) {
+        $totalDistance = 0;
+        $totalDuration = 0;
+        $totalkilometers = [];
+
+        foreach ($distances['rows'] as $row) {
+            foreach ($row['elements'] as $key => $element) {
+                $totalDistance += $element['distance']['value']; // meters
+                $totalDuration += $element['duration']['value']; // seconds
+
+                $totalkilometers[$key] = [
+                    'distance' => $element['distance']['text'],
+                    'duration' => $element['duration']['text']
+                ];
+            }
+        }
+
+        return [
+            'totalDistance' => round($totalDistance / 1000, 2), // Convert to km
+            'totalduration' => round($totalDuration / 60, 2), // Convert to min
+            'totalkilometers' => $totalkilometers
+        ];
+    }
+
+    return null;
+}
+```
+
+---
+
+### **Final Output**
+- **Nearest vehicle per category** with **fare calculations**.
+- **Total distance & duration from Google API**.
+- **Handles cases where no vehicles are available**.
+
+This should now correctly calculate vehicle-wise fares based on the total trip distance.
+
+
+
+
+
+
+
 **************************************************
 **************************************************
 
