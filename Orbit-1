@@ -1,5 +1,174 @@
 **************************************************
 **************************************************
+
+
+
+
+
+
+    public function getFareByLocation(Request $request)
+    {
+        // dd($request->pickup['lat'],$request->drop);
+        try {
+            // Fetch online drivers
+            $driversOnlineList = $this->userService->findUserByRole(['is_online' => true, 'is_blocked' => false], 'driver');
+            // Extract user IDs from $driversOnlineList collection
+            $driverIds = $driversOnlineList->pluck('id')->toArray();
+            // Fetch vehicles belonging to online drivers
+            $vehicles = Vehicle::whereIn('user_id', $driverIds)->where('is_primary', 1)->orderBy('id', 'desc')->get();
+            // if(count($request->drop) < 2){
+            $distances=$this->calculateDistances($request->pickup, $request->drop);
+
+            // dd($distances);
+            $vehicles = Vehicle::with('category.fares')->whereIn('user_id', $driverIds)->orderBy('id', 'desc')->get();
+
+            // Check if current location is provided
+            $currentLat = $request->input('lat');
+            $currentLng = $request->input('lng');
+            if ($currentLat && $currentLng) {
+                // Calculate distance from current location to each vehicle
+                $vehicles->each(function ($vehicle) use ($currentLat, $currentLng) {
+                    $vehicle->distance = getFareLocCulateDistance($currentLat, $currentLng, $vehicle->user->latitude, $vehicle->user->longitude);
+                });
+            }
+            // dd($vehicles);
+            // Group vehicles by category_id
+            $groupedVehicles = $vehicles->groupBy('category_id');
+            // dd($groupedVehicles);
+            // Find the nearest vehicle in each category
+            $nearestVehicles = $groupedVehicles->map(function ($vehicles) {
+                dd($vehicles);
+                return $vehicles->sortBy('distance')->first();
+            });
+
+            dd($nearestVehicles);
+            if ($nearestVehicles) {
+                return $this->responseJson(true, 200, __('Vehicle Found Successfully'), VehicleNewResource::collection($nearestVehicles));
+            } else {
+                return $this->responseJson(true, 200, __('Do Not Have Vehicle In Your Location'), []);
+            }
+
+        } catch (\Exception $e) {
+            // Log the exception
+            logger()->error($e->getMessage() . ' on ' . $e->getFile() . ' in ' . $e->getLine());
+            // Return error response
+            return $this->responseJson(false, 500, __('Something Went Wrong'));
+        }
+    }
+
+
+    public function calculateDistances($pickup, $drop)
+    {
+        $params = [
+            'origins' => "{$pickup['lat']},{$pickup['lng']}",
+            'destinations' => implode('|', array_map(function ($drop) {
+                return "{$drop['lat']},{$drop['lng']}";
+            }, $drop)),
+            'key' => config('constants.GOOGLE_MAP_API_KEY'),
+            'mode' => 'driving' // or 'walking', 'bicycling', etc.
+        ];
+        $response = Http::get(config('constants.GOOGLE_MAP_DISTANCE_URL'), $params);
+
+        $distances=$response->json();
+        if ($distances) {
+            // return $response->json();
+            // if ($distances) {
+                foreach ($distances['rows'] as $row) {
+                    foreach ($row['elements'] as $key => $element) {
+                        // Store distance and duration in the array
+                        $totalkilometers[$key] = [
+                            'distance' => $element['distance']['text'],
+                            'duration' => $element['duration']['text']
+                        ];
+                    }
+                }
+
+                // Calculate the total distance
+                    $totalDistance = $this->getTotalDistance($distances);
+                    // dd($totalDistance['totalDistance'],$totalDistance['totalduration']);
+                    $kilometers = $totalDistance['totalDistance'] / 1000; // Convert meters to kilometers
+                    $totalduration = $totalDistance['totalduration'] / 60; // Convert meters to kilometers
+                    // dd($kilometers,$totalduration);
+            // }
+
+            return [
+                    'totalDistance' => $kilometers,
+                    'totalduration' => $totalduration,
+                    'totalkilometers' => $totalkilometers
+                ];
+        }
+
+        return null; // Handle errors appropriately
+    }
+
+    public function getTotalDistance($distances)
+    {
+        $totalDistance = 0;
+        $totalduration = 0;
+
+        foreach ($distances['rows'] as $row) {
+            foreach ($row['elements'] as $element) {
+                // Convert distance to numeric value (in meters)
+                $distanceValue = $element['distance']['value']; // in meters
+                $durationValue = $element['duration']['value'];// in meters
+                $totalDistance += $distanceValue;
+                $totalduration += $durationValue;
+            }
+        }
+    // dd($totalDistance,$totalduration);
+        return compact('totalDistance','totalduration'); // Total distance in meters
+    }
+
+
+
+
+
+**************************************************
+**************************************************
+
+    private function getETA($latitudeFrom, $longitudeFrom, $latitudeTo, $longitudeTo, $stops = 0)
+    {
+        // Prepare the request parameters
+        $params = [
+            'origins' => $latitudeFrom . ',' . $longitudeFrom,
+            'destinations' => $latitudeTo . ',' . $longitudeTo,
+            'mode' => 'driving',
+            'key' => config('constants.GOOGLE_MAP_API_KEY'),
+        ];
+
+        // Make the HTTP request to the Google Maps Distance API
+        $distanceResponse = Http::get(config('constants.GOOGLE_MAP_DISTANCE_URL'), $params);
+
+        // Decode the JSON response
+        $distance = $distanceResponse->json();
+
+        // Check if the response status is OK
+        if ($distance['status'] === 'OK') {
+            // Check if elements are OK
+            if ($distance['rows'][0]['elements'][0]['status'] === 'OK') {
+                // Create an object for ETA information
+                $eta = (object) [
+                    'distance' => $distance['rows'][0]['elements'][0]['distance']['text'],
+                    'distance_metar' => $distance['rows'][0]['elements'][0]['distance']['value'],
+                    'duration' => $distance['rows'][0]['elements'][0]['duration'],
+                    'status' => $distance['rows'][0]['elements'][0]['status'],
+                ];
+
+                return $eta; // Return the ETA object
+            } else {
+                // Handle the case where the element status is not OK
+                logger('Element status not OK: ' . json_encode($distance['rows'][0]['elements'][0]));
+                return false;
+            }
+        } else {
+            // Handle the case where the overall status is not OK
+            logger('Distance API status not OK: ' . json_encode($distance));
+            return false;
+        }
+    }
+
+**************************************************
+**************************************************
 **************************************************
 setInterval(() => {
     socket.emit('fetch previous messages', roomName); // Emit a custom event to request previous messages
