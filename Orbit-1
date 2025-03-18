@@ -1,4 +1,15 @@
-
+array:2 [ // app\Http\Controllers\Api\BookingController.php:269
+  0 => {#2099
+    +"address": "Bari jaoo,NewTown, Kolkata, West Bengal, India"
+    +"lat": 22.581714743967
+    +"long": 88.487483067709
+  }
+  1 => {#2098
+    +"address": "83, Kashinath Chatterjee Lane, Naora, Shibpur, Howrah, West Bengal, India"
+    +"lat": 22.586647986156
+    +"long": 88.490530057232
+  }
+]
 
 private function notifyDrivers($booking)
 {
