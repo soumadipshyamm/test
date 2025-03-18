@@ -1,3 +1,11 @@
+
+   public function acceptedBookings()
+    {
+        return $this->hasMany(Booking::class, 'driver_id')
+            ->where('status', 'accepted'); // Filter only accepted bookings
+    }
+
+
 array:2 [ // app\Http\Controllers\Api\BookingController.php:269
   0 => {#2099
     +"address": "Bari jaoo,NewTown, Kolkata, West Bengal, India"
