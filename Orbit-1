@@ -1,4 +1,88 @@
 
+use Illuminate\Support\Facades\Http;
+
+function notifyDrivers($booking)
+{
+    $pickup = json_decode($booking->from_address);
+    $latitude = $pickup->lat;
+    $longitude = $pickup->long;
+    $radius = getSiteSetting("search_radius") ?? 5000; // Convert km to meters for Google API
+    $apiKey = env('GOOGLE_MAPS_API_KEY');
+
+    // Fetch drivers with active status and valid location
+    $drivers = User::where('is_online', 1)
+        ->whereHas('vehicles', function ($q) use ($booking) {
+            $q->where('category_id', $booking->category_id);
+        })
+        ->whereNotNull('latitude')
+        ->whereNotNull('longitude')
+        ->get();
+
+    if ($drivers->isEmpty()) {
+        return;
+    }
+
+    // Format drivers' locations for Google Distance Matrix API
+    $origins = "{$latitude},{$longitude}";
+    $destinations = implode('|', $drivers->map(fn($driver) => "{$driver->latitude},{$driver->longitude}")->toArray());
+
+    // Call Google Distance Matrix API
+    $googleResponse = Http::get("https://maps.googleapis.com/maps/api/distancematrix/json", [
+        'origins' => $origins,
+        'destinations' => $destinations,
+        'key' => $apiKey,
+        'units' => 'metric'
+    ]);
+
+    $responseData = $googleResponse->json();
+
+    if ($responseData['status'] !== 'OK') {
+        logger()->error('Google API Error: ' . json_encode($responseData));
+        return;
+    }
+
+    $elements = $responseData['rows'][0]['elements'];
+
+    foreach ($drivers as $index => $driver) {
+        $distance = $elements[$index]['distance']['value'] ?? null; // Distance in meters
+
+        if ($distance !== null && $distance <= $radius * 1000) { // Convert km to meters
+            if ($driver->ongoingBookings->count() == 0) {
+                BookingRequestDriver::create([
+                    'booking_id' => $booking->id,
+                    'driver_id' => $driver->id,
+                    'status' => 0
+                ]);
+
+                $fcmToken = $driver->device_token;
+                $notificationData = (object)[
+                    'body' => __('New Booking Have Arrived'),
+                    'title' => __('Booking Created'),
+                    'data' => new BookingResource($booking),
+                    'image' => 'https://example.com/path/to/image.jpg',
+                ];
+                $this->sendNotification($notificationData, $fcmToken);
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
  private function notifyDrivers($booking)
     {
         $pickup = json_decode($booking->from_address);
