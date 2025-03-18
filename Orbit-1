@@ -1,9 +1,68 @@
 
-   public function acceptedBookings()
-    {
-        return $this->hasMany(Booking::class, 'driver_id')
-            ->where('status', 'accepted'); // Filter only accepted bookings
+private function notifyDrivers($booking)
+{
+    $pickup = json_decode($booking->from_address);
+    $dropoffLocations = json_decode($booking->to_address, true);
+
+    if (empty($dropoffLocations) || !is_array($dropoffLocations)) {
+        return; // No drop-off locations available
     }
+
+    $latitude = $pickup->lat;
+    $longitude = $pickup->long;
+    $radius = getSiteSetting("search_radius") ?? 5;
+    $dropRadius = 0.1; // 100 meters (0.1 km)
+
+    // Get available drivers who have NOT accepted a booking
+    $drivers = User::select('users.*')
+        ->selectRaw(
+            '(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS pickup_distance',
+            [$latitude, $longitude, $latitude]
+        )
+        ->where('is_online', 1)
+        ->having('pickup_distance', '<=', $radius)
+        ->whereHas('vehicles', function ($q) use ($booking) {
+            $q->where('category_id', $booking->category_id);
+        })
+        ->whereDoesntHave('acceptedBookings') // Exclude drivers with an accepted booking
+        ->with('ongoingBookings')
+        ->orderBy('pickup_distance')
+        ->take(10)
+        ->get();
+
+    foreach ($drivers as $driver) {
+        if ($driver->ongoingBookings->isEmpty()) {
+            foreach ($dropoffLocations as $dropoff) {
+                $dropLatitude = $dropoff['lat'];
+                $dropLongitude = $dropoff['long'];
+
+                $dropDistance = 6371 * acos(
+                    cos(deg2rad($dropLatitude)) * cos(deg2rad($driver->latitude)) *
+                    cos(deg2rad($driver->longitude) - deg2rad($dropLongitude)) +
+                    sin(deg2rad($dropLatitude)) * sin(deg2rad($driver->latitude))
+                );
+
+                if ($dropDistance <= $dropRadius) {
+                    BookingRequestDriver::create([
+                        'booking_id' => $booking->id,
+                        'driver_id' => $driver->id,
+                        'status' => 0
+                    ]);
+
+                    $notificationData = (object)[
+                        'body' => __('New Booking Available'),
+                        'title' => __('Booking Request'),
+                        'data' => new BookingResource($booking),
+                        'image' => asset('path/to/image.jpg'),
+                    ];
+
+                    dispatch(new SendNotificationJob($notificationData, $driver->device_token));
+                    break; // Stop checking once a match is found
+                }
+            }
+        }
+    }
+}
 
 
 array:2 [ // app\Http\Controllers\Api\BookingController.php:269
