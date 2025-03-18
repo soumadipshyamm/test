@@ -1,4 +1,65 @@
 
+
+private function notifyDrivers($booking)
+{
+    $pickup = json_decode($booking->from_address);
+    $dropoff = json_decode($booking->to_address);
+    $latitude = $pickup->lat;
+    $longitude = $pickup->long;
+    $dropLatitude = $dropoff->lat;
+    $dropLongitude = $dropoff->long;
+    $radius = getSiteSetting("search_radius") ?? 5;
+    $dropRadius = 0.1; // 100 meters (0.1 km)
+
+    // Get available drivers who have NOT accepted a booking
+    $drivers = User::select('users.*')
+        ->selectRaw(
+            '(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS pickup_distance',
+            [$latitude, $longitude, $latitude]
+        )
+        ->selectRaw(
+            '(6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS drop_distance',
+            [$dropLatitude, $dropLongitude, $dropLatitude]
+        )
+        ->where('is_online', 1)
+        ->having('pickup_distance', '<=', $radius) // Within search radius
+        ->having('drop_distance', '<=', $dropRadius) // Near drop location (100 meters)
+        ->whereHas('vehicles', function ($q) use ($booking) {
+            $q->where('category_id', $booking->category_id);
+        })
+        ->whereDoesntHave('acceptedBookings', function ($q) {
+            $q->where('status', 'accepted'); // Exclude already accepted bookings
+        })
+        ->with('ongoingBookings')
+        ->orderBy('drop_distance') // Prioritize nearest drivers
+        ->take(10)
+        ->get();
+
+    foreach ($drivers as $driver) {
+        if ($driver->ongoingBookings->isEmpty()) {
+            BookingRequestDriver::create([
+                'booking_id' => $booking->id,
+                'driver_id' => $driver->id,
+                'status' => 0
+            ]);
+
+            $notificationData = (object)[
+                'body' => __('New Booking Available'),
+                'title' => __('Booking Request'),
+                'data' => new BookingResource($booking),
+                'image' => asset('path/to/image.jpg'),
+            ];
+
+            dispatch(new SendNotificationJob($notificationData, $driver->device_token));
+        }
+    }
+}
+
+
+
+
+
+
 use Illuminate\Support\Facades\Http;
 
 function notifyDrivers($booking)
