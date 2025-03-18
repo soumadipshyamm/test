@@ -1,5 +1,98 @@
- public function getFareByLocation(Request $request)
-        {
+
+public function getFareByLocation(Request $request)
+{
+    try {
+        // Fetch online drivers
+        $driversOnlineList = $this->userService->findUserByRole([
+            'is_online' => true,
+            'is_blocked' => false
+        ], 'driver');
+
+        // Extract driver IDs
+        $driverIds = $driversOnlineList->pluck('id')->toArray();
+        if (empty($driverIds)) {
+            return $this->responseJson(false, 200, __('No Online Drivers Available'), []);
+        }
+
+        // Fetch vehicles with active categories and fares
+        $vehicles = Vehicle::with([
+            'category.fares' => function ($query) {
+                $query->where('is_active', 1);
+            },
+            'user:id,latitude,longitude' // Fetching only required user fields
+        ])
+        ->whereIn('user_id', $driverIds)
+        ->where('is_primary', 1)
+        ->whereHas('category', function ($query) {
+            $query->where('is_active', 1)->whereHas('fares', function ($fareQuery) {
+                $fareQuery->where('is_active', 1);
+            });
+        })
+        ->select(['id', 'user_id', 'category_id']) // Fetching only necessary fields
+        ->orderByDesc('id')
+        ->get();
+
+        if ($vehicles->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Vehicles Available'), []);
+        }
+
+        // Calculate trip distance and duration
+        $distances = calculateDistances($request->pickup, $request->drop);
+        $totalDistanceKm = $distances['distance'] ?? 0;
+        $totalDurationMin = $distances['duration'] ?? 0;
+
+        // Get current location if provided
+        $currentLat = $request->input('lat');
+        $currentLng = $request->input('lng');
+
+        // Calculate distance from current location to each vehicle
+        if ($currentLat && $currentLng) {
+            foreach ($vehicles as $vehicle) {
+                if ($vehicle->user) {
+                    $vehicle->distance = getFareLocCulateDistance($currentLat, $currentLng, $vehicle->user->latitude, $vehicle->user->longitude);
+                }
+            }
+        }
+
+        // Group vehicles by category
+        $groupedVehicles = $vehicles->groupBy('category_id');
+
+        // Find nearest vehicle per category and calculate fare
+        $nearestVehicles = $groupedVehicles->map(function ($vehicles) use ($totalDistanceKm, $totalDurationMin, $distances) {
+            $nearestVehicle = $vehicles->sortBy('distance')->first(); // Get the nearest vehicle
+
+            if ($nearestVehicle) {
+                $fareDetails = $nearestVehicle->category->fares->first();
+                if ($fareDetails) {
+                    $totalFare = (double)($fareDetails->base_fare ?? 0) +
+                                 ((double)($fareDetails->rate_per_km ?? 0) * $totalDistanceKm) +
+                                 ((double)($fareDetails->rate_per_minute ?? 0) * $totalDurationMin);
+
+                    $nearestVehicle->total_fare = round($totalFare, 2);
+                    $nearestVehicle->distance = $distances;
+                }
+            }
+
+            return $nearestVehicle;
+        })->filter(); // Remove null values
+
+        return $this->responseJson(true, 200, __('Vehicle Found Successfully'), VehicleNewResource::collection($nearestVehicles));
+
+    } catch (\Exception $e) {
+        logger()->error("Error: {$e->getMessage()} | File: {$e->getFile()} | Line: {$e->getLine()}");
+        return $this->responseJson(false, 500, __('Something Went Wrong'));
+    }
+}
+
+
+
+
+
+
+
+
+public function getFareByLocation(Request $request)
+ {
             try {
                 // Fetch online drivers
                 $driversOnlineList = $this->userService->findUserByRole([
