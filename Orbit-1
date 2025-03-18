@@ -1,4 +1,56 @@
 
+ private function notifyDrivers($booking)
+    {
+        $pickup = json_decode($booking->from_address);
+        $latitude = $pickup->lat;
+        $longitude = $pickup->long;
+        $radius = getSiteSetting("search_radius") ?? 5;
+        // $bookingInfo = Booking::where(['is_accepted' => 1, 'type' => 'asap'])
+        //     ->whereNull('driver_id')
+        //     ->orderBy('id', 'desc')->take(1)->get();
+        $drivers = User::select('*')
+            ->selectRaw(
+                '( 6371 * acos( cos( radians(?) ) *
+                        cos( radians( latitude ) )
+                        * cos( radians( longitude ) - radians(?)
+                        ) + sin( radians(?) ) *
+                        sin( radians( latitude ) ) )
+                        ) AS distance',
+                [$latitude, $longitude, $latitude]
+            )
+            ->where('is_online', 1)
+            ->having('distance', '<=', $radius)
+            ->whereHas('vehicles', function ($q) use ($booking) {
+                $q->where('category_id', $booking->category_id);
+            })
+            ->latest()->get();
+            
+
+        foreach ($drivers as $driver) {
+            if ($driver->ongoingBookings->count() == 0) {
+                BookingRequestDriver::create([
+                    'booking_id' => $booking->id,
+                    'driver_id' => $driver->id,
+                    'status' => 0
+                ]);
+                $fcmToken = $driver->device_token;
+                $notificationData = (object)[
+                    'body' => __('New Booking Have Arrived'),
+                    'title' => __('Booking Created'),
+                    'data' => new BookingResource($booking),
+                    'image' => 'https://example.com/path/to/image.jpg',
+                ];
+                $this->sendNotification($notificationData, $fcmToken);
+            }
+        }
+    }
+
+
+
+
+
+
+z********************************************************************************************************
 public function getFareByLocation(Request $request)
 {
     try {
