@@ -1,4 +1,83 @@
-  public function cancelBooking(Request $request)
+
+public function cancelBooking(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'uuid' => 'required|uuid|exists:bookings,uuid',
+        'status' => 'required|integer',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->responseJson(false, 422, $validator->errors()->first(), "");
+    }
+
+    DB::beginTransaction();
+    try {
+        $id = uuidtoid($request->uuid, 'bookings');
+        $booking = Booking::with('driver')->where('id', $id)->firstOrFail(); // Fetch booking with driver relation
+
+        // Update booking status
+        $booking->update([
+            'status' => 7,
+            'reason_id' => $request->reason_id,
+            'description' => $request->description ?? null,
+        ]);
+
+        // Update or create booking driver record
+        $booking->bookingDrivers()->updateOrCreate(
+            ['booking_id' => $id],
+            ['user_id' => auth()->user()->id, 'status' => $request->status]
+        );
+
+        // Log the cancellation
+        createBookingLogs($id, auth()->user()->id, 7, __('Ride has been cancelled by customer'));
+
+        // Send notification if driver is assigned & accepted
+        if ($request->type == 1 && $booking->driver_id && $booking->is_accepted == 2) {
+            $this->sendNotification((object)[
+                'body' => __('Your Ride Has Been Canceled'),
+                'title' => __('Ride Canceled'),
+                'data' => new BookingResource($booking),
+                'image' => 'https://example.com/path/to/image.jpg',
+            ], $booking->driver?->device_token);
+        }
+
+        // Handle cancellation for booking request drivers
+        if ($request->type == 2) {
+            BookingRequestDriver::where('booking_id', $id)->update(['status' => 2]);
+
+            BookingRequestDriver::where('booking_id', $id)->where('status', 2)->each(function ($cancelledRequest) {
+                $this->sendNotification((object)[
+                    'body' => __('Ride Has Been Canceled'),
+                    'title' => __('Ride Canceled'),
+                    'data' => 'Ride Canceled',
+                    'image' => '',
+                ], $cancelledRequest->driver?->device_token);
+            });
+        }
+
+        DB::commit();
+        return $this->responseJson(true, 200, __('Ride Canceled Successfully'), []);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        logger()->error("Error: {$e->getMessage()} | File: {$e->getFile()} | Line: {$e->getLine()}");
+        return $this->responseJson(false, 500, __('Something Went Wrong'));
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+public function cancelBooking(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'uuid' => 'required|uuid|exists:bookings,uuid',
