@@ -58,9 +58,160 @@
 
 
 
+public function bookinglist(Request $request)
+{
+    try {
+        $radius = $request->input('radius', getSiteSetting("search_radius")); // Default search radius
+
+        // Fetch unassigned bookings created within the last minute
+        $filteredBookings = Booking::whereNull('driver_id')
+            ->where('is_accepted', 1)
+            ->whereIn('status', [0, 1])
+            ->whereBetween('created_at', [Carbon::now()->subMinute(), Carbon::now()])
+            ->orderByDesc('id')
+            ->get();
+
+        if ($filteredBookings->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Bookings Found !!'), []);
+        }
+
+        // Get all drivers with ongoing bookings (status: 1, 2, 3, 4)
+        $ongoingDrivers = Booking::whereIn('status', [1, 2, 3, 4])
+            ->pluck('driver_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        // Fetch online and available drivers (excluding busy ones)
+        $availableDrivers = User::where('id', auth()->user()->id)
+            ->where('is_online', 1)
+            ->whereNotIn('id', $ongoingDrivers)
+            ->whereHas('documents', function ($query) {
+                $query->whereIn('document_type', [
+                    'vehicle_documents', 'noc_document', 'rc_document_front', 'rc_document_back',
+                    'aadhar_document_front', 'aadhar_document_back', 'licence_document_front',
+                    'licence_document_back', 'pan_card'
+                ])->where('status', 1);
+            })
+            ->get(['id', 'latitude', 'longitude']);
+
+        if ($availableDrivers->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Available Drivers'), []);
+        }
+
+        // Prepare final booking list with nearby drivers
+        $matchingBookings = collect();
+        foreach ($filteredBookings as $booking) {
+            $latitude = json_decode($booking->from_address)->lat;
+            $longitude = json_decode($booking->from_address)->long;
+
+            // Filter drivers within radius and matching category
+            $nearbyDrivers = $availableDrivers->filter(function ($driver) use ($latitude, $longitude, $radius, $booking) {
+                $distance = getFareLocCulateDistance($latitude, $longitude, $driver->latitude, $driver->longitude);
+                return $distance <= $radius && $driver->vehicle->category_id == $booking->category_id;
+            });
+
+            if ($nearbyDrivers->isNotEmpty()) {
+                $matchingBookings->push($booking);
+            }
+        }
+
+        if ($matchingBookings->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Suitable Bookings Found'), []);
+        }
+
+        return $this->responseJson(true, 200, __('Booking and Nearby Drivers Fetched Successfully'), BookingResource::collection($matchingBookings));
+
+    } catch (\Exception $e) {
+        logger()->error("Error: {$e->getMessage()} | File: {$e->getFile()} | Line: {$e->getLine()}");
+        return $this->responseJson(false, 500, __('Something Went Wrong'));
+    }
+}
 
 
 
+
+
+
+
+
+
+
+
+public function bookinglist(Request $request)
+{
+    try {
+        $radius = $request->input('radius', getSiteSetting("search_radius")); // Default search radius
+
+        // Fetch all relevant bookings (unassigned and ongoing)
+        $allBookings = Booking::where(function ($query) {
+                $query->whereNull('driver_id')
+                      ->where('is_accepted', 1)
+                      ->whereIn('status', [0, 1])
+                      ->whereBetween('created_at', [Carbon::now()->subMinute(), Carbon::now()]);
+            })
+            ->orWhereIn('status', [1, 2, 3, 4]) // Ongoing bookings
+            ->orderByDesc('id')
+            ->get();
+
+        if ($allBookings->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Bookings Found !!'), []);
+        }
+
+        // Separate new bookings and drivers with ongoing bookings
+        $filteredBookings = $allBookings->whereNull('driver_id');
+        $ongoingDrivers = $allBookings->whereNotNull('driver_id')->pluck('driver_id')->unique()->values()->toArray();
+
+        if ($filteredBookings->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Available Bookings'), []);
+        }
+
+        // Fetch online and available drivers (excluding those with ongoing bookings)
+        $availableDrivers = User::where('id', auth()->user()->id)
+            ->where('is_online', 1)
+            ->whereNotIn('id', $ongoingDrivers)
+            ->whereHas('documents', function ($query) {
+                $query->whereIn('document_type', [
+                    'vehicle_documents', 'noc_document', 'rc_document_front', 'rc_document_back',
+                    'aadhar_document_front', 'aadhar_document_back', 'licence_document_front',
+                    'licence_document_back', 'pan_card'
+                ])->where('status', 1);
+            })
+            ->get(['id', 'latitude', 'longitude']);
+
+        if ($availableDrivers->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Available Drivers'), []);
+        }
+
+        // Prepare final booking list with nearby drivers
+        $matchingBookings = collect();
+        foreach ($filteredBookings as $booking) {
+            $latitude = json_decode($booking->from_address)->lat;
+            $longitude = json_decode($booking->from_address)->long;
+
+            // Filter drivers within radius and matching category
+            $nearbyDrivers = $availableDrivers->filter(function ($driver) use ($latitude, $longitude, $radius, $booking) {
+                $distance = getFareLocCulateDistance($latitude, $longitude, $driver->latitude, $driver->longitude);
+                return $distance <= $radius && $driver->vehicle->category_id == $booking->category_id;
+            });
+
+            if ($nearbyDrivers->isNotEmpty()) {
+                $matchingBookings->push($booking);
+            }
+        }
+
+        if ($matchingBookings->isEmpty()) {
+            return $this->responseJson(false, 200, __('No Suitable Bookings Found'), []);
+        }
+
+        return $this->responseJson(true, 200, __('Booking and Nearby Drivers Fetched Successfully'), BookingResource::collection($matchingBookings));
+
+    } catch (\Exception $e) {
+        logger()->error("Error: {$e->getMessage()} | File: {$e->getFile()} | Line: {$e->getLine()}");
+        return $this->responseJson(false, 500, __('Something Went Wrong'));
+    }
+}
 
 
 
