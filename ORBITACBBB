@@ -1,4 +1,72 @@
-  public function bookinglist(Request $request)
+  public function cancelBooking(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            'status' => 'required',
+            // 'type' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+
+        DB::beginTransaction();
+        // try {
+        $id = uuidtoid($request->uuid, 'bookings');
+        $bookings = Booking::where('id', $id)->first();
+        $fcmTokens = $bookings->driver?->device_token;
+    
+        Booking::where('id', $id)->update([
+            'status' => 7,
+            'reason_id' => $request->reason_id,
+            'description' => $request->description ?? null,
+        ]);
+        $booking = $bookings->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+            'booking_id' => $id,
+            'user_id' => auth()->user()->id,
+            'status' => $request->status
+        ]);
+        createBookingLogs($id, auth()->user()->id, 7, __('Ride has been cancelled by customer'));
+        DB::commit();
+        if ($request->type == 1 && $bookings->driver_id !== null && $bookings->is_accepted == 2) {
+            $requestparamVendor = (object)[
+                'body' => 'Your Ride Has Been Canceled',
+                'title' => __('Ride Canceled'),
+                'data' => new BookingResource($bookings),
+                'image' => 'https://example.com/path/to/image.jpg',
+            ];
+            $this->sendNotification($requestparamVendor, $fcmTokens);
+        } 
+
+        if($request->type == 2){
+            BookingRequestDriver::where('booking_id', $id)->update([
+                'status' => 2
+            ]);
+
+            $cancelledRequests = BookingRequestDriver::where('status', 2)->where('booking_id', $id)->get();
+            foreach ($cancelledRequests as $cancelledRequest) {
+                $requestparamVendor2 =(object)[
+                    'body' => 'Ride Has Been Canceled',
+                    'title' =>  __('Ride Canceled'),
+                    'data' => 'Ride Canceled',
+                    'image' => ''
+                ];                
+                    $fcmTokens2 = $cancelledRequest?->driver?->device_token;
+                    $this->sendNotification($requestparamVendor2, $fcmTokens2);
+                }
+        }
+        
+        return $this->responseJson(true, 200, __('Ride Canceled Successfully'), []);
+    }
+
+
+
+
+
+
+
+
+
+public function bookinglist(Request $request)
     {
         $radius = $request->input('radius', getSiteSetting("search_radius")); // Default 10km
         // Fetch bookings filtered by conditions
