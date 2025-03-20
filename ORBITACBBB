@@ -1,3 +1,78 @@
+  public function bookinglist(Request $request)
+    {
+        $radius = $request->input('radius', getSiteSetting("search_radius")); // Default 10km
+        // Fetch bookings filtered by conditions
+        $filtered = Booking::whereNull('driver_id')
+            ->where('is_accepted', 1)
+            ->whereIn('status', [0, 1])
+            ->whereBetween('created_at', [Carbon::now()->subMinutes(1)->format('Y-m-d H:i:s'), Carbon::now()->format('Y-m-d H:i:s')])
+            ->orderByDesc('id')
+            ->get();
+           
+        foreach ($filtered as $key => $value) {
+            $latitude = json_decode($value->from_address)->lat;
+            $longitude =  json_decode($value->from_address)->long;
+            if ($value) {
+                $ongoingStatuses = [1, 2, 3, 4];
+                $driversWithOngoingBookings = Booking::whereIn('status', $ongoingStatuses)
+                ->pluck('driver_id')
+                ->filter(function ($driverId) {
+                    return $driverId !== 0 && $driverId !== null;
+                })
+                ->unique()
+                ->values();
+                // Fetch nearby drivers within the radius and with approved documents
+                $nearbyDrivers = User::where('id', auth()->user()->id)
+                    ->where('is_online', 1) // Only fetch drivers who are online
+                    ->whereNotIn('id', $driversWithOngoingBookings)
+                    ->whereHas('documents', function ($query) {
+                        // Check for specific documents and ensure they are approved
+                        $query->whereIn('document_type', [
+                            'vehicle_documents',
+                            'noc_document',
+                            'rc_document_front',
+                            'rc_document_back',
+                            'aadhar_document_front',
+                            'aadhar_document_back',
+                            'licence_document_front',
+                            'licence_document_back',
+                            'pan_card'
+                        ])->where('status', 1);
+                    })
+                    ->selectRaw("id, latitude, longitude, ( 6371 * acos( cos( radians(?) ) * cos( radians( latitude ) ) * cos( radians( longitude ) - radians(?) ) + sin( radians(?) ) * sin( radians( latitude ) ) ) ) AS distance", [$latitude, $longitude, $latitude])
+                    ->having('distance', '<=', $radius)
+                    ->whereHas('vehicle', function ($q) use ($filtered) {
+                        $q->where('category_id', $filtered->category_id);
+                    })
+                    // Check within the given radius
+                    ->orderBy("distance")
+                    ->latest()->get();
+                if ($nearbyDrivers->isNotEmpty()) {
+                    return $this->responseJson(true, 200, __('Booking and Nearby Drivers Fetched Successfully'), BookingResource::collection($filtered));
+                }
+            }
+        }
+        return $this->responseJson(false, 200, __('No Bookings Found !!'), []);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 public function getFareByLocation(Request $request)
