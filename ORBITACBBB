@@ -1,4 +1,116 @@
 
+ public function acceptOrRejectBooking(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'uuid' => 'required|uuid|exists:bookings,uuid',
+            'is_accepted' => 'required',
+        ]);
+        if ($validator->fails()) {
+            return $this->responseJson(false, 422, $validator->errors()->first(), "");
+        }
+        $id = uuidtoid($request->uuid, 'bookings');
+        $bookings = Booking::where('id', $id)->first();
+        if (!$bookings) {
+            return $this->responseJson(false, 404, __('Booking not found'), []);
+        }
+        // Check if the booking is already accepted
+        if ($bookings->driver_id != null && $request->is_accepted == 2 && in_array($bookings->status, [1, 2, 3])) {
+            return $this->responseJson(false, 403, __('Already Accepted'), []);
+        }
+        // dd($bookings->driver_id == null  && $bookings->status == 7 && $bookings->is_accepted == 1);
+        // Check if the booking is canceled by the customer
+        if ($bookings->driver_id == null && $bookings->is_accepted == 1 &&  $bookings->status == 7) {
+            return $this->responseJson(false, 403, __('This Booking Is Canceled By Customer'), []);
+        }
+        $fcmTokens = $bookings->users?->device_token;
+        $verificationCode = rand(1000, 9999);
+        DB::beginTransaction();
+        // try {
+        if ($request->is_accepted == 2) {
+            $bookings->update([
+                'is_accepted' => $request->is_accepted,
+                'page_no' => 1,
+                'verification_code' => $verificationCode,
+                'driver_id' => auth()->user()->id,
+            ]);
+        }
+
+        $bookings->bookingDrivers()->updateOrCreate(['booking_id' => $id], [
+            'booking_id' => $id,
+            'user_id' => auth()->user()->id,
+            'status' => $request->is_accepted // is_accepted: 2, cancel ride: 3 for driver end
+        ]);
+
+        BookingRequestDriver::where('driver_id', auth()->user()->id)->where('booking_id',$bookings->id)->update([
+            'status' => 1
+        ]);
+        BookingRequestDriver::where('driver_id', '!=', auth()->user()->id)->where('booking_id',$bookings->id)->update([
+            'status' => 2
+        ]);
+        BookingLog::create([
+            'booking_id' => $bookings->id,
+            'user_id' => auth()->user()->id,
+            'status' => 3, // on the way to ride
+            'comment' => "Your cab is on the way"
+        ]);
+        if ($bookings->is_accepted == 2) {
+            $plate_no = $bookings?->driver?->vehicles?->first()->plate_no ?? '';
+            DB::commit();
+            $requestparamVendor = (object)[
+                'body' => 'Your Vehicle No: ' . $plate_no,
+                'title' => 'Your cab is on the way',
+                'image' => asset('app-assets/images/Group.png'),
+                'data' => 'Your Vehicle No: ' . $plate_no,
+            ];
+            $this->sendNotification($requestparamVendor, $fcmTokens);
+            $cancelledRequests = BookingRequestDriver::where(['booking_id' => $bookings->id, 'status' => 2])->get();
+            info("****************************************");
+            info( $cancelledRequests);
+        //    dd($cancelledRequests);
+            if ($cancelledRequests) {
+                // cancelledRequests($cancelledRequests);
+                foreach ($cancelledRequests as $cancelledRequest) {
+                    $requestparamVendor2 = (object)array(
+                        'body' => ' Request Cancelled',
+                        'title' =>  ' Request Cancelled',
+                        'image' => ''
+                    );
+                    $fcmTokens2 = $cancelledRequest?->driver?->device_token;
+                    $this->sendNotification($requestparamVendor2, $fcmTokens2);
+                }
+                $data = [
+                    'type' => 'bookingaccepted',
+                    'title' => __('Booking Accepted'),
+                    'message' => __('Booking accepted by ') . auth()->user()->full_name,
+                ];
+                $bookings->users->notify(new AllNotification($data));
+            }
+            return $this->responseJson(true, 200, __('Booking Accepted Successfully'), new BookingResource($bookings));
+        } else {
+            DB::commit();
+            $data = [
+                'type' => 'bookingrejected',
+                'title' => __('Booking Rejected'),
+                'message' => __('Booking rejected by ') . auth()->user()->full_name,
+            ];
+            $bookings->users->notify(new AllNotification($data));
+            return $this->responseJson(true, 200, __('Booking Rejected Successfully'), new BookingResource($bookings));
+        }
+        // } catch (\Throwable $th) {
+        //     DB::rollBack();
+        //     logger($th->getMessage() . 'on' . $th->getFile() . 'in' . $th->getLine());
+        //     return $this->responseJson(false, 500, 'Something Went Wrong');
+        // }
+    }
+
+
+
+
+
+
+
+
+
 public function cancelBooking(Request $request)
 {
     $validator = Validator::make($request->all(), [
