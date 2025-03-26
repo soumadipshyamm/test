@@ -1,4 +1,58 @@
 
+
+
+
+
+
+
+array:2 [ // app\Helpers\Utilities.php:1818
+  0 => array:16 [
+    "id" => 13
+    "uuid" => "5eeb62e7-f293-40eb-a28e-a3c5cdd77aad"
+    "category_id" => 30
+    "zone_id" => null
+    "rate_per_km" => 10.0
+    "start" => "00:00:00"
+    "end" => "23:59:00"
+
+    "base_fare" => "30"
+    "rate_per_minute" => "0"
+    "waiting_charge" => "0"
+    "toll_mcd_charge" => "0"
+  ]
+  1 => array:16 [
+    "id" => 18
+    "uuid" => "d47c58ce-172e-437c-9da1-8d3a8acac839"
+    "category_id" => 30
+    "zone_id" => null
+    "rate_per_km" => 12.0
+    "start" => "05:00:00"
+    "end" => "23:59:00"
+
+    "base_fare" => "30"
+    "rate_per_minute" => "12"
+    "waiting_charge" => "12"
+    "toll_mcd_charge" => "12"
+  ]
+]
+filter a current time between start, end if do not match a current time  check  before time   and return base_fare
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Website: https://adminapp.caborbit.com/login
 userId : super.admin@orbitcab.com
 Password : secret
