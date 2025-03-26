@@ -1,6 +1,29 @@
 
 
 
+use Carbon\Carbon;
+
+function getBaseFareFromTimeSlot(array $fares): ?string
+{
+    $now = Carbon::now()->format('H:i:s');
+    $fallback = null;
+
+    foreach ($fares as $fare) {
+        $start = $fare['start'];
+        $end = $fare['end'];
+
+        if ($now >= $start && $now <= $end) {
+            return $fare['base_fare']; // Exact match
+        }
+
+        // Check if it's a fallback candidate (past start time)
+        if ($start <= $now) {
+            $fallback = $fare;
+        }
+    }
+
+    return $fallback['base_fare'] ?? null; // Return fallback if any, otherwise null
+}
 
 
 
