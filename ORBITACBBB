@@ -1,4 +1,26 @@
 
+If you're getting a warning popup from DataTables in your server-side implementation, you can disable it by setting `$.fn.dataTable.ext.errMode` to `'none'`. Here’s how you can do it:  
+
+```javascript
+$.fn.dataTable.ext.errMode = 'none';
+```
+
+Or, if you're initializing DataTables, you can add an `error` event handler to prevent popups:
+
+```javascript
+$('#yourTableId').on('error.dt', function(e, settings, techNote, message) {
+    console.log('DataTables error:', message);
+}).DataTable({
+    serverSide: true,
+    ajax: 'your-server-endpoint',
+    // other options
+});
+```
+
+This will prevent the default alert popup and instead log errors to the console. Let me know if you need further adjustments!
+
+
+
 
 
 use Carbon\Carbon;
