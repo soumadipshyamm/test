@@ -1,3 +1,70 @@
+try {
+    const findWallet = await walletModel.findOne({ member_id: member_ObjectId }).lean();
+
+    if (findWallet && findWallet.amount !== null && findWallet.amount !== undefined && findWallet.amount < total_price) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            message: MESSAGE.custom("Insufficient balance! Please add money to your wallet."),
+        });
+    }
+
+    let purchaseInstances = await purchaseModel.findOne({ member_ObjectId: member_ObjectId });
+
+    if (purchaseInstances) {
+        orders.forEach(orderItem => {
+            const existingOrder = purchaseInstances.orders.find(order => order.dog_ObjectId === orderItem.dog_ObjectId);
+
+            if (existingOrder) {
+                existingOrder.unit_qty += orderItem.unit_qty;
+                existingOrder.total_unit_price += orderItem.total_unit_price; // Update total price
+            } else {
+                purchaseInstances.orders.push(orderItem);
+            }
+        });
+
+        await purchaseInstances.save();
+        console.log("Member orders updated successfully.");
+    } else {
+        purchaseInstances = await purchaseModel.create({
+            member_ObjectId,
+            orders,
+            total_price,
+            tax,
+            platformCharges,
+            paybleAmount,
+            billing_name,
+            billing_address,
+            country,
+            state,
+            city
+        });
+    }
+
+    const orderInstances = await orderModel.create(purchaseInstances);
+    walletUpdate(member_ObjectId, total_price); // Update wallet balance after successful order placement
+    await orderLogsModel.create(purchaseInstances);
+    await addToCartModel.deleteMany({ member_ObjectId });
+
+    return res.status(200).json({
+        message: MESSAGE.custom("Order placed successfully!"),
+        result: orderInstances
+    });
+
+} catch (error) {
+    console.error(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        message: "An error occurred while updating the cart.",
+        error
+    });
+}
+
+
+
+
+
+
+
+
+
 
 
 
