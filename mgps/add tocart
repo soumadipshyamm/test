@@ -3,7 +3,50 @@
 
 
 
+try {
+    const findWallet = await walletModel.findOne({ member_id: member_ObjectId }).lean();
+    if (findWallet?.amount !== undefined && findWallet.amount < total_price) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ message: MESSAGE.custom("Insufficient balance! Please add money to your wallet.") });
+    }
 
+    const orderPayload = {
+        member_ObjectId,
+        orders,
+        total_price,
+        tax,
+        platformCharges,
+        paybleAmount,
+        billing_name,
+        billing_address,
+        country,
+        state,
+        city
+    };
+
+    const purchaseInstances = await purchaseModel.findOneAndUpdate(
+        { member_ObjectId },
+        { 
+            $setOnInsert: orderPayload, 
+            $push: { orders: { $each: orders, $mergeObjects: true } }
+        },
+        { new: true, upsert: true }
+    );
+
+    const orderInstances = await orderModel.create(orderPayload);
+    await Promise.all([
+        walletUpdate(member_ObjectId, total_price),
+        orderLogsModel.create(orderPayload),
+        addToCartModel.deleteMany({ member_ObjectId })
+    ]);
+
+    return res.status(200).json({
+        message: MESSAGE.custom("Order placed successfully!"),
+        result: orderInstances
+    });
+} catch (error) {
+    console.error(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "An error occurred while processing the order.", error });
+}
 
 
 
