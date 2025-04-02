@@ -1,12 +1,13 @@
 
 
 
-
-
 try {
     const findWallet = await walletModel.findOne({ member_id: member_ObjectId }).lean();
-    if (findWallet?.amount !== undefined && findWallet.amount < total_price) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ message: MESSAGE.custom("Insufficient balance! Please add money to your wallet.") });
+
+    if (findWallet && findWallet.amount !== null && findWallet.amount !== undefined && findWallet.amount < total_price) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            message: MESSAGE.custom("Insufficient balance! Please add money to your wallet."),
+        });
     }
 
     const orderPayload = {
@@ -23,30 +24,53 @@ try {
         city
     };
 
-    const purchaseInstances = await purchaseModel.findOneAndUpdate(
-        { member_ObjectId },
-        { 
-            $setOnInsert: orderPayload, 
-            $push: { orders: { $each: orders, $mergeObjects: true } }
-        },
-        { new: true, upsert: true }
-    );
+    let purchaseInstances = await purchaseModel.findOne({ member_ObjectId });
+
+    if (purchaseInstances) {
+        orders.forEach(newOrder => {
+            const existingOrder = purchaseInstances.orders.find(order => order.dog_ObjectId === newOrder.dog_ObjectId);
+            
+            if (existingOrder) {
+                existingOrder.unit_qty += newOrder.unit_qty;
+                existingOrder.total_unit_price = existingOrder.unit_qty * existingOrder.unit_price; // Correct total price update
+            } else {
+                purchaseInstances.orders.push({
+                    dog_ObjectId: newOrder.dog_ObjectId,
+                    unit_qty: newOrder.unit_qty,
+                    unit_price: newOrder.unit_price,
+                    total_unit_price: newOrder.total_unit_price
+                });
+            }
+        });
+
+        await purchaseInstances.save();
+        console.log("Member orders updated successfully.");
+    } else {
+        purchaseInstances = await purchaseModel.create(orderPayload);
+    }
 
     const orderInstances = await orderModel.create(orderPayload);
-    await Promise.all([
-        walletUpdate(member_ObjectId, total_price),
-        orderLogsModel.create(orderPayload),
-        addToCartModel.deleteMany({ member_ObjectId })
-    ]);
+
+    // Update wallet only after order placement is confirmed
+    await walletUpdate(member_ObjectId, total_price);
+
+    await orderLogsModel.create(orderPayload);
+    await addToCartModel.deleteMany({ member_ObjectId });
 
     return res.status(200).json({
         message: MESSAGE.custom("Order placed successfully!"),
         result: orderInstances
     });
+
 } catch (error) {
     console.error(error);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "An error occurred while processing the order.", error });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        message: "An error occurred while updating the cart.",
+        error
+    });
 }
+
+
 
 
 
