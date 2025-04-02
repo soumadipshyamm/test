@@ -1,3 +1,7 @@
+'purchaseInstance' is possibly 'null'.ts(18047)
+
+
+
 
 
 import { Request, Response } from "express";
