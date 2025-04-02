@@ -1,355 +1,123 @@
 
-The errors indicate that `existingCart.dogs` is not being recognized as an array, which is why `.findIndex()` and `.push()` are not working.
 
-### **Fixing the Issue**
-Ensure `dogs` is correctly typed as an **array** in both the schema and controller.
 
----
 
-### **1. Fix Schema (`models/AddToCart.ts`)**
-```typescript
-import { Schema, model, Types } from "mongoose";
 
-export interface ICartDog {
-    dog_id: Types.ObjectId;
-    unit_qty: number;
-    unit_price: number;
-}
 
-export interface IAddToCart {
-    member_id: Types.ObjectId;
-    dogs: ICartDog[];  // Ensure it's explicitly an array
-    price: number;
-    tax: number;
-    platformCharges: number;
-    paybleAmount: number;
-    date: Date;
-    status: "pending" | "active" | "inactive" | "cancelled";
-}
 
-const addToCartSchema = new Schema<IAddToCart>(
-    {
-        member_id: { type: Schema.Types.ObjectId, ref: "Member", required: true },
-        dogs: [
-            {
-                dog_id: { type: Schema.Types.ObjectId, ref: "Dog", required: true },
-                unit_qty: { type: Number, required: true },
-                unit_price: { type: Number, required: true }
-            }
-        ],
-        price: { type: Number, default: 0 },
-        tax: { type: Number, default: 0 },
-        platformCharges: { type: Number, default: 0 },
-        paybleAmount: { type: Number, default: 0 },
-        date: { type: Date, default: Date.now },
-        status: {
-            type: String,
-            enum: ["pending", "active", "inactive", "cancelled"],
-            default: "pending"
-        }
-    },
-    { timestamps: true }
-);
 
-export const AddToCartModel = model<IAddToCart>("AddToCart", addToCartSchema);
-```
 
----
 
-### **2. Fix Controller (`controllers/addToCart.controller.ts`)**
-```typescript
-import { Request, Response } from "express";
-import { StatusCodes } from "http-status-codes";
-import { AddToCartModel, ICartDog } from "../../../models/AddToCart";
 
-/**
- * Add or update items in the cart for a specific member.
- */
-export const addToCartDogs = async (req: Request, res: Response): Promise<any> => {
-    try {
-        console.log(req.body);
-        const { member_id, dogs, price, tax, platformCharges, paybleAmount } = req.body;
 
-        if (!member_id || !dogs || !Array.isArray(dogs) || dogs.length === 0) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                message: "Invalid input. Please provide valid member_id and dogs array."
-            });
-        }
 
-        const existingCart = await AddToCartModel.findOne({ member_id });
-
-        if (existingCart) {
-            // Ensure `dogs` is treated as an array
-            if (!Array.isArray(existingCart.dogs)) {
-                existingCart.dogs = [];
-            }
-
-            dogs.forEach((newDog: ICartDog) => {
-                const existingDogIndex = existingCart.dogs.findIndex(
-                    (dog) => dog.dog_id.toString() === newDog.dog_id.toString()
-                );
-
-                if (existingDogIndex > -1) {
-                    existingCart.dogs[existingDogIndex].unit_qty += newDog.unit_qty;
-                } else {
-                    existingCart.dogs.push(newDog);
-                }
-            });
-
-            // Update price-related fields
-            existingCart.price += price;
-            existingCart.tax += tax;
-            existingCart.platformCharges += platformCharges;
-            existingCart.paybleAmount += paybleAmount;
-
-            await existingCart.save();
-
-            return res.status(StatusCodes.OK).json({
-                message: "Cart updated successfully!",
-                data: existingCart
-            });
-
-        } else {
-            // Create a new cart entry
-            const newCart = await AddToCartModel.create({
-                member_id,
-                dogs,
-                price,
-                tax,
-                platformCharges,
-                paybleAmount
-            });
-
-            return res.status(StatusCodes.CREATED).json({
-                message: "Cart created successfully!",
-                data: newCart
-            });
-        }
-    } catch (error) {
-        console.error(error);
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            message: "An error occurred while updating the cart.",
-            error
-        });
-    }
-};
-```
-
----
-
-### **Fixes Applied**
-1. **Ensure `dogs` is an array**  
-   - `if (!Array.isArray(existingCart.dogs)) { existingCart.dogs = []; }` prevents errors when `dogs` is not an array.
-
-2. **Correctly type `dogs` in the interface**  
-   - `dogs: ICartDog[]` explicitly states that it is an array.
-
-3. **Fix `.findIndex()` usage**  
-   - Convert `dog_id` to string before comparison:  
-     ```typescript
-     dog.dog_id.toString() === newDog.dog_id.toString()
-     ```
-
-4. **Fix `.push()` error**  
-   - Ensure `dogs` is an array before pushing new values.
-
-Now, your **MongoDB Add to Cart API** should work correctly!
-
-
-
-
-
-
-
-
-
-
-
-
-
-MongoDB First Connection mongodb://127.0.0.1:27017/Greyhound_Management_Portal
-[ERROR] 18:37:06 ⨯ Unable to compile TypeScript:
-src/api/v1/controllers/addToCart/addToCart.controller.ts(33,48): error TS2339: Property 'findIndex' does not exist on type '{ dog_id: ObjectId; unit_qty: number; unit_price: number; }'.
-src/api/v1/controllers/addToCart/addToCart.controller.ts(39,6): error TS7053: Element implicitly has an 'any' type because expression of type 'any' can't be used to index type '{ dog_id: ObjectId; unit_qty: number; unit_price: number; }'.
-src/api/v1/controllers/addToCart/addToCart.controller.ts(42,24): error TS2339: Property 'push' does not exist on type '{ dog_id: ObjectId; unit_qty: number; unit_price: number; }'.
-
-
-
-
-
-export const addToCartDogs = async (req: Request, res: Response): Promise<any> => {
-    console.log(req.body);
-    const { member_id, dogs, price, tax, platformCharges, paybleAmount } = req.body;
-
-    if (!member_id || !dogs || !Array.isArray(dogs) || dogs.length === 0) {
-        return res.status(StatusCodes.BAD_REQUEST).json({
-            message: "Invalid input data. Please provide valid member_id and dogs array.",
-        });
-    }
-
-    try {
-        // Find existing cart for the member
-        let existingCart = await addToCartModel.findOne({ member_id });
-
-        if (existingCart) {
-            // Update existing cart
-            dogs.forEach((newDog: any) => {
-                const existingDogIndex = existingCart.dogs.findIndex(
-                    (dog: any) => dog.dog_id.toString() === newDog.dog_id
-                );
-
-                if (existingDogIndex > -1) {
-                    // Update quantity if dog exists
-                    existingCart.dogs[existingDogIndex].unit_qty += newDog.unit_qty;
-                } else {
-                    // Add new dog entry
-                    existingCart.dogs.push(newDog);
-                }
-            });
-
-            // Update price-related fields
-            existingCart.price += price;
-            existingCart.tax += tax;
-            existingCart.platformCharges += platformCharges;
-            existingCart.paybleAmount += paybleAmount;
-
-            await existingCart.save();
-
-            return res.status(200).json({
-                message: "Cart updated successfully!",
-                data: existingCart
-            });
-
-        } else {
-            // Create a new cart if it doesn't exist
-            const addToCart = await addToCartModel.create({
-                member_id,
-                dogs,
-                price,
-                tax,
-                platformCharges,
-                paybleAmount
-            });
-
-            return res.status(201).json({
-                message: "Cart created successfully!",
-                data: addToCart
-            });
-        }
-    } catch (error) {
-        console.error(error);
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            message: "An error occurred while updating the cart.",
-            error
-        });
-    }
-};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-export interface IAddToCartSchema extends ICreated {
-	member_id: Types.ObjectId;
-	dogs: [{
-		dog_id: Types.ObjectId;
-		unit_qty: number | 0.00;
-		unit_price: number | 0.00;
-	}];
-	price: number | 0.00;
-	tax: number | 0.00;
-	platformCharges: number | 0.00;
-	paybleAmount: number | 0.00;
-	date: SchemaDefinitionProperty<Date>;
-	status:
-	{
-		type: string,
-		enum: ['pending', 'active', 'inactive', 'cancelled'],
-		default: 'pending'
-	}
-}
-
-export interface IAddtoCart extends IAddToCartSchema, IObjectId { }
-
-
-export const addToCartDogs = async (req: Request, res: Response): Promise<any> => {
-	console.log(req.body);
-	const { member_id, dogs, price, tax, platformCharges, paybleAmount } = req.body;
-
-	if (!member_id || !dogs || !Array.isArray(dogs) || dogs.length === 0) {
-		return res.status(StatusCodes.BAD_REQUEST).json({
-			message: "Invalid input data. Please provide valid member_id and dogs array.",
-		});
-	}
-	try {
-		// Create a new member subscription
-		const addToCart = await addToCartModel.create({
-			member_id,
-			dogs,
-			price,
-			tax,
-			platformCharges,
-			paybleAmount
-		});
-		return res.status(200).json({
-			message: "Add to Cart  created successfully!",
-			data: addToCart
-		});
-	}
-	catch (error) {
-		console.log(error);
-		return res.status(StatusCodes.BAD_REQUEST).json({
-			message: MESSAGE.custom("Dog updated unsuccessful!"),
-			error
-		});
-	}
-
-}
-
-const addToCartSchema: Schema<IAddtoCart> = new Schema<IAddtoCart>(
-	{
-		member_id: {
-			...SCHEMA_DEFINITION_PROPERTY.requiredObjectId,
-			ref: "member"
-		},
-		dogs: [{
-			dog_id: SCHEMA_DEFINITION_PROPERTY.requiredObjectId, // Auto generated for workers and adminstrator member
-			unit_qty: SCHEMA_DEFINITION_PROPERTY.requiredNumber, // Auto generated for workers and adminstrator member
-			unit_price: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber // Auto generated for workers and adminstrator member
-		}],
-		price: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-		tax: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-		platformCharges: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-		paybleAmount: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-		date: SCHEMA_DEFINITION_PROPERTY.requiredDate,
-		status: {
-			...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
-			enum: [SUBSCRIPTION_STATUS.pending, SUBSCRIPTION_STATUS.active, SUBSCRIPTION_STATUS.inactive, SUBSCRIPTION_STATUS.cancelled, null],
-		},
-	},
 
 
 {
-member_id: '67bef37dc34ccc925695635d',
-  dogs: [
-    {
-      dog_id: '67ce91976046a9c845a62f77',
-      unit_qty: 4,
-      unit_price: 12.11
-    },
-    { dog_id: '67ce913010df93267750bcbf', unit_qty: 5, unit_price: 10 }
-  ],
-  price: 22.11,
-  tax: 5,
-  platformCharges: 10,
-  paybleAmount: 37.11
+        "member_ObjectId": "67bef37dc34ccc925695635d",
+        "orders": [
+            {
+                "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+                "unit_qty": 2,
+                "unit_price": 12,
+                "total_unit_price": 36,
+                "_id": "67ed0577349b81df3c31214a",
+                "id": "67ed0577349b81df3c31214a"
+            },
+{
+                "dog_ObjectId": "67dd705d16992f8dada2376f",
+                "unit_qty": 2,
+                "unit_price": 12,
+                "total_unit_price": 36,
+                "_id": "67ed0577349b81df3c31214a",
+                "id": "67ed0577349b81df3c31214a"
+            }
+        ],
+        "total_price": 22.11,
+        "tax": 5
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+try {
+		const findWallet = await walletModel.findOne({ member_id: member_ObjectId }).lean();
+
+		if (findWallet && findWallet.amount !== null && findWallet.amount !== undefined && findWallet.amount < total_price) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: MESSAGE.custom("Insufficient balance! Please add money to your wallet."),
+			});
+		}
+
+		const orderPayload = {
+			member_ObjectId: member_ObjectId,
+			orders: orders,
+			total_price: total_price,
+			tax: tax,
+			platformCharges: platformCharges,
+			paybleAmount: paybleAmount,
+			billing_name: billing_name,
+			billing_address: billing_address,
+			country: country,
+			state: state,
+			city: city
+		};
+
+		let purchaseInstances = await purchaseModel.findOne({ member_ObjectId: member_ObjectId });
+
+		if (purchaseInstances) {
+			const order = purchaseInstances.orders.find(order => order.dog_ObjectId === orders.dog_ObjectId);
+
+			if (order) {
+				// Update existing order quantity
+				order.unit_qty += orders.unit_qty;
+				order.total_unit_price = order.total_unit_price; // Update total price
+			} else {
+				// Create new order object
+				const newOrder = {
+					dog_ObjectId: orders.dog_ObjectId,
+					unit_qty: orders.unit_qty,
+					unit_price: orders.unit_price, // Assuming a fixed price, adjust as necessary
+					total_unit_price: orders.total_unit_price // Calculate total price
+				};
+				purchaseInstances.orders.push(newOrder);
+			}
+			await purchaseInstances.save(); // Save the updated purchase document
+			console.log("Member orders updated successfully.");
+		} else {
+			purchaseInstances = await purchaseModel.create(orderPayload);
+		}
+
+		const orderInstances = await orderModel.create(orderPayload);
+		walletUpdate(member_ObjectId, total_price); // Update wallet balance after successful order placement
+		await orderLogsModel.create(orderPayload);
+		await addToCartModel.deleteMany({ member_ObjectId: member_ObjectId });
+
+		return res.status(200).json({
+			message: MESSAGE.custom("Order placed successfully!"),
+			result: orderInstances
+		});
+
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: "An error occurred while updating the cart.",
+			error: error
+		});
+	}
