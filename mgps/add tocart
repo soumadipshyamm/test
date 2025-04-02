@@ -1,3 +1,153 @@
+
+
+import { Request, Response } from "express";
+import { StatusCodes } from "http-status-codes";
+import walletModel from "../models/walletModel";
+import purchaseModel from "../models/purchaseModel";
+import orderModel from "../models/orderModel";
+import orderLogsModel from "../models/orderLogsModel";
+import addToCartModel from "../models/addToCartModel";
+
+// Define interfaces
+interface Order {
+    dog_ObjectId: string;
+    unit_qty: number;
+    unit_price: number;
+    total_unit_price: number;
+}
+
+interface Purchase {
+    member_ObjectId: string;
+    orders: Order[];
+    total_price: number;
+    tax: number;
+    platformCharges?: number;
+    paybleAmount?: number;
+    billing_name: string;
+    billing_address: string;
+    country: string;
+    state: string;
+    city: string;
+}
+
+interface Wallet {
+    member_id: string;
+    amount: number;
+}
+
+export const placeOrder = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        // Extract request body
+        const {
+            member_ObjectId,
+            orders,
+            total_price,
+            tax,
+            platformCharges = 0, // Default to 0
+            paybleAmount,
+            billing_name,
+            billing_address,
+            country,
+            state,
+            city
+        }: Purchase = req.body;
+
+        console.log("Received order request for member:", member_ObjectId);
+
+        // Validate input fields
+        if (!member_ObjectId || !Array.isArray(orders) || orders.length === 0 || !total_price) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                message: "Invalid request. Missing required fields.",
+            });
+        }
+
+        // Check wallet balance
+        const findWallet: Wallet | null = await walletModel.findOne({ member_id: member_ObjectId }).lean();
+        if (findWallet && findWallet.amount !== null && findWallet.amount < total_price) {
+            return res.status(StatusCodes.BAD_REQUEST).json({
+                message: "Insufficient balance! Please add money to your wallet.",
+            });
+        }
+
+        // Check if a purchase record exists for this member
+        let purchaseInstance = await purchaseModel.findOne({ member_ObjectId });
+
+        if (purchaseInstance) {
+            console.log("Existing purchase record found. Updating orders...");
+
+            orders.forEach(orderItem => {
+                const existingOrder = purchaseInstance.orders.find(order => order.dog_ObjectId === orderItem.dog_ObjectId);
+
+                if (existingOrder) {
+                    // Update existing order
+                    existingOrder.unit_qty += orderItem.unit_qty;
+                    existingOrder.total_unit_price += orderItem.total_unit_price;
+                    console.log(`Updated order for dog ${orderItem.dog_ObjectId}: New Qty: ${existingOrder.unit_qty}`);
+                } else {
+                    // Add new order
+                    purchaseInstance.orders.push(orderItem);
+                    console.log(`Added new dog order: ${orderItem.dog_ObjectId}`);
+                }
+            });
+
+            await purchaseInstance.save();
+        } else {
+            console.log("No existing purchase record found. Creating a new one...");
+
+            purchaseInstance = await purchaseModel.create({
+                member_ObjectId,
+                orders,
+                total_price,
+                tax,
+                platformCharges,
+                paybleAmount,
+                billing_name,
+                billing_address,
+                country,
+                state,
+                city
+            });
+        }
+
+        // Create a new order record
+        const orderInstance = await orderModel.create(purchaseInstance);
+
+        // Update wallet balance
+        console.log(`Updating wallet for member ${member_ObjectId}...`);
+        await walletModel.updateOne(
+            { member_id: member_ObjectId },
+            { $inc: { amount: -total_price } }
+        );
+
+        // Log order details
+        await orderLogsModel.create(purchaseInstance);
+
+        // Clear cart items
+        await addToCartModel.deleteMany({ member_ObjectId });
+
+        console.log("Order successfully placed!");
+        return res.status(StatusCodes.OK).json({
+            message: "Order placed successfully!",
+            result: orderInstance
+        });
+
+    } catch (error) {
+        console.error("Error processing order:", error);
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            message: "An error occurred while processing the order.",
+            error
+        });
+    }
+};
+
+
+
+
+
+
+
+
+
 try {
     const findWallet = await walletModel.findOne({ member_id: member_ObjectId }).lean();
 
