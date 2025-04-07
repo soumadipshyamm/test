@@ -1,5 +1,63 @@
 
 
+
+export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const dogId = req.params.dogId;
+
+		// Fetch all purchase records
+		const purchases = await purchaseModel.find();
+
+		// Filter and map to include only matching orders for the given dogId
+		const membersWithDog = purchases
+			.map(purchase => {
+				// Filter orders inside each purchase to only those matching the dogId
+				const matchingOrders = purchase.orders.filter(order => order.dog_ObjectId === dogId);
+
+				if (matchingOrders.length > 0) {
+					return {
+						_id: purchase._id,
+						member_ObjectId: purchase.member_ObjectId,
+						orders: matchingOrders,
+						total_price: purchase.total_price,
+						tax: purchase.tax,
+						platformCharges: purchase.platformCharges,
+						paybleAmount: purchase.paybleAmount
+					};
+				}
+				return null;
+			})
+			.filter(Boolean); // remove nulls
+
+		// Return the result
+		return res.status(200).json({
+			count: membersWithDog.length,
+			members: membersWithDog
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(500).json({ message: 'Server Error', error });
+	}
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const dogId = req.params.dogId; // e.g., "67dd5eb505dc63b6cecc89f7"
