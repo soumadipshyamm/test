@@ -1,3 +1,83 @@
+
+
+
+
+export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const dogId = req.params.id;
+		const winPrice = 1000;
+
+		const firstPart = winPrice * 0.60; // 60%
+		const secondPart = (winPrice * 0.40) / 100; // 40% divided by 100
+		const winPoints = secondPart;
+
+		console.log("First 60%:", firstPart);
+		console.log("Per Unit Win Point:", winPoints);
+
+		// Fetch all purchase records
+	 const purchases = await purchaseModel.find();
+
+		// Process purchases
+		const membersWithDog = await Promise.all(
+			purchases.map(async (purchase) => {
+				// Filter matching orders for the given dogId
+				const matchingOrders = purchase.orders.filter(order => order.dog_ObjectId.toString() === dogId);
+
+				if (matchingOrders.length === 0) return null;
+
+				// Calculate total units for the matched orders
+				const totalUnitQty = matchingOrders.reduce((sum, order) => sum + order.unit_qty, 0);
+
+				// Fetch member wallet
+				const findMemberWallet = await walletModel.findOne({ member_id: purchase.member_ObjectId });
+
+				console.log("Member ID:", purchase.member_ObjectId);
+				console.log("Member Wallet:", findMemberWallet);
+				console.log("Total Units:", totalUnitQty, "Earned Points:", totalUnitQty * winPoints);
+
+				// Optionally, you can update wallet balance here (if required)
+
+				// Return structured member data
+				return {
+					_id: purchase._id,
+					member_ObjectId: purchase.member_ObjectId,
+					orders: matchingOrders,
+					total_price: purchase.total_price,
+					tax: purchase.tax,
+					platformCharges: purchase.platformCharges,
+					paybleAmount: purchase.paybleAmount,
+					totalUnits: totalUnitQty,
+					earnedPoints: totalUnitQty * winPoints,
+					memberWallet: findMemberWallet // optional, for response
+				};
+			})
+		);
+
+		// Filter out null results
+		const filteredMembers = membersWithDog.filter(Boolean);
+
+		// Send response
+		return res.status(200).json({
+			count: filteredMembers.length,
+			members: filteredMembers
+		});
+
+	} catch (error) {
+		console.error(error);
+		return res.status(500).json({ message: 'Server Error', error: error.message });
+	}
+};
+
+
+
+
+
+
+
+
+
+
+
 export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const dogId = req.params.id;
