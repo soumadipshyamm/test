@@ -1,4 +1,20 @@
-const membersWithDog = purchases
+export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const dogId = req.params.id;
+		const winPrice = 1000;
+		const firstPart = winPrice * 0.60;
+		const secondPart = (winPrice * 0.40) / 100;
+		const winPoints = secondPart;
+
+		console.log("First 60%:", firstPart);
+		console.log("Remaining 40%:", secondPart);
+
+
+		// Fetch all purchase records
+		const purchases = await purchaseModel.find();
+
+		// Filter and map to include only matching orders for the given dogId
+		const membersWithDog = purchases
 			.map(purchase => {
 				// Filter orders inside each purchase to only those matching the dogId
 				const matchingOrders = purchase.orders.filter(order => order.dog_ObjectId.toString() === dogId);
@@ -29,10 +45,18 @@ const membersWithDog = purchases
 				}
 				return null;
 			})
-			.filter(Boolean); 
+			.filter(Boolean); // remove nulls
 
-
-
+		// Return the result
+		return res.status(200).json({
+			count: membersWithDog.length,
+			members: { membersWithDog }
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(500).json({ message: 'Server Error', error });
+	}
+}
 
 
 
