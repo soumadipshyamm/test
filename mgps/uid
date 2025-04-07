@@ -1,3 +1,14 @@
+export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
+	const dogId = req.params.dogId; // Assuming dogId is passed as a route parameter
+
+	const members = await purchaseModel.find(); // Fetch all members from the database
+	return res.status(200).json(members); // Return the found member
+
+};
+
+
+
+
 [
     {
         "_id": "67ed13ae32ac64ecc66a72eb",
