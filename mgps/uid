@@ -54,3 +54,31 @@ export const divideWinPrice = async (req: Request, res: Response): Promise<any> 
         "paybleAmount": 37.11
     }
 ]
+
+
+
+
+export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
+    try {
+        const dogId = req.params.dogId;
+
+        // Fetch all members
+        const members = await purchaseModel.find();
+
+        // Filter members whose orders contain the given dogId
+        const filteredMembers = members.filter(member =>
+            member.orders.some(order => order.dog_ObjectId.toString() === dogId)
+        );
+
+        // Return the count and the matching members (if you want to see details)
+        return res.status(200).json({
+            totalMembers: filteredMembers.length,
+            members: filteredMembers
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+
