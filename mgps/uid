@@ -1,3 +1,52 @@
+const membersWithDog = purchases
+			.map(purchase => {
+				// Filter orders inside each purchase to only those matching the dogId
+				const matchingOrders = purchase.orders.filter(order => order.dog_ObjectId.toString() === dogId);
+				const unitQuantities = matchingOrders
+					.filter(order => order.unit_qty > 0)
+					.map(order => order.unit_qty);
+
+				const totalUnitQty = unitQuantities.reduce((sum, qty) => sum + qty, 0);
+
+				// update wallet blance 
+				console.log("******************purchase.member_ObjectId ", purchase.member_ObjectId);
+				const findMemberWallet = walletModel.findOne({ member_id: purchase.member_ObjectId });
+
+				console.log("******************findMemberWallet", findMemberWallet);
+				console.log("******************************************filterfilterfilter", unitQuantities);
+				console.log("Total Unit Quantity:", totalUnitQty * winPoints, totalUnitQty);
+
+				if (matchingOrders.length > 0) {
+					return {
+						_id: purchase._id,
+						member_ObjectId: purchase.member_ObjectId,
+						orders: matchingOrders,
+						total_price: purchase.total_price,
+						tax: purchase.tax,
+						platformCharges: purchase.platformCharges,
+						paybleAmount: purchase.paybleAmount
+					};
+				}
+				return null;
+			})
+			.filter(Boolean); 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
