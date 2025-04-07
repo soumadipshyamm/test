@@ -1,143 +1,45 @@
-To integrate the **unique user ID generation** into the **User model**, we can use **Mongoose pre-save middleware**. This ensures that every new user automatically receives a unique `userId` before being saved to the database.
-
----
-
-### **📌 Steps to Implement**
-1. **Modify the `User` Model** to automatically generate and assign a `userId` before saving.
-2. **Use the `generateUniqueUserId` Function** inside the `User` schema.
-
----
-
-### **🔹 Updated `models/User.js` with Auto User ID Generation**
-```javascript
-const mongoose = require("mongoose");
-
-// Import the unique user ID function
-const generateUniqueUserId = require("../utils/generateUniqueUserId");
-
-const userSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-    },
-    userId: {
-      type: String,
-      unique: true, // Ensure userId is unique
-    },
-  },
-  { timestamps: true }
-);
-
-// Middleware to generate a unique userId before saving
-userSchema.pre("save", async function (next) {
-  if (!this.userId) {
-    this.userId = await generateUniqueUserId(); // Auto-generate user ID
-  }
-  next();
-});
-
-const User = mongoose.model("User", userSchema);
-
-module.exports = User;
-```
-
----
-
-### **📌 How This Works**
-- Before a new user is saved (`pre("save")` middleware), the `userId` is **automatically generated** using `generateUniqueUserId()`.
-- If the `userId` already exists (e.g., when updating a user), the function **does not regenerate it**.
-- The `userId` field is set to **unique** in the schema to prevent duplicates.
-
----
-
-### **🔹 Updated `utils/generateUniqueUserId.js`**
-```javascript
-const User = require("../models/User");
-
-/**
- * Generate a unique user ID with a prefix and fixed digit count.
- * Format example: U000001, U000002, etc.
- * @param {String} prefix - The prefix for the user ID.
- * @param {Number} totalDigits - The total length of the numeric part.
- * @returns {String} - A unique user ID.
- */
-const generateUniqueUserId = async (prefix = "U", totalDigits = 6) => {
-  try {
-    // Find the user with the highest userId
-    const lastUser = await User.findOne().sort({ userId: -1 }).exec();
-
-    let nextIdNumber;
-    if (lastUser && lastUser.userId) {
-      // Extract the numeric part from the last userId
-      const lastIdNumber = parseInt(lastUser.userId.slice(prefix.length)) || 0;
-      nextIdNumber = lastIdNumber + 1;
-    } else {
-      // Start from 1 if no users exist
-      nextIdNumber = 1;
-    }
-
-    // Pad the number with leading zeros
-    const paddedNumber = nextIdNumber.toString().padStart(totalDigits, "0");
-
-    return `${prefix}${paddedNumber}`;
-  } catch (error) {
-    console.error(`[generateUniqueUserId] Error: ${error.message}`);
-    throw new Error("Could not generate unique user ID");
-  }
-};
-
-module.exports = generateUniqueUserId;
-```
-
----
-
-### **📌 Usage in Controllers (No Changes Needed)**
-Since the `userId` is automatically generated in the model, you don’t need to manually generate it in the controller.
-
-```javascript
-const User = require("../models/User");
-
-exports.createUser = async (req, res) => {
-  try {
-    const { name, email } = req.body;
-
-    // Create user (userId is auto-generated)
-    const newUser = new User({ name, email });
-    await newUser.save();
-
-    res.status(201).json({ message: "User created successfully", user: newUser });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-```
-
----
-
-### **📌 Example Database Entries**
-After adding users, the MongoDB database will store:
-```json
 [
-  { "_id": "65d4a1a5f1d3d0487b0e9c5b", "name": "Alice", "email": "alice@example.com", "userId": "U000001" },
-  { "_id": "65d4a1b2f1d3d0487b0e9c6c", "name": "Bob", "email": "bob@example.com", "userId": "U000002" }
+    {
+        "_id": "67ed13ae32ac64ecc66a72eb",
+        "member_ObjectId": "67bef37dc34ccc925695635d",
+        "orders": [
+            {
+                "dog_ObjectId": "67dd5eb505dc63b6cecc89f7",
+                "unit_qty": 4,
+                "unit_price": 12,
+                "total_unit_price": 72,
+                "_id": "67ed13ae32ac64ecc66a72ec",
+                "id": "67ed13ae32ac64ecc66a72ec"
+            },
+            {
+                "dog_ObjectId": "67dd705d16992f8dada2376f",
+                "unit_qty": 10,
+                "unit_price": 12,
+                "total_unit_price": 180,
+                "_id": "67ed13cc32ac64ecc66a7307",
+                "id": "67ed13cc32ac64ecc66a7307"
+            }
+        ],
+        "total_price": 66.33,
+        "tax": 15,
+        "platformCharges": 30
+    },
+    {
+        "_id": "67f39bbdb9c1147e47810d9b",
+        "member_ObjectId": "67f39b606aa16f27c1241fa1",
+        "orders": [
+            {
+                "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+                "unit_qty": 2,
+                "unit_price": 12,
+                "total_unit_price": 36,
+                "_id": "67f39bbdb9c1147e47810d9c",
+                "id": "67f39bbdb9c1147e47810d9c"
+            }
+        ],
+        "total_price": 22.11,
+        "tax": 5,
+        "platformCharges": 10,
+        "paybleAmount": 37.11
+    }
 ]
-```
-
----
-
-## **✅ Summary**
-- **User ID is automatically generated** when a new user is created.
-- **No need to manually call the function** in controllers.
-- Ensures **sequential unique IDs** with a prefix (e.g., `"U000001"`, `"U000002"`).
-- Uses **MongoDB sorting** to determine the next available ID.
-- Prevents duplicates with **Mongoose’s unique constraint**.
-
----
-
-Would you like to add **custom prefixes** for different user roles (e.g., `"A000001"` for admins, `"C000001"` for customers)? 🚀
