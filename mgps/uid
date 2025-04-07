@@ -1,3 +1,40 @@
+
+
+export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const dogId = req.params.dogId; // e.g., "67dd5eb505dc63b6cecc89f7"
+
+		// Fetch all purchase records
+		const purchases = await purchaseModel.find();
+
+		// Filter members who have the specified dogId in any of their orders
+		const membersWithDog = purchases.filter(purchase =>
+			purchase.orders.some(order => order.dog_ObjectId === dogId)
+		);
+
+		// Get unique member_ObjectIds
+		const uniqueMemberIds = [...new Set(membersWithDog.map(p => p.member_ObjectId))];
+
+		// Respond with the count and optional list
+		return res.status(200).json({
+			count: uniqueMemberIds.length,
+			member_ObjectIds: uniqueMemberIds
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(500).json({ message: 'Server Error', error });
+	}
+};
+
+
+
+
+
+
+
+
+
+
 export const divideWinPrice = async (req: Request, res: Response): Promise<any> => {
 	const dogId = req.params.dogId; // Assuming dogId is passed as a route parameter
 
