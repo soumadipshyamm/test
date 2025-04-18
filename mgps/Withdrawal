@@ -1,0 +1,84 @@
+Great — if **users are withdrawing money** from your platform wallet to **their own bank account**, then you’ll need to use **Stripe Connect** with **Standard or Express accounts**, because:
+
+- **Users need Stripe accounts** (to receive payouts)
+- You send money from your Stripe platform to their **connected account's bank account**
+
+---
+
+### Flow Summary:
+
+1. User registers & connects Stripe account (once).
+2. You store `stripeAccountId` in your DB (MongoDB).
+3. User requests withdrawal.
+4. You:
+   - Check wallet balance.
+   - Create a **Payout** via Stripe to their connected account.
+   - Deduct the amount from wallet balance.
+
+---
+
+### Step-by-Step Setup
+
+#### 1. Connect User to Stripe
+Redirect user to onboard:
+
+```js
+const account = await stripe.accounts.create({
+  type: 'express', // or 'standard'
+  email: user.email,
+});
+
+const accountLink = await stripe.accountLinks.create({
+  account: account.id,
+  refresh_url: 'https://yourdomain.com/reauth',
+  return_url: 'https://yourdomain.com/return',
+  type: 'account_onboarding',
+});
+```
+
+Save `account.id` (stripeAccountId) to user's MongoDB wallet document.
+
+---
+
+#### 2. Create Withdrawal Endpoint
+
+```js
+router.post('/withdraw', async (req, res) => {
+  const { userId, amount } = req.body;
+
+  try {
+    const wallet = await Wallet.findOne({ userId });
+
+    if (!wallet || wallet.balance < amount) {
+      return res.status(400).json({ message: 'Insufficient balance' });
+    }
+
+    // Payout to the user's Stripe account
+    const transfer = await stripe.transfers.create({
+      amount: amount * 100,
+      currency: 'usd',
+      destination: wallet.stripeAccountId,
+    });
+
+    // Now create payout from user's account to their bank
+    await stripe.payouts.create({
+      amount: amount * 100,
+      currency: 'usd',
+    }, {
+      stripeAccount: wallet.stripeAccountId,
+    });
+
+    // Update wallet balance
+    wallet.balance -= amount;
+    await wallet.save();
+
+    res.json({ message: 'Withdrawal successful' });
+  } catch (err) {
+    res.status(500).json({ message: 'Withdrawal failed', error: err.message });
+  }
+});
+```
+
+---
+
+Would you like the **MongoDB model**, or the **Stripe connect onboarding frontend** as well?
