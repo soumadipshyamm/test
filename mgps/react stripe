@@ -1,3 +1,19 @@
+Compiled with problems:
+×
+ERROR in src/components/app.tsx:126:53
+TS2739: Type '{}' is missing the following properties from type 'StripePaymentProps': payload, totalAmount
+    124 |             <Route path="/wallet" element={<WalletList />} />
+    125 |             <Route path="/grievances" element={<GrievanceList />} />
+  > 126 |             <Route path="/stripe-payment" element={<StripePayment />} />
+        |                                                     ^^^^^^^^^^^^^
+    127 |             <Route path="/confirm" element={<Confirm />} />
+    128 |             {/* <Route path="/stripe-payment" element={
+    129 |                   <Elements stripe={stripePromise} options={options}>
+
+
+
+
+
 Type '{ clientSecret: string; appearance: { theme: string; }; }' is not assignable to type 'StripeElementsOptions | undefined'.
   Type '{ clientSecret: string; appearance: { theme: string; }; }' is not assignable to type 'StripeElementsOptionsClientSecret'.
     The types of 'appearance.theme' are incompatible between these types.
