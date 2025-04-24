@@ -1,0 +1,135 @@
+import { useEffect, useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
+import { PaymentElement, Elements } from '@stripe/react-stripe-js';
+import { useLocation } from 'react-router-dom';
+import { Box, Typography, Card } from '@mui/material';
+import styles from '../../styles/wallet.module.css';
+
+const StripePayment = ({ payload, totalAmount }: any) => {
+  const location = useLocation();
+  const { state } = location;
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [stripePromise, setStripePromise] = useState<any>(null);
+
+  useEffect(() => {
+    console.log("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+    console.log("state_state_state_state", state);
+    console.log("state_client_secret", state.client_secret);
+  }, [state])
+  useEffect(() => {
+    const loadStripeInstance = async () => {
+      const stripe = await loadStripe('pk_test_51NdpkRBuHqQNZg72XOlkNZRZZO9aXVTnGAyzbNP8QXJkZwW5gVY9r3PxjNQ6e9Yz5htDWyIKuMRaAHmS5EZfk4Oz00sCUF6Kvr');
+      setStripePromise(stripe);
+    };
+
+    loadStripeInstance();
+  }, []);
+
+  const handleSubmit = async (event: any) => {
+    event.preventDefault();
+    console.log("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@", state);
+    const clientSecret = state?.client_secret;
+    console.log("*******************************************************************", clientSecret);
+    if (!stripePromise || !clientSecret) {
+      console.error('Stripe has not been initialized or client secret is missing.');
+      return; // Exit if stripePromise is null or clientSecret is invalid
+    }
+
+    const stripe = await stripePromise; // Wait for the stripe instance
+    const elements = stripe.elements({ clientSecret }); // Create elements with clientSecret
+
+    const paymentElement = elements.create('payment');
+    paymentElement.mount('#payment-element');
+
+    try {
+      const result = await stripe.confirmPayment({
+        elements,
+        clientSecret,
+        confirmParams: {
+          return_url: `${process.env.REACT_APP_API_URL}confirm`, // Handle redirection after payment
+        },
+      });
+
+      if (result.error) {
+        setErrorMessage(result.error.message); // Set error message if there's an error
+        console.error("Payment error:", result.error); // Log the error
+      } else {
+        console.log('Payment succeeded:', result); // Log success
+        await updateTransactionStatus(payload); // Call to update transaction status
+      }
+    } catch (error) {
+      console.error("Error confirming payment:", error); // Log any errors during confirmation
+    }
+  };
+
+  const updateTransactionStatus = async (payload: any) => {
+    try {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}api/v1/transaction/wallet-recived-payment/680726cfaff3eb1a1ee82a9c`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          status: "ACTIVE",
+          payment_response: payload
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update transaction status');
+      }
+
+      const data = await res.json();
+      console.log('Transaction updated successfully:', data);
+    } catch (error) {
+      console.error("Error updating transaction status:", error);
+    }
+  };
+  const options = {
+    clientSecret: state?.client_secret || "", // Ensure this is a valid string
+  };
+
+  return (
+    <div className="App">
+      {state?.client_secret && stripePromise && (
+        <Elements options={options} stripe={stripePromise}>
+          <form onSubmit={handleSubmit}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around' }}>
+              <Box sx={{ width: '50%', margin: '10px 50px', backgroundColor: '#f5f5f5' }}>
+                <PaymentElement id="payment-element" />
+              </Box>
+              <Box>
+                <Card sx={{ flex: 1, borderRadius: 5, p: 2, m: '20px', width: '300px' }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: '20px' }}>
+                    <Typography variant="body2" color="textSecondary">Subtotal (1 item)</Typography>
+                    <Typography variant="body2" color="textSecondary">${totalAmount}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" color="textSecondary">Shipping</Typography>
+                    <Typography variant="body2" color="textSecondary">Free</Typography>
+                  </Box>
+                  <hr />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" color="textSecondary">Total</Typography>
+                    <Typography variant="body2" color="textSecondary">${totalAmount}</Typography>
+                  </Box>
+                  <button
+                    type="submit"
+                    disabled={!stripePromise}
+                    className={styles.pay_btn}
+                  >
+                    Place Order
+                  </button>
+                </Card>
+              </Box>
+            </Box>
+            {errorMessage && <div>{errorMessage}</div>}
+          </form>
+        </Elements>
+      )}
+    </div>
+  );
+};
+
+export default StripePayment;
