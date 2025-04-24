@@ -1,3 +1,33 @@
+Type '{ clientSecret: string; appearance: { theme: string; }; }' is not assignable to type 'StripeElementsOptions | undefined'.
+  Type '{ clientSecret: string; appearance: { theme: string; }; }' is not assignable to type 'StripeElementsOptionsClientSecret'.
+    The types of 'appearance.theme' are incompatible between these types.
+      Type 'string' is not assignable to type '"flat" | "stripe" | "night" | undefined'.ts(2322)
+
+
+
+  const options = {
+    clientSecret,
+    appearance: {
+      theme: 'stripe',
+    },
+  };
+
+  return (
+    <div className="App">
+      {clientSecret && stripePromise && (
+        <Elements options={options} stripe={stripePromise} key={clientSecret}>
+          <CheckoutForm payload={payload} totalAmount={totalAmount} />
+        </Elements>
+      )}
+    </div>
+  );
+};
+
+
+
+
+
+
 
 import React, { useEffect, useState, FormEvent } from 'react';
 import { loadStripe, Stripe } from '@stripe/stripe-js';
