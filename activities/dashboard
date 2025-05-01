@@ -1,0 +1,52 @@
+var labels = data.labels;
+            var datasets = data.datasets;
+            
+            var chart2 = new CanvasJS.Chart("progressChart", {
+                animationEnabled: true,
+                title: {
+                    text: "Months Wise Work Progress"
+                },
+                toolTip: {
+                    shared: true,
+                    content: "{name}: {y}%" // Show percentage value in tooltip
+                },
+                axisX: {
+                    title: "Months"
+                },
+                axisY: {
+                    title: "Progress (%)"
+                },
+                width: 990, // Set the desired width
+                height: 250, // Set the desired height
+                data: datasets.map((dataset, datasetIndex) => ({
+                    type: "column",
+                    name: dataset.label,
+                    showInLegend: true,
+                    dataPoints: allMonthsData.map((monthData) => ({
+                        label: monthData.label,
+                        y: monthData.data[datasetIndex] ||
+                        0, // Ensure 0 is shown if no data
+                        toolTipContent: (monthData.data[datasetIndex] ? monthData.data[
+                            datasetIndex] : 0) + "%" // Show percentage on the bar
+                    }))
+                }))
+            });
+
+            chart2.render();
+
+and this is a respons 
+
+[
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec"
+]
