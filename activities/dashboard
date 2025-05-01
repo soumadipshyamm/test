@@ -1,3 +1,57 @@
+<script>
+    const labels = @json($data['labels']);
+    const datasets = @json($data['datasets']);
+
+    // Build monthData combining label and data for all datasets
+    const allMonthsData = labels.map((label, i) => {
+        return {
+            label: label,
+            data: datasets.map(dataset => parseFloat(dataset.data[i]) || 0)
+        };
+    });
+
+    function monthwiseworkProgess() {
+        const chart2 = new CanvasJS.Chart("progressChart", {
+            animationEnabled: true,
+            title: {
+                text: "Months Wise Work Progress"
+            },
+            toolTip: {
+                shared: true,
+                content: "{name}: {y}%" 
+            },
+            axisX: {
+                title: "Months"
+            },
+            axisY: {
+                title: "Progress (%)"
+            },
+            width: 990,
+            height: 250,
+            data: datasets.map((dataset, datasetIndex) => ({
+                type: "column",
+                name: dataset.label,
+                showInLegend: true,
+                dataPoints: allMonthsData.map(monthData => ({
+                    label: monthData.label,
+                    y: monthData.data[datasetIndex] || 0
+                }))
+            }))
+        });
+
+        chart2.render();
+    }
+
+    // Call function on page load
+    window.onload = monthwiseworkProgess;
+</script>
+
+
+
+
+
+
+
 function monthwiseworkProgess(data) {
 
     var chart2 = new CanvasJS.Chart("progressChart", {
