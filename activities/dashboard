@@ -1,52 +1,80 @@
-var labels = data.labels;
-            var datasets = data.datasets;
-            
-            var chart2 = new CanvasJS.Chart("progressChart", {
-                animationEnabled: true,
-                title: {
-                    text: "Months Wise Work Progress"
-                },
-                toolTip: {
-                    shared: true,
-                    content: "{name}: {y}%" // Show percentage value in tooltip
-                },
-                axisX: {
-                    title: "Months"
-                },
-                axisY: {
-                    title: "Progress (%)"
-                },
-                width: 990, // Set the desired width
-                height: 250, // Set the desired height
-                data: datasets.map((dataset, datasetIndex) => ({
-                    type: "column",
-                    name: dataset.label,
-                    showInLegend: true,
-                    dataPoints: allMonthsData.map((monthData) => ({
-                        label: monthData.label,
-                        y: monthData.data[datasetIndex] ||
-                        0, // Ensure 0 is shown if no data
-                        toolTipContent: (monthData.data[datasetIndex] ? monthData.data[
-                            datasetIndex] : 0) + "%" // Show percentage on the bar
-                    }))
-                }))
-            });
+function monthwiseworkProgess(data) {
 
-            chart2.render();
+    var chart2 = new CanvasJS.Chart("progressChart", {
+        animationEnabled: true,
+        title: {
+            text: "Months Wise Work Progress"
+        },
+        toolTip: {
+            shared: true,
+            content: "{name}: {y}%" // Show percentage value in tooltip
+        },
+        axisX: {
+            title: "Months"
+        },
+        axisY: {
+            title: "Progress (%)"
+        },
+        width: 990, // Set the desired width
+        height: 250, // Set the desired height
+        data: datasets.map((dataset, datasetIndex) => ({
+            type: "column",
+            name: dataset.label,
+            showInLegend: true,
+            dataPoints: allMonthsData.map((monthData) => ({
+                label: monthData.label,
+                y: monthData.data[datasetIndex] ||
+                0, // Ensure 0 is shown if no data
+                toolTipContent: (monthData.data[datasetIndex] ? monthData.data[
+                    datasetIndex] : 0) + "%" // Show percentage on the bar
+            }))
+        }))
+    });
 
-and this is a respons 
+    chart2.render();
+}
 
-[
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec"
-]
+response 
+{
+    "labels": [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec"
+    ],
+    "datasets": [
+        {
+            "label": "Actual Progress",
+            "data": [
+                "3.23",
+                "3.57",
+                "3.23",
+                "3.33"
+            ],
+            "backgroundColor": "rgba(75, 192, 192, 0.2)",
+            "borderColor": "rgba(75, 192, 192, 1)",
+            "borderWidth": 1
+        },
+        {
+            "label": "Planned Progress",
+            "data": [
+                "3.23",
+                "3.57",
+                "3.23",
+                "3.33"
+            ],
+            "backgroundColor": "rgba(255, 99, 132, 0.2)",
+            "borderColor": "rgba(255, 99, 132, 1)",
+            "borderWidth": 1
+        }
+    ]
+}
+
