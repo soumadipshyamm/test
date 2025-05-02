@@ -1,0 +1,48 @@
+export const deviedMemberWinPrice = async (winPoints: number, dogId: string) => {
+
+	// Fetch all purchase records
+	const purchases = await purchaseModel.find();
+
+	// Process purchases
+	const membersWithDog = await Promise.all(
+		purchases.map(async (purchase) => {
+			console.log("###################################purchase", purchase.orders);
+
+			// Filter matching orders for the given dogId
+			const matchingOrders = purchase.orders.filter(order => order.dog_ObjectId.toString() === dogId);
+			if (matchingOrders.length === 0) return null;
+
+			// Calculate total units for the matched orders
+			const totalUnitQty = matchingOrders.reduce((sum, order) => sum + order.unit_qty, 0);
+			const earnedPoints = totalUnitQty * winPoints;
+
+			// Fetch member wallet
+			const memberWallet = await walletModel.findOne({ member_id: purchase.member_ObjectId });
+			console.log("###################################", memberWallet);
+			if (memberWallet) {
+				// Update wallet balance by adding earned points
+				memberWallet.amount = (memberWallet.amount ?? 0) + earnedPoints;
+				await memberWallet.save();
+				console.log(`Updated wallet for Member ID: ${purchase.member_ObjectId} | Earned Points: ${earnedPoints} | New Balance: ${memberWallet.amount}`);
+			} else {
+				console.log(`Wallet not found for Member ID: ${purchase.member_ObjectId}`);
+			}
+
+			// Return structured member data
+			// return {
+			// 	_id: purchase._id,
+			// 	member_ObjectId: purchase.member_ObjectId,
+			// 	orders: matchingOrders,
+			// 	total_price: purchase.total_price,
+			// 	tax: purchase.tax,
+			// 	platformCharges: purchase.platformCharges,
+			// 	paybleAmount: purchase.paybleAmount,
+			// 	totalUnits: totalUnitQty,
+			// 	earnedPoints: earnedPoints,
+			// 	memberWallet: memberWallet ? memberWallet.amount : 'Wallet Not Found'
+			// };
+		})
+	);
+
+	return membersWithDog;
+}
