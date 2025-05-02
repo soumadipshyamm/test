@@ -46,3 +46,50 @@ export const deviedMemberWinPrice = async (winPoints: number, dogId: string) => 
 
 	return membersWithDog;
 }
+
+{
+  _id: new ObjectId('67ed13ae32ac64ecc66a72eb'),
+  member_ObjectId: new ObjectId('67bef37dc34ccc925695635d'),
+  orders: [
+    {
+      dog_ObjectId: new ObjectId('67dd5eb505dc63b6cecc89f3'),
+      unit_qty: 4,
+      unit_price: 12,
+      total_unit_price: 72,
+      _id: new ObjectId('67ed13ae32ac64ecc66a72ec'),
+      id: '67ed13ae32ac64ecc66a72ec'
+    },
+    {
+      dog_ObjectId: new ObjectId('67dd5eb505dc63b6cecc89f3'),
+      unit_qty: 10,
+      unit_price: 12,
+      total_unit_price: 180,
+      _id: new ObjectId('67ed13cc32ac64ecc66a7307'),
+      id: '67ed13cc32ac64ecc66a7307'
+    },
+    {
+      dog_ObjectId: new ObjectId('680a320033c73e16facd9966'),
+      unit_qty: 4,
+      unit_price: 12,
+      total_unit_price: 72,
+      _id: new ObjectId('6810e7e9663a8e540d697126'),
+      id: '6810e7e9663a8e540d697126'
+    }
+  ],
+  total_price: 110.55,
+  tax: 25,
+  platformCharges: 50,
+  paybleAmount: 185.55,
+  billing_name: 'wwwwwwwwwwww',
+  billing_address: 'wwwwwwwww',
+  country: 'AUSTRALIA',
+  state: 'wwwwwww',
+  city: 'wwwwwwww',
+  status: 'PENDING',
+  date: 2025-04-02T10:38:38.942Z,
+  createdAt: 2025-04-02T10:38:38.944Z,
+  updatedAt: 2025-04-29T15:10:46.896Z,
+  __v: 2,
+  id: '67ed13ae32ac64ecc66a72eb'
+}
+########
