@@ -1,4 +1,55 @@
 
+public function workProgressDprDetailsPdf(Request $request)
+{
+    set_time_limit(300);
+    ini_set('memory_limit', '512M');
+
+    try {
+        $authCompany = Auth::guard('company')->user();
+        if (!$authCompany) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $companyId = searchCompanyId($authCompany->id);
+        if (!$companyId) {
+            return response()->json(['error' => 'Company ID not found'], 404);
+        }
+
+        $fromProject = $request->input('project');
+        $empId = $request->input('emp_id');
+        $fromDate = Carbon::parse($request->input('date_from'))->format('Y-m-d');
+
+        $datas = Dpr::with(['assets', 'activities', 'labour', 'material', 'historie', 'safetie'])
+            ->where('projects_id', $fromProject)
+            ->where('date', $fromDate)
+            ->where('company_id', $companyId)
+            ->when($empId, fn($q) => $q->where('user_id', $empId))
+            ->get();
+
+        if ($datas->isEmpty()) {
+            return response()->json(['error' => 'No data found'], 404);
+        }
+
+        $pdf = PDF::loadView('common.report.dpr_web', compact('datas'))->setPaper('a4', 'portrait');
+        $filename = 'dpr_' . now()->format('YmdHis') . '.pdf';
+        $pdf->save(storage_path("app/public/{$filename}"));
+
+        return response()->json(['filename' => $filename], 200);
+    } catch (\Throwable $e) {
+        return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
 To solve the "Maximum execution time of 60 seconds exceeded" issue and optimize the PDF generation logic in your Laravel controller, here’s a revised and structured version of your method:
 
 ### **Key Enhancements:**
