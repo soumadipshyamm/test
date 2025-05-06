@@ -1,0 +1,146 @@
+[
+    {
+        "label": "Jan",
+        "data": [
+            3.23,
+            3.23
+        ]
+    },
+    {
+        "label": "Feb",
+        "data": [
+            3.33,
+            3.33
+        ]
+    },
+    {
+        "label": "Mar",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "Apr",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "May",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "Jun",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "Jul",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "Aug",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "Sep",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "Oct",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "Nov",
+        "data": [
+            0,
+            0
+        ]
+    },
+    {
+        "label": "Dec",
+        "data": [
+            0,
+            0
+        ]
+    }
+]
+
+function monthwiseworkProgess(data) {
+            // Check if data is valid and contains labels and datasets
+            if (!data || !data.labels || !data.datasets) {
+                console.error("Invalid data format for monthwiseworkProgess");
+                return; // Exit the function if data is invalid
+            }
+
+            var labels = data.labels;
+            var datasets = data.datasets;
+
+            // Create an array to hold the data for each month
+            const allMonthsData = labels.map((label) => {
+                // const allMonthsData = labels.map((label) => {
+                // Create an object for each month with the label
+                const monthData = {
+                    label: label
+                };
+                // For each dataset, get the corresponding data point or 0 if not available
+                monthData.data = datasets.map((dataset) => {
+                    const index = labels.indexOf(label);
+                    return index >= 0 ? parseFloat(dataset.data[index]) || 0 : 0;
+                });
+                return monthData;
+            });
+
+            console.log(labels);
+            console.log(datasets);
+            console.log(allMonthsData);
+
+            const chart2 = new CanvasJS.Chart("progressChart", {
+                animationEnabled: true,
+                title: {
+                    text: "Months Wise Work Progress"
+                },
+                toolTip: {
+                    shared: true,
+                    content: "{name}: {y}%"
+                },
+                axisX: {
+                    title: "Months"
+                },
+                axisY: {
+                    title: "Progress (%)"
+                },
+                width: 990,
+                height: 250,
+                data: datasets.map((dataset, datasetIndex) => ({
+                    type: "column",
+                    name: dataset.label,
+                    showInLegend: true,
+                    dataPoints: allMonthsData.map(monthData => ({
+                        label: monthData.label,
+                        y: monthData.data[datasetIndex] || 0 // Ensure 0 is shown if no data
+                    }))
+                }))
+            });
+
+            chart2.render();
+        }
