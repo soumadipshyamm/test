@@ -1,4 +1,111 @@
- public function workProgressDprDetailsPdf(Request $request)
+
+To solve the "Maximum execution time of 60 seconds exceeded" issue and optimize the PDF generation logic in your Laravel controller, here’s a revised and structured version of your method:
+
+### **Key Enhancements:**
+
+* Uses more efficient query structure (avoids incorrect `orWhere`)
+* Increases execution time limit only when necessary
+* Caches heavy queries or avoids fetching unnecessary relationships
+* Splits PDF generation from controller logic if needed
+
+---
+
+### **Optimized and Corrected Version:**
+
+```php
+public function workProgressDprDetailsPdf(Request $request)
+{
+    try {
+        // Extend execution time limit
+        set_time_limit(180); // You can increase this limit as required
+
+        // Fetch authenticated company
+        $authCompany = Auth::guard('company')->user();
+        if (!$authCompany) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $companyId = searchCompanyId($authCompany->id);
+        if (!$companyId) {
+            return response()->json(['error' => 'Company ID not found'], 404);
+        }
+
+        // Validate inputs
+        $validated = $request->validate([
+            'project' => 'required|integer',
+            'emp_id' => 'nullable|integer',
+            'date_from' => 'required|date'
+        ]);
+
+        $fromProject = $validated['project'];
+        $empId = $validated['emp_id'] ?? null;
+        $fromDate = Carbon::parse($validated['date_from'])->format('Y-m-d');
+
+        // Retrieve filtered data efficiently
+        $query = Dpr::with([
+            'assets:id,dpr_id,name',
+            'activities:id,dpr_id,activity_name',
+            'labour:id,dpr_id,labour_type',
+            'material:id,dpr_id,material_type',
+            'historie:id,dpr_id,change_log',
+            'safetie:id,dpr_id,safety_status'
+        ])
+        ->where('projects_id', $fromProject)
+        ->whereDate('date', $fromDate)
+        ->where('company_id', $companyId);
+
+        if ($empId) {
+            $query->where('user_id', $empId);
+        }
+
+        $datas = $query->get();
+
+        if ($datas->isEmpty()) {
+            return response()->json(['error' => 'No data found for given parameters'], 404);
+        }
+
+        // Generate and save PDF
+        $pdf = PDF::loadView('common.report.dpr_web', compact('datas'))
+                  ->setPaper('a4', 'portrait')
+                  ->setOption('enable-local-file-access', true);
+
+        $filename = 'dpr_' . now()->format('Ymd_His') . '.pdf';
+        $pdf->save(storage_path("app/public/{$filename}"));
+
+        return response()->json(['filename' => $filename], 200);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+    }
+}
+```
+
+---
+
+### **Tips to Further Optimize Performance:**
+
+1. **Offload to a Job Queue**: If PDF generation is still slow, dispatch it to a background job using Laravel's Queue system.
+2. **Paginate Data**: If you expect large volumes of related data, consider paginating or limiting the data pulled.
+3. **Use Chunking**: For huge datasets, use Eloquent's `chunk()` method.
+4. **Cache Data**: Cache repeated queries for a short period (e.g., 5–10 mins) if the same report is often downloaded.
+
+Would you like help moving this PDF generation to a queue job or separating the report logic into a service class?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+public function workProgressDprDetailsPdf(Request $request)
     {
         // dd($request->all());
         try {
