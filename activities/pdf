@@ -1,0 +1,47 @@
+ public function workProgressDprDetailsPdf(Request $request)
+    {
+        // dd($request->all());
+        try {
+            // Fetch authenticated company ID
+            $authCompany = Auth::guard('company')->user();
+            if (!$authCompany) {
+                return response()->json(['error' => 'Unauthorized'], 401);
+            }
+            $companyId = searchCompanyId($authCompany->id);
+            if (!$companyId) {
+                // dd($companyId);
+                return response()->json(['error' => 'Company ID not found'], 404);
+            }
+            // Access individual form fields
+            $fromProject = $request->input('project');
+            $empId = $request->input('emp_id');
+            $fromDate = $request->input('date_from');
+            // dd(
+            //     $fromProject,
+            //     $empId,
+            //     $fromDate
+            // );
+            // Validate and format date
+            $fromDate = Carbon::parse($fromDate)->format('Y-m-d');
+            // Retrieve data from database
+            $datas = Dpr::with('assets', 'activities', 'labour', 'material', 'historie', 'safetie')
+                ->where('projects_id', $fromProject)
+                ->where('date', $fromDate)
+                ->orWhere('name',  $fromDate)
+                ->where('company_id', $companyId)
+                ->when($empId, function ($q) use ($empId) {
+                    return $q->where('user_id', $empId);
+                })
+                ->get();
+            // dd($datas);
+            // Generate PDF
+            $pdf = PDF::loadView('common.report.dpr_web', compact('datas'));
+            $filename = 'dpr_' . date('YmdHis') . '.pdf';
+            $pdf->save(storage_path('app/public/' . $filename));
+            $data = storage_path('app/public/' . $filename);
+
+            return response()->json(['filename' => $filename], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to generate PDF: ' . $e->getMessage()], 500);
+        }
+    }
