@@ -1,3 +1,7 @@
+
+https://wormhole.app/bLlBRO#ToJvMWTTa_LTB2OXe4JmjQ
+
+
 To create a common AJAX function in JavaScript that can be reused throughout your project, you can write a function that abstracts the process of making AJAX requests using the `fetch` API or `XMLHttpRequest`. Below, I’ll show you how to make a reusable AJAX function using both methods, starting with the more modern and preferred approach using `fetch`.
 
 ### 1. **Using `fetch` API** (Recommended)
