@@ -1,0 +1,220 @@
+Here is the **full step-by-step process** to implement **Razorpay payment gateway in Laravel 10** including saving payment details in the database:
+
+---
+
+## **1. Install Razorpay SDK**
+
+```bash
+composer require razorpay/razorpay
+```
+
+---
+
+## **2. Set Razorpay Credentials in `.env`**
+
+Add these lines:
+
+```env
+RAZORPAY_KEY=your_razorpay_key
+RAZORPAY_SECRET=your_razorpay_secret
+```
+
+---
+
+## **3. Update `config/services.php`**
+
+```php
+'razorpay' => [
+    'key' => env('RAZORPAY_KEY'),
+    'secret' => env('RAZORPAY_SECRET'),
+],
+```
+
+---
+
+## **4. Create the `payments` Table**
+
+### Create migration:
+
+```bash
+php artisan make:migration create_payments_table
+```
+
+### Edit migration file:
+
+```php
+Schema::create('payments', function (Blueprint $table) {
+    $table->id();
+    $table->string('payment_id');
+    $table->string('order_id')->nullable();
+    $table->string('signature')->nullable();
+    $table->string('email')->nullable();
+    $table->string('contact')->nullable();
+    $table->integer('amount');
+    $table->string('currency');
+    $table->string('status');
+    $table->timestamps();
+});
+```
+
+### Run migration:
+
+```bash
+php artisan migrate
+```
+
+---
+
+## **5. Create Payment Model**
+
+```bash
+php artisan make:model Payment
+```
+
+**In `app/Models/Payment.php`:**
+
+```php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Payment extends Model
+{
+    protected $fillable = [
+        'payment_id', 'order_id', 'signature', 'email', 'contact',
+        'amount', 'currency', 'status',
+    ];
+}
+```
+
+---
+
+## **6. Create Razorpay Controller**
+
+```bash
+php artisan make:controller RazorpayController
+```
+
+**Controller code:**
+
+```php
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Razorpay\Api\Api;
+use App\Models\Payment;
+use Session;
+
+class RazorpayController extends Controller
+{
+    public function showForm()
+    {
+        return view('razorpay.index');
+    }
+
+    public function payment(Request $request)
+    {
+        $api = new Api(config('services.razorpay.key'), config('services.razorpay.secret'));
+
+        $payment = $api->payment->fetch($request->razorpay_payment_id);
+
+        if ($payment->status === 'authorized') {
+            $payment->capture(['amount' => $payment->amount]);
+
+            Payment::create([
+                'payment_id' => $payment->id,
+                'order_id' => $payment->order_id ?? null,
+                'signature' => $request->razorpay_signature ?? null,
+                'email' => $payment->email ?? null,
+                'contact' => $payment->contact ?? null,
+                'amount' => $payment->amount,
+                'currency' => $payment->currency,
+                'status' => $payment->status,
+            ]);
+
+            Session::flash('success', 'Payment successful!');
+            return redirect()->back();
+        }
+
+        Session::flash('error', 'Payment failed!');
+        return redirect()->back();
+    }
+}
+```
+
+---
+
+## **7. Define Routes in `web.php`**
+
+```php
+use App\Http\Controllers\RazorpayController;
+
+Route::get('/razorpay', [RazorpayController::class, 'showForm']);
+Route::post('/razorpay-payment', [RazorpayController::class, 'payment'])->name('razorpay.payment');
+```
+
+---
+
+## **8. Create Blade View `resources/views/razorpay/index.blade.php`**
+
+```blade
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Laravel Razorpay Payment</title>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+</head>
+<body>
+@if(session('success'))
+    <p style="color:green;">{{ session('success') }}</p>
+@endif
+@if(session('error'))
+    <p style="color:red;">{{ session('error') }}</p>
+@endif
+
+<button id="rzp-button">Pay ₹100</button>
+
+<form id="razorpay-form" action="{{ route('razorpay.payment') }}" method="POST" style="display: none;">
+    @csrf
+    <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id">
+    <input type="hidden" name="razorpay_signature" id="razorpay_signature">
+</form>
+
+<script>
+    var options = {
+        "key": "{{ config('services.razorpay.key') }}",
+        "amount": 10000, // amount in paise
+        "currency": "INR",
+        "name": "My Laravel App",
+        "description": "Test Payment",
+        "handler": function (response){
+            document.getElementById('razorpay_payment_id').value = response.razorpay_payment_id;
+            document.getElementById('razorpay_signature').value = response.razorpay_signature;
+            document.getElementById('razorpay-form').submit();
+        },
+        "theme": {
+            "color": "#3399cc"
+        }
+    };
+    var rzp = new Razorpay(options);
+    document.getElementById('rzp-button').onclick = function(e){
+        rzp.open();
+        e.preventDefault();
+    }
+</script>
+</body>
+</html>
+```
+
+---
+
+## **9. Test the Payment**
+
+* Visit `/razorpay` in your browser.
+* Click the **"Pay ₹100"** button.
+* Complete the test payment using Razorpay test cards.
+* Check your `payments` table for the new record.
+
+---
+
+Let me know if you want to integrate **order IDs**, **webhooks**, or **refunds** as well.
