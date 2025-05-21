@@ -1,3 +1,166 @@
+Here’s how you can modularize the full reward system into a **utility file** (`rewardUtils.ts`) for clean reuse. This file encapsulates the **add**, **update**, **delete**, and **list** reward logic into a reusable service layer.
+
+---
+
+## **`utils/rewardUtils.ts`**
+
+```ts
+import rewardsModel from '../models/rewardsModel';
+import purchaseModel from '../models/purchaseModel';
+import walletModel from '../models/walletModel';
+import walletTransactionModel from '../models/walletTransactionModel';
+import { TRANSACTION_TYPE, TRANSACTION_STATUS } from '../constants';
+
+export const rewardUtils = {
+  add: async (winPoints: number, dogId: string, raceId: any) => {
+    const purchases = await purchaseModel.find();
+    const rewardTypes = [];
+
+    for (const purchase of purchases) {
+      const matchingOrders = purchase.orders.filter(
+        (order: any) => order.dog_ObjectId.toString() === dogId
+      );
+
+      if (!matchingOrders.length) continue;
+
+      const totalUnitQty = matchingOrders.reduce(
+        (sum: number, order: any) => sum + order.unit_qty, 0
+      );
+      const earnedPoints = totalUnitQty * winPoints;
+      const memberId = purchase.member_ObjectId;
+
+      let wallet = await walletModel.findOne({ member_id: memberId });
+      if (!wallet) {
+        wallet = await walletModel.create({ member_id: memberId, amount: 0 });
+      }
+
+      const prev = wallet.amount;
+      wallet.amount += earnedPoints;
+      await wallet.save();
+
+      await walletTransactionModel.create({
+        member_id: memberId,
+        type: TRANSACTION_TYPE.CREDIT,
+        amount: earnedPoints,
+        previous_balance: prev,
+        current_balance: wallet.amount,
+        description: `Reward from race ${raceId}`,
+        status: TRANSACTION_STATUS.success,
+        transaction_time: new Date(),
+      });
+
+      rewardTypes.push({
+        member_Object_id: memberId,
+        unit_qty: totalUnitQty,
+        unit_point: winPoints,
+        per_unit_point: earnedPoints,
+        previous_wallet_balance: prev,
+        after_wallet_balance: wallet.amount,
+      });
+    }
+
+    return await rewardsModel.create({
+      race_object_id: raceId,
+      dog_object_id: dogId,
+      reward_types: 'POINTS',
+      points: winPoints,
+      member: rewardTypes,
+    });
+  },
+
+  update: async (rewardId: string, newPoints: number) => {
+    const oldReward = await rewardsModel.findById(rewardId);
+    if (!oldReward) throw new Error('Reward not found.');
+
+    await rewardUtils.delete(rewardId, false); // Soft delete: no removal
+    return await rewardUtils.add(newPoints, oldReward.dog_object_id, oldReward.race_object_id);
+  },
+
+  delete: async (rewardId: string, deleteDoc = true) => {
+    const reward = await rewardsModel.findById(rewardId);
+    if (!reward) throw new Error('Reward not found.');
+
+    for (const entry of reward.member) {
+      const wallet = await walletModel.findOne({ member_id: entry.member_Object_id });
+      if (!wallet) continue;
+
+      const prev = wallet.amount;
+      wallet.amount = Math.max(prev - entry.per_unit_point, 0);
+      await wallet.save();
+
+      await walletTransactionModel.create({
+        member_id: entry.member_Object_id,
+        type: TRANSACTION_TYPE.DEBIT,
+        amount: entry.per_unit_point,
+        previous_balance: prev,
+        current_balance: wallet.amount,
+        description: `Reverted reward for race ${reward.race_object_id}`,
+        status: TRANSACTION_STATUS.success,
+        transaction_time: new Date(),
+      });
+    }
+
+    if (deleteDoc) await rewardsModel.deleteOne({ _id: rewardId });
+
+    return { message: 'Reward deleted and points reverted.' };
+  },
+
+  list: async () => {
+    return await rewardsModel
+      .find()
+      .populate('race_object_id dog_object_id member.member_Object_id');
+  },
+};
+```
+
+---
+
+## **Usage Example**
+
+In your controller or route handler:
+
+```ts
+import { rewardUtils } from '../utils/rewardUtils';
+
+export const createReward = async (req, res) => {
+  const { winPoints, dogId, raceId } = req.body;
+  const reward = await rewardUtils.add(winPoints, dogId, raceId);
+  res.json(reward);
+};
+
+export const updateReward = async (req, res) => {
+  const reward = await rewardUtils.update(req.params.id, req.body.winPoints);
+  res.json(reward);
+};
+
+export const deleteReward = async (req, res) => {
+  const result = await rewardUtils.delete(req.params.id);
+  res.json(result);
+};
+
+export const listRewards = async (req, res) => {
+  const rewards = await rewardUtils.list();
+  res.json(rewards);
+};
+```
+
+---
+
+Let me know if you'd like to:
+
+* Add transactions with Mongoose sessions
+* Add TypeScript interfaces
+* Support batch reward distribution
+* Generate logs or exports for audit
+
+
+
+
+
+
+
+
+
 export const deviedMemberWinPrice = async (winPoints: number, dogId: string, raceId: ObjectId) => {
 	try {
 		// Fetch all purchase records
