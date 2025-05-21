@@ -1,133 +1,379 @@
-      {
-            "_id": "682d886d1c16f7fb09b9fb92",
-            "race_object_id": "68271a78b40d526bbfe7cb75",
-            "race_round_no": 1,
-            "race_date": "Sat May 24 2025 05:30:00 GMT+0530 (India Standard Time)",
-            "grade": "A",
-            "round": [
-                {
-                    "time": "1970-01-01T12:02:02.000Z",
-                    "winners": [
-                        {
-                            "position": 1,
-                            "dog_object_id": "680a320033c73e16facd9966",
-                            "race_completion_time": "1970-01-01T12:02:02.000Z",
-                            "mgn": 12,
-                            "split": 12,
-                            "in_run": 12,
-                            "weight": 12,
-                            "dog_price": 12.11,
-                            "_id": "682d886d1c16f7fb09b9fb94"
-                        }
-                    ],
-                    "_id": "682d886d1c16f7fb09b9fb93"
-                },
-                {
-                    "time": "1970-01-01T12:02:02.000Z",
-                    "winners": [
-                        {
-                            "position": 1,
-                            "dog_object_id": "680a320033c73e16facd9966",
-                            "race_completion_time": "1970-01-01T12:02:02.000Z",
-                            "mgn": 12,
-                            "split": 12,
-                            "in_run": 12,
-                            "weight": 12,
-                            "dog_price": 12.11,
-                            "_id": "682d886d1c16f7fb09b9fb96"
-                        }
-                    ],
-                    "_id": "682d886d1c16f7fb09b9fb95"
-                }
-            ],
-            "createdAt": "2025-05-21T08:01:49.845Z",
-            "updatedAt": "2025-05-21T08:01:49.845Z",
-            "__v": 0
-        }
-    ]
+      
+export const divideWinPriceList = async (req: Request, res: Response): Promise<any> => {
+	const memberId = req.params.id;
+	const raceInstances = await rewardsModel.find().lean();
+	// Accessing the member property of the first instance
+	if (raceInstances.length > 0) {
+		const checkMember = raceInstances.map(raceInstance => raceInstance.member.filter(member => member.member_Object_id.equals((memberId))));
+		return res.status(StatusCodes.OK).json({
+			message: MESSAGE.get.succ,
+			result: checkMember,
+		});
+	} else {
+		return res.status(StatusCodes.OK).json({
+			message: MESSAGE.custom("No race instances found")
+		});
+	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
 {
     "message": "Data fetched successfully",
-    "result": {
-        "race_object_id": "68271a78b40d526bbfe7cb75",
-        "race_round_no": "1",
-        "race_date": "2025-05-24",
-        "grade": "A",
-        "round": [
-            {
-                "time": "12:02:02",
-                "winners": {
-                    "position": "1",
-                    "dog_object_id": "680a320033c73e16facd9966",
-                    "box_number": "1",
-                    "race_completion_time": "12:02:02",
-                    "mgn": "12",
-                    "split": "12",
-                    "in_run": "12",
-                    "weight": "12",
-                    "dog_price": "12.11"
+    "result": [
+        {
+            "_id": "682366005e386052cfab3875",
+            "race_ObjectId": "68233bb3b0308550df4faa97",
+            "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "POINTS",
+            "points": null,
+            "description": "",
+            "member": [
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": 2,
+                    "unit_price": 20,
+                    "unit_point": 10,
+                    "memberPreWallet": 1721,
+                    "memberWallet": 1741,
+                    "_id": "682366005e386052cfab3876"
+                },
+                {
+                    "member_ObjectId": "67bef37dc34ccc925695635d",
+                    "unit_qty": 4,
+                    "unit_price": 40,
+                    "unit_point": 10,
+                    "memberPreWallet": 4640,
+                    "memberWallet": 4680,
+                    "_id": "682366005e386052cfab3877"
                 }
-            },
-            {
-                "time": "12:02:02",
-                "winners": {
-                    "position": "1",
-                    "dog_object_id": "680a320033c73e16facd9966",
-                    "box_number": "1",
-                    "race_completion_time": "12:02:02",
-                    "mgn": "12",
-                    "split": "12",
-                    "in_run": "12",
-                    "weight": "12",
-                    "dog_price": "12.11"
+            ],
+            "createdAt": "2025-05-13T15:32:16.970Z",
+            "updatedAt": "2025-05-13T15:32:16.970Z",
+            "__v": 0
+        },
+        {
+            "_id": "682366968c9fd5c654d18aff",
+            "race_ObjectId": "68233bb3b0308550df4faa97",
+            "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "POINTS",
+            "points": null,
+            "description": "",
+            "member": [
+                {
+                    "member_ObjectId": "67bef37dc34ccc925695635d",
+                    "unit_qty": 4,
+                    "unit_price": 40,
+                    "unit_point": 10,
+                    "memberPreWallet": 4680,
+                    "memberWallet": 4720,
+                    "_id": "682366968c9fd5c654d18b00"
+                },
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": 2,
+                    "unit_price": 20,
+                    "unit_point": 10,
+                    "memberPreWallet": 1741,
+                    "memberWallet": 1761,
+                    "_id": "682366968c9fd5c654d18b01"
                 }
-            }
-        ]
-    }
+            ],
+            "createdAt": "2025-05-13T15:34:46.780Z",
+            "updatedAt": "2025-05-13T15:34:46.780Z",
+            "__v": 0
+        },
+        {
+            "_id": "68236b370e2c739dcfe1865e",
+            "race_ObjectId": null,
+            "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "GIFTS",
+            "points": null,
+            "description": "member gifts for allllll",
+            "member": [
+                {
+                    "member_ObjectId": "67bef37dc34ccc925695635d",
+                    "unit_qty": 0,
+                    "unit_price": 0,
+                    "unit_point": 0,
+                    "memberPreWallet": 0,
+                    "memberWallet": 0,
+                    "_id": "68236b370e2c739dcfe1865f"
+                },
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": 0,
+                    "unit_price": 0,
+                    "unit_point": 0,
+                    "memberPreWallet": 0,
+                    "memberWallet": 0,
+                    "_id": "68236b370e2c739dcfe18660"
+                },
+                {
+                    "member_ObjectId": "6808d1d6992f1de737768c6e",
+                    "unit_qty": 0,
+                    "unit_price": 0,
+                    "unit_point": 0,
+                    "memberPreWallet": 0,
+                    "memberWallet": 0,
+                    "_id": "68236b370e2c739dcfe18661"
+                }
+            ],
+            "createdAt": "2025-05-13T15:54:31.337Z",
+            "updatedAt": "2025-05-13T15:54:31.337Z",
+            "__v": 0
+        },
+        {
+            "_id": "68248d7906db423198faa550",
+            "race_ObjectId": "68233bb3b0308550df4faa97",
+            "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "GIFTS",
+            "points": null,
+            "member": [
+                {
+                    "member_ObjectId": "67bef37dc34ccc925695635d",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248d7906db423198faa551"
+                },
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248d7906db423198faa552"
+                },
+                {
+                    "member_ObjectId": "6808d1d6992f1de737768c6e",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248d7906db423198faa553"
+                }
+            ],
+            "createdAt": "2025-05-14T12:32:57.800Z",
+            "updatedAt": "2025-05-14T12:32:57.800Z",
+            "__v": 0
+        },
+        {
+            "_id": "68248db24e1a0048b9856209",
+            "race_ObjectId": "68233bb3b0308550df4faa97",
+            "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "GIFTS",
+            "points": null,
+            "member": [
+                {
+                    "member_ObjectId": "67bef37dc34ccc925695635d",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248db24e1a0048b985620a"
+                },
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248db24e1a0048b985620b"
+                },
+                {
+                    "member_ObjectId": "6808d1d6992f1de737768c6e",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248db24e1a0048b985620c"
+                }
+            ],
+            "createdAt": "2025-05-14T12:33:54.419Z",
+            "updatedAt": "2025-05-14T12:33:54.419Z",
+            "__v": 0
+        },
+        {
+            "_id": "68248dd9dab90cd85e082599",
+            "race_ObjectId": "68233bb3b0308550df4faa97",
+            "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "GIFTS",
+            "points": null,
+            "member": [
+                {
+                    "member_ObjectId": "67bef37dc34ccc925695635d",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248dd9dab90cd85e08259a"
+                },
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248dd9dab90cd85e08259b"
+                },
+                {
+                    "member_ObjectId": "6808d1d6992f1de737768c6e",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248dd9dab90cd85e08259c"
+                }
+            ],
+            "createdAt": "2025-05-14T12:34:33.578Z",
+            "updatedAt": "2025-05-14T12:34:33.578Z",
+            "__v": 0
+        },
+        {
+            "_id": "68248e1795b6824317d04569",
+            "race_ObjectId": "68233bb3b0308550df4faa97",
+            "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "GIFTS",
+            "points": null,
+            "member": [
+                {
+                    "member_ObjectId": "67bef37dc34ccc925695635d",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248e1795b6824317d0456a"
+                },
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248e1795b6824317d0456b"
+                },
+                {
+                    "member_ObjectId": "6808d1d6992f1de737768c6e",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248e1795b6824317d0456c"
+                }
+            ],
+            "createdAt": "2025-05-14T12:35:35.224Z",
+            "updatedAt": "2025-05-14T12:35:35.224Z",
+            "__v": 0
+        },
+        {
+            "_id": "68248f01e9afa2b0b99a5fef",
+            "race_ObjectId": "68233bb3b0308550df4faa97",
+            "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "GIFTS",
+            "points": null,
+            "member": [
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248f01e9afa2b0b99a5ff0"
+                },
+                {
+                    "member_ObjectId": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248f01e9afa2b0b99a5ff1"
+                },
+                {
+                    "member_ObjectId": "6808d1d6992f1de737768c6e",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68248f01e9afa2b0b99a5ff2"
+                }
+            ],
+            "createdAt": "2025-05-14T12:39:29.324Z",
+            "updatedAt": "2025-05-14T12:39:29.324Z",
+            "__v": 0
+        },
+        {
+            "_id": "68270049aca6f4c5c2efa1a6",
+            "race_object_id": "682c33f79a6fd17514e098a4",
+            "dog_object_id": "67dd5eb505dc63b6cecc89f3",
+            "reward_types": "GIFTS",
+            "points": null,
+            "member": [
+                {
+                    "member_Object_id": "67bef37dc34ccc925695635d",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68270049aca6f4c5c2efa1a7"
+                },
+                {
+                    "member_Object_id": "67f39b606aa16f27c1241fa1",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68270049aca6f4c5c2efa1a8"
+                },
+                {
+                    "member_Object_id": "6808d1d6992f1de737768c6e",
+                    "unit_qty": null,
+                    "unit_price": null,
+                    "per_unit_point": null,
+                    "previous_wallet_balance": null,
+                    "after_wallet_balance": null,
+                    "description": "member gifts for allllll",
+                    "_id": "68270049aca6f4c5c2efa1a9"
+                }
+            ],
+            "createdAt": "2025-05-16T09:07:21.740Z",
+            "updatedAt": "2025-05-16T09:07:21.740Z",
+            "__v": 0
+        }
+    ]
 }
-
-
-
-
-
-const raceResultSchema: Schema<IRaceResult> = new Schema<IRaceResult>(
-	{
-		race_object_id: {
-			...SCHEMA_DEFINITION_PROPERTY.optionalNullObjectId,
-			ref: "races"
-		},
-		race_round_no: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-		race_date: SCHEMA_DEFINITION_PROPERTY.optionalNullString, // Assuming you have a requiredDate definition
-		grade: SCHEMA_DEFINITION_PROPERTY.optionalNullString,
-		round: [{
-			time: SCHEMA_DEFINITION_PROPERTY.optionalNullDate,
-			winners: [{
-				position: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-				dog_object_id: {
-					...SCHEMA_DEFINITION_PROPERTY.optionalNullObjectId,
-					ref: "dogs"
-				},
-				race_completion_time: SCHEMA_DEFINITION_PROPERTY.optionalNullDate,
-				mgn: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-				split: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-				in_run: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-				weight: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
-				dog_price: SCHEMA_DEFINITION_PROPERTY.requiredNumber,
-			}],
-		}],
-	},
