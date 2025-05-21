@@ -1,0 +1,91 @@
+export const deviedMemberWinPrice = async (winPoints: number, dogId: string, raceId: ObjectId) => {
+	try {
+		// Fetch all purchase records
+		const purchases = await purchaseModel.find();
+
+		// Initialize result arrays
+		const results: any[] = [];
+		const rewardTypes: any[] = [];
+
+		// Process purchases
+		const membersWithDog = await Promise.all(
+			purchases.map(async (purchase) => {
+				// Filter matching orders for the given dogId
+				const matchingOrders = purchase.orders.filter(order => order.dog_ObjectId.toString() === dogId);
+				if (matchingOrders.length === 0) return null;
+				// console.log("### Matching Orders", matchingOrders);
+
+				// Calculate total units for the matched orders
+				const totalUnitQty = matchingOrders.reduce((sum, order) => sum + order.unit_qty, 0);
+				const earnedPoints = totalUnitQty * winPoints;
+
+				const memberId = purchase.member_ObjectId;
+				// console.log("@ Member ID", memberId);
+
+				// Fetch or create member wallet
+				let memberWallet = await walletModel.findOne({ member_id: memberId }) || await createWallet({
+					member_id: memberId,
+					amount: 0.00,
+					status: TRANSACTION_STATUS.success
+				});
+
+				if (!memberWallet) {
+					throw new Error(`Failed to create wallet for member ${memberId}`);
+				}
+
+				const memberPreWallet = memberWallet.amount ?? 0; // Default to 0 if null
+				// console.log("Member Pre-Wallet Amount", memberPreWallet);
+
+				// Update wallet balance by adding earned points
+				memberWallet.amount = (memberWallet.amount ?? 0) + earnedPoints; // Default to 0 if null
+				await memberWallet.save();
+
+				// Prepare reward type object
+				const rewardType = {
+					member_Object_id: memberId,
+					unit_qty: totalUnitQty,
+					unit_point: winPoints,
+					per_unit_point: earnedPoints,
+					previous_wallet_balance: memberPreWallet,
+					after_wallet_balance: memberWallet.amount, // This should now be a number
+				};
+
+				// console.log("Reward Type", rewardType);
+				rewardTypes.push(rewardType);
+
+				// Prepare result for this purchase
+				const purchaseResult = {
+					_id: purchase._id,
+					member_ObjectId: memberId,
+					orders: matchingOrders,
+					totalUnits: totalUnitQty,
+					earnedPoints: earnedPoints,
+					memberWallet: memberWallet.amount // This should now be a number
+				};
+
+				results.push(purchaseResult);
+				return purchaseResult; // Return the purchase result
+			})
+		);
+
+		const rewardRecord = {
+			race_object_id: raceId, // Ensure this is a valid ObjectId if required
+			dog_object_id: dogId,
+			reward_types: "POINTS", // Add a meaningful description if needed
+			points: winPoints,
+			member: rewardTypes
+		};
+
+		const createdReward = await rewardsModel.create(rewardRecord);
+		// console.log("Created Reward", createdReward);
+
+		// Filter out null values from the results
+		const filteredResults = membersWithDog.filter(result => result !== null);
+		// console.log("Filtered Member List", filteredResults);
+
+		return { results: filteredResults, rewards: rewardTypes }; // Return both results and rewards
+	} catch (error) {
+		console.error("Error in deviedMemberWinPrice:", error);
+		throw new Error("Failed to process member win price.");
+	}
+}
