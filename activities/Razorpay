@@ -1,3 +1,114 @@
+
+Here is the **corrected and updated Razorpay Checkout JS** snippet that fully complies with Razorpay's latest web integration standards (as per official docs), and integrates well with Laravel 10 backend.
+
+---
+
+## **Recommended Razorpay Checkout JS**
+
+Update your Blade view (`resources/views/razorpay/payment.blade.php`) like this:
+
+```blade
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pay with Razorpay</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+</head>
+<body>
+    @if(session('success'))
+        <p style="color:green">{{ session('success') }}</p>
+    @elseif(session('error'))
+        <p style="color:red">{{ session('error') }}</p>
+    @endif
+
+    <button id="pay-button">Pay with Razorpay</button>
+
+    <form id="payment-form" action="{{ route('razorpay.verify') }}" method="POST" style="display: none;">
+        @csrf
+        <input type="hidden" name="razorpay_payment_id" id="razorpay_payment_id">
+        <input type="hidden" name="razorpay_order_id" id="razorpay_order_id">
+        <input type="hidden" name="razorpay_signature" id="razorpay_signature">
+    </form>
+
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+        const options = {
+            key: "{{ config('services.razorpay.key') }}", // Enter the Key ID generated from Razorpay Dashboard
+            amount: "{{ $amount }}", // Amount is in currency subunits. Default currency is INR. Hence, 50000 = ₹500
+            currency: "INR",
+            name: "Laravel Razorpay App",
+            description: "Test Transaction",
+            image: "https://yourdomain.com/logo.png", // optional
+            order_id: "{{ $order_id }}",
+            handler: function (response){
+                document.getElementById('razorpay_payment_id').value = response.razorpay_payment_id;
+                document.getElementById('razorpay_order_id').value = response.razorpay_order_id;
+                document.getElementById('razorpay_signature').value = response.razorpay_signature;
+                document.getElementById('payment-form').submit();
+            },
+            prefill: {
+                name: "John Doe",
+                email: "john@example.com"
+            },
+            theme: {
+                color: "#F37254"
+            }
+        };
+
+        const rzp1 = new Razorpay(options);
+
+        document.getElementById('pay-button').onclick = function(e){
+            rzp1.open();
+            e.preventDefault();
+        };
+    </script>
+</body>
+</html>
+```
+
+---
+
+## **Why This is the Correct/Updated Version**
+
+* **Manual trigger** using a button (`pay-button`) is recommended for better control.
+* **Signature verification is done on server**, not client (secure).
+* **Form submission after successful payment** to post values to your Laravel backend.
+* **CSRF protection** included via meta tag and Blade directive.
+
+---
+
+Let me know if you want a **version with AJAX**, **modal only**, or **integration with Livewire/React/Vue**.
+
+
+
+
+
+.....
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Here is the **full step-by-step process** to implement **Razorpay payment gateway in Laravel 10** including saving payment details in the database:
 
 ---
