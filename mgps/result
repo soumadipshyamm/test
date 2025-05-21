@@ -1,0 +1,70 @@
+{
+    "message": "Data fetched successfully",
+    "result": {
+        "race_object_id": "68271a78b40d526bbfe7cb75",
+        "race_round_no": "1",
+        "race_date": "2025-05-24",
+        "grade": "A",
+        "round": [
+            {
+                "time": "12:02:02",
+                "winners": {
+                    "position": "1",
+                    "dog_object_id": "680a320033c73e16facd9966",
+                    "box_number": "1",
+                    "race_completion_time": "12:02:02",
+                    "mgn": "12",
+                    "split": "12",
+                    "in_run": "12",
+                    "weight": "12",
+                    "dog_price": "12.11"
+                }
+            },
+            {
+                "time": "12:02:02",
+                "winners": {
+                    "position": "1",
+                    "dog_object_id": "680a320033c73e16facd9966",
+                    "box_number": "1",
+                    "race_completion_time": "12:02:02",
+                    "mgn": "12",
+                    "split": "12",
+                    "in_run": "12",
+                    "weight": "12",
+                    "dog_price": "12.11"
+                }
+            }
+        ]
+    }
+}
+
+
+
+
+
+const raceResultSchema: Schema<IRaceResult> = new Schema<IRaceResult>(
+	{
+		race_object_id: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullObjectId,
+			ref: "races"
+		},
+		race_round_no: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+		race_date: SCHEMA_DEFINITION_PROPERTY.optionalNullString, // Assuming you have a requiredDate definition
+		grade: SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+		round: [{
+			time: SCHEMA_DEFINITION_PROPERTY.optionalNullDate,
+			winners: [{
+				position: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+				dog_object_id: {
+					...SCHEMA_DEFINITION_PROPERTY.optionalNullObjectId,
+					ref: "dogs"
+				},
+				race_completion_time: SCHEMA_DEFINITION_PROPERTY.optionalNullDate,
+				mgn: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+				split: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+				in_run: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+				weight: SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+				dog_price: SCHEMA_DEFINITION_PROPERTY.requiredNumber,
+			}],
+		}],
+	},
