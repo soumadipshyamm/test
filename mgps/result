@@ -1,4 +1,98 @@
-      
+
+
+
+To **filter rewards by `member_ObjectId`** and return only the rewards where that member is involved — along with their reward details — here's how you can update your controller function:
+
+### Updated Controller: `divideWinPriceList`
+
+```ts
+export const divideWinPriceList = async (req: Request, res: Response): Promise<any> => {
+  const memberId = req.params.id;
+
+  try {
+    const raceInstances = await rewardsModel.find().lean();
+
+    if (raceInstances.length === 0) {
+      return res.status(StatusCodes.OK).json({
+        message: MESSAGE.custom("No race instances found")
+      });
+    }
+
+    // Filter raceInstances to only include those with a matching member
+    const filteredRewards = raceInstances
+      .map(instance => {
+        const matchedMembers = instance.member.filter(m =>
+          m.member_ObjectId.toString() === memberId
+        );
+
+        if (matchedMembers.length > 0) {
+          return {
+            ...instance,
+            member: matchedMembers // only include matched member(s)
+          };
+        }
+        return null;
+      })
+      .filter(Boolean); // remove nulls
+
+    return res.status(StatusCodes.OK).json({
+      message: MESSAGE.get.succ,
+      result: filteredRewards
+    });
+  } catch (error) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: MESSAGE.custom("Error while fetching rewards"),
+      error: error.message
+    });
+  }
+};
+```
+
+### What this does:
+
+* Retrieves all reward entries.
+* Filters them by checking if `member_ObjectId === req.params.id`.
+* Keeps only the relevant `member` object(s) in the response.
+* Returns a reward entry *only if* the specified member is part of it.
+
+### Sample Response:
+
+For member ID: `67bef37dc34ccc925695635d`
+You’ll get something like:
+
+```json
+{
+  "message": "Data fetched successfully",
+  "result": [
+    {
+      "_id": "682366005e386052cfab3875",
+      "race_ObjectId": "68233bb3b0308550df4faa97",
+      "dog_ObjectId": "67dd5eb505dc63b6cecc89f3",
+      "reward_types": "POINTS",
+      "points": null,
+      "description": "",
+      "member": [
+        {
+          "member_ObjectId": "67bef37dc34ccc925695635d",
+          "unit_qty": 4,
+          "unit_price": 40,
+          "unit_point": 10,
+          "memberPreWallet": 4640,
+          "memberWallet": 4680,
+          "_id": "682366005e386052cfab3877"
+        }
+      ]
+    },
+    ...
+  ]
+}
+```
+
+Let me know if you also want to **populate `dog_ObjectId` or `race_ObjectId`** in the same query.
+
+
+
+
 export const divideWinPriceList = async (req: Request, res: Response): Promise<any> => {
 	const memberId = req.params.id;
 	const raceInstances = await rewardsModel.find().lean();
