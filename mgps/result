@@ -1,3 +1,66 @@
+      {
+            "_id": "682d886d1c16f7fb09b9fb92",
+            "race_object_id": "68271a78b40d526bbfe7cb75",
+            "race_round_no": 1,
+            "race_date": "Sat May 24 2025 05:30:00 GMT+0530 (India Standard Time)",
+            "grade": "A",
+            "round": [
+                {
+                    "time": "1970-01-01T12:02:02.000Z",
+                    "winners": [
+                        {
+                            "position": 1,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "1970-01-01T12:02:02.000Z",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": 12.11,
+                            "_id": "682d886d1c16f7fb09b9fb94"
+                        }
+                    ],
+                    "_id": "682d886d1c16f7fb09b9fb93"
+                },
+                {
+                    "time": "1970-01-01T12:02:02.000Z",
+                    "winners": [
+                        {
+                            "position": 1,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "1970-01-01T12:02:02.000Z",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": 12.11,
+                            "_id": "682d886d1c16f7fb09b9fb96"
+                        }
+                    ],
+                    "_id": "682d886d1c16f7fb09b9fb95"
+                }
+            ],
+            "createdAt": "2025-05-21T08:01:49.845Z",
+            "updatedAt": "2025-05-21T08:01:49.845Z",
+            "__v": 0
+        }
+    ]
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 {
     "message": "Data fetched successfully",
     "result": {
