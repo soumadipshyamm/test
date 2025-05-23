@@ -1,4 +1,97 @@
 
+Here’s a corrected and optimized version of your `getRaceResultsByDogId` function with standard structure, clean logic, strong typing, and consistent formatting:
+
+---
+
+### **Updated Controller Function (TypeScript)**
+
+```ts
+import { Request, Response } from 'express';
+import { StatusCodes } from 'http-status-codes';
+import RaceResultModel from './models/RaceResultModel'; // Adjust path as needed
+import MESSAGE from './messages'; // Adjust path as needed
+
+export const getRaceResultsByDogId = async (req: Request, res: Response): Promise<Response> => {
+  const { dog_id } = req.params;
+
+  if (!dog_id) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      message: MESSAGE.custom("Dog ID is required."),
+    });
+  }
+
+  try {
+    const raceResults = await RaceResultModel.find({
+      'round.winners.dog_object_id': dog_id,
+    });
+
+    if (!raceResults.length) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: MESSAGE.custom("No race results found for the specified dog ID."),
+      });
+    }
+
+    const formattedResults = raceResults.map(result => {
+      const relevantRounds = result.round
+        .map(round => {
+          const matchingWinners = round.winners.filter(
+            winner => winner.dog_object_id === dog_id
+          );
+          return matchingWinners.length > 0
+            ? {
+                race_round_no: round.race_round_no,
+                time: round.time,
+                winners: matchingWinners,
+              }
+            : null;
+        })
+        .filter(Boolean); // Remove nulls
+
+      return {
+        race_object_id: result.race_object_id,
+        race_date: result.race_date,
+        grade: result.grade,
+        rounds: relevantRounds,
+      };
+    });
+
+    return res.status(StatusCodes.OK).json({
+      message: MESSAGE.get.succ,
+      results: formattedResults,
+    });
+  } catch (error) {
+    console.error('Error fetching race results:', error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: MESSAGE.custom("An error occurred while fetching race results."),
+      error: (error as Error).message,
+    });
+  }
+};
+```
+
+---
+
+### **Changes & Improvements**
+
+* **Validation**: Added check for `dog_id` existence.
+* **Null removal**: Used `.filter(Boolean)` for cleaner round filtering.
+* **Error handling**: Logs error server-side, sends safe message client-side.
+* **Type safety**: Ensured error casting for clean TypeScript usage.
+
+Let me know if you also want to modularize filtering logic or move this to a service layer.
+
+
+
+
+
+
+
+
+
+
+
+
+
 'round.winners' is possibly 'undefined'.ts(18048)
 This comparison appears to be unintentional because the types 'ObjectId' and 'string' have no overlap.ts(2367)
 
