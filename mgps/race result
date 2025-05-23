@@ -137,3 +137,48 @@
             "__v": 0
         }
 filtter dog id wise reace result filter and data show
+
+export const createRaceResult = async (req: Request, res: Response): Promise<any> => {
+
+	const {
+		race_object_id,
+		race_round_no,
+		race_date,
+		grade,
+		round
+	} = req.body;
+
+	const raceResultInstances = {
+		race_object_id,
+		race_date: new Date(race_date), // Convert to Date
+		grade,
+		round: round.map((r: any) => ({
+			race_round_no: r.race_round_no, // Convert to number
+			time: r.time, // Convert to Date
+			winners: r.winners.map((wr: any) => ({ // Wrap winners in an array
+				position: wr.position, // Convert to number
+				dog_object_id: wr.dog_object_id,
+				race_completion_time: wr.race_completion_time, // Convert to Date
+				box_number: wr.box_number,
+				mgn: wr.mgn, // Convert to number
+				split: wr.split, // Convert to number
+				in_run: wr.in_run, // Convert to number
+				weight: wr.weight, // Convert to number
+				dog_price: wr.dog_price // Convert to number
+			}))
+		}))
+	};
+
+	try {
+		const raceResultCreate = await RaceResultModel.create(raceResultInstances);
+		return res.status(StatusCodes.CREATED).json({
+			message: MESSAGE.post.succ,
+			result: raceResultCreate,
+		});
+	} catch (error) {
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.custom("Race fetch unsuccessful!"),
+			error,
+		});
+	}
+};
