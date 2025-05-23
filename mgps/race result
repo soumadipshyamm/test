@@ -1,3 +1,60 @@
+
+import { Request, Response } from 'express';
+import { StatusCodes } from 'http-status-codes';
+import RaceResultModel from './models/RaceResultModel'; // Adjust the import based on your project structure
+import MESSAGE from './messages'; // Adjust the import based on your project structure
+
+export const getRaceResultsByDogId = async (req: Request, res: Response): Promise<any> => {
+    const { dog_id } = req.params; // Assuming dog_id is passed as a URL parameter
+
+    try {
+        // Query the race results for the specified dog ID
+        const raceResults = await RaceResultModel.find({
+            'round.winners.dog_object_id': dog_id
+        });
+
+        if (raceResults.length === 0) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                message: MESSAGE.custom("No race results found for the specified dog ID."),
+            });
+        }
+
+        // Filter and format the results to include only relevant information
+        const filteredResults = raceResults.map(result => ({
+            race_object_id: result.race_object_id,
+            race_date: result.race_date,
+            grade: result.grade,
+            rounds: result.round.map(round => ({
+                race_round_no: round.race_round_no,
+                time: round.time,
+                winners: round.winners.filter(winner => winner.dog_object_id === dog_id)
+            })).filter(round => round.winners.length > 0) // Only include rounds with the specified dog
+        }));
+
+        return res.status(StatusCodes.OK).json({
+            message: MESSAGE.get.succ,
+            results: filteredResults,
+        });
+    } catch (error) {
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            message: MESSAGE.custom("An error occurred while fetching race results."),
+            error,
+        });
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 {
             "_id": "683026a8941bbcefea1154bc",
             "race_object_id": "68271a78b40d526bbfe7cb75",
