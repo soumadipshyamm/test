@@ -1,0 +1,139 @@
+{
+            "_id": "683026a8941bbcefea1154bc",
+            "race_object_id": "68271a78b40d526bbfe7cb75",
+            "race_date": "Sat May 24 2025 05:30:00 GMT+0530 (India Standard Time)",
+            "grade": "A",
+            "round": [
+                {
+                    "race_round_no": 1,
+                    "time": "12:02:02",
+                    "winners": [
+                        {
+                            "position": 1,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "12:02:02",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": "12.11",
+                            "_id": "683026a8941bbcefea1154be"
+                        },
+                        {
+                            "position": 2,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "12:02:02",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": "12.11",
+                            "_id": "683026a8941bbcefea1154bf"
+                        }
+                    ],
+                    "_id": "683026a8941bbcefea1154bd"
+                },
+                {
+                    "race_round_no": 2,
+                    "time": "12:02:02",
+                    "winners": [
+                        {
+                            "position": 1,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "12:02:02",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": "12.11",
+                            "_id": "683026a8941bbcefea1154c1"
+                        },
+                        {
+                            "position": 2,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "12:02:02",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": "12.11",
+                            "_id": "683026a8941bbcefea1154c2"
+                        }
+                    ],
+                    "_id": "683026a8941bbcefea1154c0"
+                }
+            ],
+            "createdAt": "2025-05-23T07:41:28.792Z",
+            "updatedAt": "2025-05-23T07:41:28.792Z",
+            "__v": 0
+        },
+        {
+            "_id": "683026ad941bbcefea1154c5",
+            "race_object_id": "68271a78b40d526bbfe7cb75",
+            "race_date": "Sat May 24 2025 05:30:00 GMT+0530 (India Standard Time)",
+            "grade": "A",
+            "round": [
+                {
+                    "race_round_no": 1,
+                    "time": "12:02:02",
+                    "winners": [
+                        {
+                            "position": 1,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "12:02:02",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": "12.11",
+                            "_id": "683026ad941bbcefea1154c7"
+                        },
+                        {
+                            "position": 2,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "12:02:02",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": "12.11",
+                            "_id": "683026ad941bbcefea1154c8"
+                        }
+                    ],
+                    "_id": "683026ad941bbcefea1154c6"
+                },
+                {
+                    "race_round_no": 2,
+                    "time": "12:02:02",
+                    "winners": [
+                        {
+                            "position": 1,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "12:02:02",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": "12.11",
+                            "_id": "683026ad941bbcefea1154ca"
+                        },
+                        {
+                            "position": 2,
+                            "dog_object_id": "680a320033c73e16facd9966",
+                            "race_completion_time": "12:02:02",
+                            "mgn": 12,
+                            "split": 12,
+                            "in_run": 12,
+                            "weight": 12,
+                            "dog_price": "12.11",
+                            "_id": "683026ad941bbcefea1154cb"
+                        }
+                    ],
+                    "_id": "683026ad941bbcefea1154c9"
+                }
+            ],
+            "createdAt": "2025-05-23T07:41:33.289Z",
+            "updatedAt": "2025-05-23T07:41:33.289Z",
+            "__v": 0
+        }
+filtter dog id wise reace result filter and data show
