@@ -1,3 +1,40 @@
+const formattedResults = raceResults.map(result => {
+  const relevantRounds = result.round
+    .map(round => {
+      const matchingWinners = round?.winners?.filter(
+        winner => winner.dog_object_id?.toString() === dog_id
+      ) ?? [];
+
+      return matchingWinners.length > 0
+        ? {
+            race_round_no: round.race_round_no,
+            time: round.time,
+            winners: matchingWinners,
+          }
+        : null;
+    })
+    .filter((round): round is NonNullable<typeof round> => round !== null);
+
+  return {
+    race_object_id: result.race_object_id,
+    race_date: result.race_date,
+    grade: result.grade,
+    rounds: relevantRounds,
+  };
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Here’s a corrected and optimized version of your `getRaceResultsByDogId` function with standard structure, clean logic, strong typing, and consistent formatting:
 
