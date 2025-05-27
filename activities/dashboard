@@ -1,134 +1,410 @@
-<script>
-    const labels = @json($data['labels']);
-    const datasets = @json($data['datasets']);
 
-    // Build monthData combining label and data for all datasets
-    const allMonthsData = labels.map((label, i) => {
-        return {
-            label: label,
-            data: datasets.map(dataset => parseFloat(dataset.data[i]) || 0)
-        };
+
+$(document).ready(function() {
+    $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+        var activeTab = $(e.target).attr('data-bs-target');
+        localStorage.setItem('activeTab', activeTab);
+        loadTabData(activeTab); // Load data based on the active tab
     });
+&nbsp;
+&nbsp;
 
-    function monthwiseworkProgess() {
-        const chart2 = new CanvasJS.Chart("progressChart", {
-            animationEnabled: true,
-            title: {
-                text: "Months Wise Work Progress"
-            },
-            toolTip: {
-                shared: true,
-                content: "{name}: {y}%" 
-            },
-            axisX: {
-                title: "Months"
-            },
-            axisY: {
-                title: "Progress (%)"
-            },
-            width: 990,
-            height: 250,
-            data: datasets.map((dataset, datasetIndex) => ({
-                type: "column",
-                name: dataset.label,
-                showInLegend: true,
-                dataPoints: allMonthsData.map(monthData => ({
-                    label: monthData.label,
-                    y: monthData.data[datasetIndex] || 0
-                }))
-            }))
-        });
-
-        chart2.render();
+    var activeTab = localStorage.getItem('activeTab');
+    if (activeTab) {
+        $('button[data-bs-target="' + activeTab + '"]').tab('show');
+        loadTabData(activeTab); // Load data for the active tab on page load
     }
+});
+&nbsp;
+&nbsp;
 
-    // Call function on page load
-    window.onload = monthwiseworkProgess;
-</script>
+function loadTabData(tabId) {
+    switch (tabId) {
+        case '#nav-overview':
+            // Call overview related functions
+            break;
+        case '#nav-work':
+            // Call work process related functions
+            break;
+        case '#nav-stock':
+            // Call stock related functions
+            break;
+    }
+}
 
 
 
-
-
-
-
-function monthwiseworkProgess(data) {
-
-    var chart2 = new CanvasJS.Chart("progressChart", {
-        animationEnabled: true,
-        title: {
-            text: "Months Wise Work Progress"
-        },
-        toolTip: {
-            shared: true,
-            content: "{name}: {y}%" // Show percentage value in tooltip
-        },
-        axisX: {
-            title: "Months"
-        },
-        axisY: {
-            title: "Progress (%)"
-        },
-        width: 990, // Set the desired width
-        height: 250, // Set the desired height
-        data: datasets.map((dataset, datasetIndex) => ({
-            type: "column",
-            name: dataset.label,
-            showInLegend: true,
-            dataPoints: allMonthsData.map((monthData) => ({
-                label: monthData.label,
-                y: monthData.data[datasetIndex] ||
-                0, // Ensure 0 is shown if no data
-                toolTipContent: (monthData.data[datasetIndex] ? monthData.data[
-                    datasetIndex] : 0) + "%" // Show percentage on the bar
-            }))
-        }))
+*********************************************************************************************************************************************8
+function updateSubprojectsDropdown(projectId, dropdownSelector) {
+    $.get(baseUrl + 'company/activities/subprojects/' + projectId, function(data) {
+        $(dropdownSelector).empty();
+        $.each(data, function(key, value) {
+            $.each(value.sub_project, function(subkey, subvalue) {
+                $(dropdownSelector).append('<option value="' + subvalue.id + '">' + subvalue.name + '</option>');
+            });
+        });
     });
-
-    chart2.render();
 }
 
-response 
-{
-    "labels": [
-        "Jan",
-        "Feb",
-        "Mar",
-        "Apr",
-        "May",
-        "Jun",
-        "Jul",
-        "Aug",
-        "Sep",
-        "Oct",
-        "Nov",
-        "Dec"
-    ],
-    "datasets": [
-        {
-            "label": "Actual Progress",
-            "data": [
-                "3.23",
-                "3.57",
-                "3.23",
-                "3.33"
-            ],
-            "backgroundColor": "rgba(75, 192, 192, 0.2)",
-            "borderColor": "rgba(75, 192, 192, 1)",
-            "borderWidth": 1
-        },
-        {
-            "label": "Planned Progress",
-            "data": [
-                "3.23",
-                "3.57",
-                "3.23",
-                "3.33"
-            ],
-            "backgroundColor": "rgba(255, 99, 132, 0.2)",
-            "borderColor": "rgba(255, 99, 132, 1)",
-            "borderWidth": 1
+
+
+*********************************************************************************************************************************************8
+function fetchData(url, data, successCallback) {
+    $.ajax({
+        url: url,
+        type: "post",
+        data: data,
+        success: successCallback,
+        error: function(xhr, status, error) {
+            console.error('Error fetching data:', error);
+            alert('Error fetching data. Please try again later.');
         }
-    ]
+    });
 }
 
+*********************************************************************************************************************************************8
+function renderTable(containerId, data, columns) {
+    let tableHtml = `<table class="table table-bordered dataTable" id="${containerId}"><thead><tr>`;
+    columns.forEach(col => {
+        tableHtml += `<th scope="col">${col}</th>`;
+    });
+    tableHtml += `</tr></thead><tbody>`;
+&nbsp;
+&nbsp;
+
+    if (data && data.length > 0) {
+        data.forEach((item, index) => {
+            tableHtml += '<tr>';
+            columns.forEach(col => {
+                tableHtml += `<td>${item[col] || 'N/A'}</td>`;
+            });
+            tableHtml += '</tr>';
+        });
+    } else {
+        tableHtml += '<tr><td colspan="' + columns.length + '">No data available</td></tr>';
+    }
+    tableHtml += '</tbody></table>';
+    $(`#${containerId}`).html(tableHtml);
+    $(`#${containerId}`).DataTable(); // Initialize DataTable
+}
+*********************************************************************************************************************************************8
+*********************************************************************************************************************************************8
+*********************************************************************************************************************************************8
+*********************************************************************************************************************************************8
+
+
+
+
+
+
+
+@push('scripts')
+<script type="text/javascript" src="https://canvasjs.com/assets/script/jquery-1.11.1.min.js"></script>
+<script type="text/javascript" src="https://cdn.canvasjs.com/jquery.canvasjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css" />
+<script src="{{ asset('company_assets/js/ajax/dashboardchart.js') }}"></script>
+&nbsp;
+&nbsp;
+
+<script>
+    $(document).ready(function() {
+        // Load active tab from local storage
+        var activeTab = localStorage.getItem('activeTab') || '#nav-overview';
+        $('button[data-bs-target="' + activeTab + '"]').tab('show');
+        loadTabData(activeTab);
+&nbsp;
+&nbsp;
+
+        // Tab click event
+        $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+            var activeTab = $(e.target).attr('data-bs-target');
+            localStorage.setItem('activeTab', activeTab);
+            loadTabData(activeTab);
+        });
+&nbsp;
+&nbsp;
+
+        // Date range picker initialization
+        $('input[name="dates"]').daterangepicker();
+        initializeDateRangePicker();
+&nbsp;
+&nbsp;
+
+        // Event listeners for project dropdown changes
+        $('#from_project, #from_project_work_process, #from_project_stocks').change(function() {
+            var projectId = $(this).val();
+            var dropdownSelector = $(this).data('subproject-dropdown');
+            if (projectId) {
+                updateSubprojectsDropdown(projectId, dropdownSelector);
+            }
+        });
+&nbsp;
+&nbsp;
+
+        // Initial data fetch for the overview tab
+        fetchInitialData();
+    });
+&nbsp;
+&nbsp;
+
+    function loadTabData(tabId) {
+        switch (tabId) {
+            case '#nav-overview':
+                fetchInitialData();
+                break;
+            case '#nav-work':
+                fetchWorkProcessData();
+                break;
+            case '#nav-stock':
+                fetchStockData();
+                break;
+        }
+    }
+&nbsp;
+&nbsp;
+
+    function initializeDateRangePicker() {
+        var start = moment().subtract(29, 'days');
+        var end = moment();
+&nbsp;
+&nbsp;
+
+        function cb(start, end) {
+            $('#reportrange span').html(start.format('MMMM D, YYYY') + ' - ' + end.format('MMMM D, YYYY'));
+        }
+&nbsp;
+&nbsp;
+
+        $('#reportrange').daterangepicker({
+            startDate: start,
+            endDate: end,
+            ranges: {
+                'Today': [moment(), moment()],
+                'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+                'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+                'This Month': [moment().startOf('month'), moment().endOf('month')],
+                'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+            },
+        }, cb);
+        cb(start, end);
+    }
+&nbsp;
+&nbsp;
+
+    function updateSubprojectsDropdown(projectId, dropdownSelector) {
+        $.get(baseUrl + 'company/activities/subprojects/' + projectId, function(data) {
+            $(dropdownSelector).empty();
+            $.each(data, function(key, value) {
+                $.each(value.sub_project, function(subkey, subvalue) {
+                    $(dropdownSelector).append('<option value="' + subvalue.id + '">' + subvalue.name + '</option>');
+                });
+            });
+        });
+    }
+&nbsp;
+&nbsp;
+
+    function fetchInitialData() {
+        var project = $('#from_project').val();
+        var subproject = $('#from_subproject').val();
+        var date = $('#date').val();
+        fetchWorkOverview(project, subproject, date);
+    }
+&nbsp;
+&nbsp;
+
+    function fetchWorkOverview(project, subproject, date) {
+        fetchData(baseUrl + `ajax/get-work-overview`, {
+            project: project,
+            subproject: subproject,
+            date: date,
+            _token: $('meta[name="csrf-token"]').attr('content')
+        }, renderWorkOverview);
+    }
+&nbsp;
+&nbsp;
+
+    function fetchWorkProcessData() {
+        var project = $('#from_project_work_process').val();
+        var subproject = $('#from_subproject_work_process').val();
+        var date = $('#date').val();
+        fetchData(baseUrl + `ajax/get-work-process`, {
+            project: project,
+            subproject: subproject,
+            date: date,
+            _token: $('meta[name="csrf-token"]').attr('content')
+        }, renderWorkProcessChart);
+    }
+&nbsp;
+&nbsp;
+
+    function fetchStockData() {
+        var project = $('#from_project_stocks').val();
+        var store = $('#from_subproject_stocks').val();
+        var date = $('#date_stocks').val();
+        fetchData(baseUrl + `ajax/get-inventory-stocks`, {
+            project: project,
+            store: store,
+            date: date,
+            _token: $('meta[name="csrf-token"]').attr('content')
+        }, renderStockData);
+    }
+&nbsp;
+&nbsp;
+
+    function fetchData(url, data, successCallback) {
+        $.ajax({
+            url: url,
+            type: "post",
+            data: data,
+            success: successCallback,
+            error: function(xhr, status, error) {
+                console.error('Error fetching data:', error);
+                alert('Error fetching data. Please try again later.');
+            }
+        });
+    }
+&nbsp;
+&nbsp;
+
+    function renderWorkOverview(response) {
+        // Update UI with response data
+        renderWorkStatusChart(response.workStatusData);
+        monthwiseworkProgess(response.chartData);
+        $('#estimatedCost').text(response.estimatedCost);
+        $('#estimatedCostForExecutedQty').text(response.estimatedCostForExecutedQty);
+        $('#balanceEstimate').text(response.balanceEstimate);
+        $('#excessEstimateCost').text(response.excessEstimateCost);
+        $('#totalActivites').text(response.totalActivites);
+        $('#inProgress').text(response.inProgress);
+        $('#notStart').text(response.notStart);
+        $('#completed').text(response.completed);
+        $('#totalDuration').text(response.totalDuration);
+        $('#projectcompleted').text(response.projectcompleted);
+        $('#remaining').text(Math.abs(response.remaining));
+&nbsp;
+&nbsp;
+
+        // Update progress bars
+        $('#planeProgress').css('width', `${response.planeProgress}%`).attr('aria-valuenow', response.planeProgress).text(`${response.planeProgress}%`);
+        $('#actualProgress').css('width', `${response.actualProgress}%`).attr('aria-valuenow', response.actualProgress).text(`${response.actualProgress}%`);
+        $('#variation').css('width', `${response.variation}%`).attr('aria-valuenow', response.variation).text(`${response.variation}%`);
+&nbsp;
+&nbsp;
+
+        // Clear previous users data
+        $('#dprusers').empty();
+        if (response.users && response.users.length > 0) {
+            const usersHtml = response.users.map(user => {
+                if (user && user.id) {
+                    return `<div class="singletabdtl col-md-10"><p>${user.name}</p>
+                        <a href="${generateDprDetailsUrl(user.id)}" class="dprs_data view_btn float-end" data-id="${user.id}">View</a></div>`;
+                }
+                return '';
+            }).join('');
+            $('#dprusers').append(usersHtml);
+        }
+&nbsp;
+&nbsp;
+
+        // Render DPR table
+        renderDprTable(response.fetchDpr);
+        // Render vendor labour list
+        renderVendorLabourList(response.vendorWiseLabourListing);
+    }
+&nbsp;
+&nbsp;
+
+    function generateDprDetailsUrl(userId) {
+        return `{{ route('company.report.dprDetails', ['pid' => ':project', 'uid' => ':userId', 'date' => ':date']) }}`
+            .replace(':project', $('#from_project').val())
+            .replace(':userId', userId)
+            .replace(':date', $('#date').val());
+    }
+&nbsp;
+&nbsp;
+
+    function renderDprTable(dprData) {
+        var dprContainer = $('#dprContainer');
+        dprContainer.empty();
+        if (dprData && dprData.length > 0) {
+            var tableHtml = '<table class="table table-bordered" id="dataTable"><thead><tr><th>User\'s Name</th><th>Historie Names</th><th>Safetie Names</th></tr></thead><tbody>';
+            dprData.forEach(function(dpr) {
+                var userName = dpr.users && dpr.users.name ? dpr.users.name : 'Not Available';
+                var historieNames = dpr.historie && dpr.historie.length > 0 ? dpr.historie.map(h => h.details || 'No Name').join(', ') : 'No Historie Data Available';
+                var safetieNames = dpr.safetie && dpr.safetie.length > 0 ? dpr.safetie.map(s => s.name || 'No Name').join(', ') : 'No Safetie Data Available';
+                tableHtml += `<tr><td>${userName}</td><td>${historieNames}</td><td>${safetieNames}</td></tr>`;
+            });
+            tableHtml += '</tbody></table>';
+            dprContainer.html(tableHtml);
+            $('#dataTable').DataTable({
+                paging: true,
+                searching: true,
+                ordering: true,
+                info: true,
+                lengthChange: true,
+                pageLength: 10,
+                dom: 'Bfrtip',
+                buttons: ['copy', 'csv', 'excel', 'pdf', 'print']
+            });
+        } else {
+            dprContainer.html('<p>No data available</p>');
+        }
+    }
+&nbsp;
+&nbsp;
+
+    function renderVendorLabourList(vendorData) {
+        var vendorLabourContainer = $('#vendorLabourContainer');
+        vendorLabourContainer.empty();
+        if (vendorData && vendorData.length > 0) {
+            var listHtml = '';
+            vendorData.forEach(function(vendorItem) {
+                var vendor = vendorItem.vendor;
+                var labourCount = vendorItem.labour_count;
+                listHtml += `<div class="single_content"><p class="singcon_left">${vendor.name}</p><p>${labourCount}</p></div>`;
+            });
+            vendorLabourContainer.html(listHtml);
+        } else {
+            vendorLabourContainer.html('<p>No data available</p>');
+        }
+    }
+&nbsp;
+&nbsp;
+
+    function renderWorkProcessChart(dataPoints) {
+        var chart = new CanvasJS.Chart("workprogressChart", {
+            animationEnabled: true,
+            theme: "light1",
+            title: {
+                text: "Work Progress Activity",
+                fontFamily: "Roboto",
+            },
+            data: [{
+                type: "column",
+                showInLegend: true,
+                toolTipContent: "{legendText}",
+                dataPoints: dataPoints
+            }]
+        });
+        chart.render();
+    }
+&nbsp;
+&nbsp;
+
+    function renderStockData(response) {
+        // Implement rendering logic for stock data
+        // Similar to how work overview and work process data are rendered
+    }
+&nbsp;
+&nbsp;
+
+    // Additional functions for handling stock data rendering can be added here
+&nbsp;
+&nbsp;
+
+</script>
+@endpush
