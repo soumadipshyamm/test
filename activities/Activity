@@ -1,0 +1,253 @@
+@extends('Company.layouts.app')
+&nbsp;
+&nbsp;
+
+@section('activities-active', 'active')
+@section('title', __('Activities'))
+&nbsp;
+&nbsp;
+
+@push('styles')
+<!-- Add any additional styles here -->
+@endpush
+&nbsp;
+&nbsp;
+
+@section('content')
+<div class="app-main__outer">
+    <div class="app-main__inner card">
+        <div class="dashboard_body">
+            <div class="activites-datas">
+                <div class="comp-top">
+                    <a href="{{ route('company.activities.add') }}" class="ads-btn">
+                        <span><i class="fa-solid fa-plus"></i></span>Create New
+                    </a>
+                    <a href="{{ route('company.activities.bulkbulkupload') }}" class="btn btn-secondary">
+                        <span><i class="fa-solid fa-plus"></i></span>Bulk Upload
+                    </a>
+                    <button type="button" class="btn btn-primary copy_data" data-bs-toggle="modal" data-bs-target="#myModal">Copy</button>
+                    <a href="{{ route('company.activities.export') }}" class="ads-btn">
+                        <span><i class="fa fa-download" aria-hidden="true" title="Download Activities Data in Excel"></i></span>
+                    </a>
+                </div>
+&nbsp;
+&nbsp;
+
+                <div class="comp-top">
+                    <div class="col-lg-12">
+                        <form id="filter-form" class="d-flex">
+                            <div class="col-lg-4">
+                                <label for="from_project">Project</label>
+                                <select class="form-control mySelect2" name="from_project" id="from_project">
+                                    <option value="">----Select Project----</option>
+                                    {{ getProject('$data->project_id') }}
+                                </select>
+                                @error('project')
+                                    <div class="error">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="col-lg-4">
+                                <label for="from_subproject">Sub Project</label>
+                                <select class="form-control mySelect2" name="from_subproject" id="from_subproject">
+                                    <option value="">----Select SubProject----</option>
+                                </select>
+                                @error('subproject')
+                                    <div class="error">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </form>
+                    </div>
+                </div>
+&nbsp;
+&nbsp;
+
+                <div class="comp-body">
+                    <div class="structuretable">
+                        <div class="structure_head">
+                            <div class="structureh_sing"><p>#</p></div>
+                            <div class="structureh_sing activity_strbox"><p>Activities</p></div>
+                            <div class="structureh_sing"><p>Unit</p></div>
+                            <div class="structureh_sing"><p>Qty</p></div>
+                            <div class="structureh_sing"><p>Rate</p></div>
+                            <div class="structureh_sing"><p>Amount</p></div>
+                            <div class="structureh_sing"><p>Start Date</p></div>
+                            <div class="structureh_sing"><p>End Date</p></div>
+                            <div class="structureh_sing"><p>Action</p></div>
+                        </div>
+                        <div class="accordion companyig_box" id="constGroup">
+                            {{-- @include('Company.activities.include.list') --}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+&nbsp;
+&nbsp;
+
+<!-- Modal for Copy Activities -->
+<div class="modal fade" id="myModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="exampleModalLabel">Copy Activities</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ route('company.activities.addCopyActivites') }}" method="post" enctype="multipart/form-data">
+                    @csrf
+                    <div class="row">
+                        <div class="col-lg-5">
+                            <div class="position-relative form-group">
+                                <label for="to_project">Project</label>
+                                <select class="form-control mySelect2" name="to_project" id="to_project">
+                                    <option value="">----Select Project----</option>
+                                    {{ getProject('$data->project_id') }}
+                                </select>
+                                @error('to_project')
+                                    <div class="error">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="position-relative form-group">
+                                <label for="to_subproject">Sub Project</label>
+                                <select class="form-control mySelect2" name="to_subproject" id="to_subproject">
+                                    <option value="">----Select SubProject----</option>
+                                </select>
+                                @error('to_subproject')
+                                    <div class="error">{{ $message }}</div>
+                                @enderror
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="position-relative form-group typeAdd">
+                                <label for="type">Type</label>
+                                <select class="form-control activiesType" name="type" id="type">
+                                    <option value="">---Select Activities---</option>
+                                    <option value="heading" {{ isset($data) && $data->type == 'heading' ? 'selected' : '' }}>Heading</option>
+                                    <option value="activites" {{ isset($data) && $data->type == 'activites' ? 'selected' : '' }}>Activities</option>
+                                </select>
+                                @error('type')
+                                    <div class="error">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <input type="hidden" value="{{ isset($data) ? $data->additional_fields : '' }}" id="additional_fields" class="additional_fields">
+                        </div>
+                        <div class="col-md-6">
+                            <div class="activites"></div>
+                        </div>
+                        <div class="activitesDatas"></div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+&nbsp;
+&nbsp;
+
+@push('scripts')
+<script>
+    $(document).ready(function() {
+        $('.comp-body').hide();
+&nbsp;
+&nbsp;
+
+        // Toggle activity details
+        $(document).on("click", ".structureb_head > a", function() {
+            const $this = $(this);
+            $this.toggleClass("active");
+            $this.siblings(".structureb_sub").slideToggle(200);
+            $this.find("i.fa-solid").toggleClass("fa-chevron-down fa-chevron-up");
+        });
+&nbsp;
+&nbsp;
+
+        // Filter projects and subprojects
+        $('#from_project').change(function() {
+            const projectId = $(this).val();
+            $.get(`{{ url('company/activities/subprojects') }}/${projectId}`, function(data) {
+                $('#from_subproject').empty().append('<option value="">---Select sub project----</option>');
+                $.each(data, function(key, value) {
+                    $.each(value.sub_project, function(subkey, subvalue) {
+                        $('#from_subproject').append(`<option value="${subvalue.id}">${subvalue.name}</option>`);
+                    });
+                });
+            });
+        });
+&nbsp;
+&nbsp;
+
+        $('#filter-form').on('change', function() {
+            const project = $('#from_project').val();
+            const subproject = $('#from_subproject').val();
+            $.ajax({
+                url: "{{ route('company.activities.copyActivites') }}",
+                type: "GET",
+                data: { project, subproject },
+                success: function(response) {
+                    $('.comp-body').show();
+                    $("#constGroup").html(response);
+                },
+                error: function(error) {
+                    alert(error);
+                }
+            });
+        });
+&nbsp;
+&nbsp;
+
+        // Copy activities
+        $(document).on('click', '.copy_data', function() {
+            const selectedItems = $('input[type="checkbox"]:checked').map(function() {
+                return $(this).val();
+            }).get();
+&nbsp;
+&nbsp;
+
+            $.ajax({
+                type: "post",
+                url: "{{ route('company.activities.findId') }}",
+                data: { selectedItems },
+                success: function(response) {
+                    response.forEach((value, key) => {
+                        const activityHtml = copyActivity(value, key);
+                        $('.activitesDatas').append(activityHtml);
+                    });
+                    $('#myModal').modal('show');
+                },
+                error: function(xhr) {
+                    console.error(xhr.responseText);
+                }
+            });
+        });
+&nbsp;
+&nbsp;
+
+        function copyActivity(value, key) {
+            return `
+                <div class="position-relative form-group activity-item" data-key="${key}">
+                    <input type="hidden" name="id[${key}]" value="${value.id}">
+                    <input name="name[${key}]" value="${value.activities}">
+                    <input name="copyType[${key}]" value="${value.type}">
+                    <button type="button" class="btn btn-danger remove-activity" data-key="${key}">Remove</button>
+                </div>`;
+        }
+&nbsp;
+&nbsp;
+
+        // Remove activity from copied list
+        $(document).on('click', '.remove-activity', function() {
+            const key = $(this).data('key');
+            $(`.activity-item[data-key="${key}"]`).remove();
+        });
+    });
+</script>
+@endpush
+@endsection
