@@ -1,3 +1,40 @@
+const server = httpServer.listen(PORT, () => {
+	console.log("info", `\x1b[33m \x1b[1m Server is running in ${NODE_ENV} mode on port ${PORT} \x1b[0m`);
+
+	// logger.info({ a: 123, v: 456 });
+	io.on("connection", (socket: any) => {
+		//console.log("info", "new socket user" + socket.id);
+		socket.on("approval", (message: any) => {
+			socket.broadcast.emit("messageSent", message);
+			console.log(message);
+		});
+		socket.on("send_notification", (message: any) => {
+			socket.emit("messageSent", message);
+			console.log(message);
+			if (!message || !message) {
+				console.error("Invalid message payload", message);
+				return;
+			}
+		});
+
+		socket.on("notificationList", async (userId: string) => {		
+
+			const userObjectId = new mongoose.Types.ObjectId(userId);
+
+			const notif = await notifactionModel.find({ member_id: userObjectId }).lean();
+			socket.emit("messageSent", notif);
+			console.log(notif);
+			
+		});
+	});
+});
+
+
+
+
+
+
+
 How to send Real-Time Notifications with Node.js + React & mongoDB| Bell Icon Using Socket.IO
 
 
