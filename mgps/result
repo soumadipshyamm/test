@@ -1,3 +1,24 @@
+Here’s a short and professional summary of the report:
+
+---
+
+## **Konzite – Project Update Summary (27–28 May, 2025)**
+
+1. **Dashboard:** DPRs can now be viewed/edited in a new tab.
+2. **Work Process:** Progress tracking enhanced with date-wise data loading.
+3. **Notifications:** Show DPR number and user for clarity.
+4. **Pending Approvals:** New tab shows detailed DPR, user, and project info.
+5. **Reports:** Auto-approval blocked if user not allocated to project.
+6. **Masters:** Activities added to master data.
+7. **Copy Feature:** Activities can be copied to projects and sub-projects.
+8. **UI Update:** Increased PR header modal size for better view.
+9. **Template Update:** PR default template updated with new structure.
+
+---
+
+Let me know if you need it formatted for email or a presentation slide.
+
+
 
 
 
