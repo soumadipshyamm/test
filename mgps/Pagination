@@ -1,0 +1,92 @@
+Great — if you already have a query like:
+
+const result = usermodel.find().lean();
+
+Then you can still use a common pagination utility by passing in the query itself (instead of the model), like this:
+
+
+---
+
+✅ Updated Universal paginateQuery Utility
+
+// utils/paginateQuery.ts
+import mongoose from 'mongoose';
+
+interface PaginateOptions {
+  page?: number;
+  limit?: number;
+}
+
+export async function paginateQuery<T>(
+  query: mongoose.Query<T[], T>,
+  options: PaginateOptions = {}
+) {
+  const page = options.page || 1;
+  const limit = options.limit || 10;
+  const skip = (page - 1) * limit;
+
+  const [data, total] = await Promise.all([
+    query.clone().skip(skip).limit(limit),
+    query.clone().countDocuments(),
+  ]);
+
+  return {
+    currentPage: page,
+    totalPages: Math.ceil(total / limit),
+    totalItems: total,
+    data,
+  };
+}
+
+> 🔁 .clone() is important to avoid “Query was already executed” Mongoose errors.
+
+
+
+
+---
+
+✅ Example Usage in Your Controller
+
+// controllers/user.controller.ts
+import { Request, Response } from 'express';
+import { usermodel } from '../models/User';
+import { paginateQuery } from '../utils/paginateQuery';
+
+export const getUsers = async (req: Request, res: Response) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const query = usermodel.find({ isActive: true }).lean();
+
+    const result = await paginateQuery(query, { page, limit });
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', err });
+  }
+};
+
+
+---
+
+✅ Works with Any .find(), .aggregate(), etc.
+
+You can reuse paginateQuery() with:
+
+.find()
+
+.lean()
+
+.populate()
+
+.sort()
+
+Any Mongoose query chain
+
+
+
+---
+
+Let me know if you want a similar version for aggregation pipelines or search with filters!
+
