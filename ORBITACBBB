@@ -1,4 +1,34 @@
 
+
+
+function getCityPlaceIdFromLatLng($lat, $lng)
+{
+    $apiKey = env('GOOGLE_MAPS_API_KEY');
+    $url = "https://maps.googleapis.com/maps/api/geocode/json?latlng={$lat},{$lng}&key={$apiKey}";
+
+    $response = Http::get($url);
+    $data = $response->json();
+
+    if ($data['status'] === 'OK') {
+        return $data['results'][0]['place_id'] ?? null;
+    }
+
+    return null;
+}
+
+// Then match with your cities table (where you store place_id)
+$placeId = getCityPlaceIdFromLatLng($lat, $lng);
+$city = City::where('google_place_id', $placeId)->first();
+$cityId = $city?->id;
+
+
+
+
+
+
+
+
+
 If you're getting a warning popup from DataTables in your server-side implementation, you can disable it by setting `$.fn.dataTable.ext.errMode` to `'none'`. Here’s how you can do it:  
 
 ```javascript
