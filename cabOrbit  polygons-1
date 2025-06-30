@@ -1,0 +1,185 @@
+To allow **drawing polygons on a map in a Laravel Blade view and saving them to your DB**, follow this complete setup:
+
+---
+
+## ✅ Final Goal:
+
+* Draw zones on a **Google Map** (polygon).
+* Save the polygon coordinates to the **Laravel database** (`zones` table).
+* Use it later for zone-wise cab booking.
+
+---
+
+## 🧱 1. Zones Table Setup
+
+If not already created:
+
+```bash
+php artisan make:model Zone -m
+```
+
+### Migration:
+
+```php
+Schema::create('zones', function (Blueprint $table) {
+    $table->id();
+    $table->string('name');
+    $table->json('polygon'); // Store lat/lng coordinates
+    $table->boolean('is_active')->default(true);
+    $table->timestamps();
+});
+```
+
+```bash
+php artisan migrate
+```
+
+---
+
+## 🗺️ 2. Blade Page to Draw Polygon
+
+Create a Blade file:
+`resources/views/zones/create.blade.php`
+
+```blade
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Draw Zone</title>
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+    </style>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ env('GOOGLE_MAPS_API_KEY') }}&libraries=drawing"></script>
+</head>
+<body>
+
+<h2>Create Zone</h2>
+
+<form method="POST" action="{{ route('zones.store') }}">
+    @csrf
+    <label>Zone Name:</label>
+    <input type="text" name="name" required>
+    
+    <input type="hidden" name="polygon" id="polygon">
+    
+    <button type="submit">Save Zone</button>
+</form>
+
+<div id="map"></div>
+
+<script>
+    let map, drawingManager, drawnPolygon;
+
+    function initMap() {
+        map = new google.maps.Map(document.getElementById("map"), {
+            center: { lat: 22.5726, lng: 88.3639 }, // Centered on Kolkata
+            zoom: 12,
+        });
+
+        drawingManager = new google.maps.drawing.DrawingManager({
+            drawingMode: google.maps.drawing.OverlayType.POLYGON,
+            drawingControl: true,
+            drawingControlOptions: {
+                position: google.maps.ControlPosition.TOP_CENTER,
+                drawingModes: [google.maps.drawing.OverlayType.POLYGON],
+            },
+        });
+
+        drawingManager.setMap(map);
+
+        google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+            if (drawnPolygon) {
+                drawnPolygon.setMap(null);
+            }
+
+            drawnPolygon = event.overlay;
+            const path = drawnPolygon.getPath();
+            const coordinates = [];
+
+            for (let i = 0; i < path.getLength(); i++) {
+                const point = path.getAt(i);
+                coordinates.push({ lat: point.lat(), lng: point.lng() });
+            }
+
+            document.getElementById('polygon').value = JSON.stringify(coordinates);
+        });
+    }
+
+    window.onload = initMap;
+</script>
+
+</body>
+</html>
+```
+
+---
+
+## 🔧 3. Controller Logic
+
+```php
+// app/Http/Controllers/ZoneController.php
+
+use App\Models\Zone;
+use Illuminate\Http\Request;
+
+class ZoneController extends Controller
+{
+    public function create()
+    {
+        return view('zones.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string',
+            'polygon' => 'required|json',
+        ]);
+
+        Zone::create([
+            'name' => $request->name,
+            'polygon' => $request->polygon,
+        ]);
+
+        return redirect()->back()->with('success', 'Zone saved successfully!');
+    }
+}
+```
+
+---
+
+## 🌐 4. Web Routes
+
+```php
+// routes/web.php
+
+use App\Http\Controllers\ZoneController;
+
+Route::get('/zones/create', [ZoneController::class, 'create']);
+Route::post('/zones/store', [ZoneController::class, 'store'])->name('zones.store');
+```
+
+---
+
+## 📄 .env
+
+Make sure you have:
+
+```
+GOOGLE_MAPS_API_KEY=your_real_api_key
+```
+
+---
+
+## ✅ Output
+
+* You can draw a zone on the map.
+* It saves a JSON array of `{lat, lng}` points to the `zones` table.
+* Use this later for point-in-polygon logic to check user pickup zone.
+
+---
+
+Would you like help to edit or delete these zones using the same map interface?
