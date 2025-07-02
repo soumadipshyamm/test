@@ -60,3 +60,130 @@ export const getPresignedUrl = async (key: string) => {
   }
 };
 
+
+Here’s how to **securely upload private images to S3 and generate a pre-signed URL** using **Node.js with AWS SDK v3** — **without any public bucket policy**.
+
+---
+
+## ✅ Step-by-Step Node.js Secure S3 Upload & Access (No Public Access)
+
+---
+
+### 📦 1. **Install Required Packages**
+
+```bash
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+```
+
+---
+
+### 🔐 2. **Setup AWS S3 Client (`s3Client.ts`)**
+
+```ts
+// s3Client.ts
+import { S3Client } from "@aws-sdk/client-s3";
+
+export const s3Client = new S3Client({
+  region: "your-region", // e.g., "ap-south-1"
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+```
+
+---
+
+### 🖼️ 3. **Upload Image to S3 (Private)**
+
+```ts
+// uploadImageService.ts
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { s3Client } from "./s3Client";
+
+const bucketName = "your-bucket-name";
+
+export const uploadImageToS3Service = async (key: string, buffer: Buffer): Promise<string | null> => {
+  const keyName = `${key}/${Date.now()}_photo.png`;
+
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: keyName,
+    Body: buffer,
+    ContentType: "image/png" // or dynamic based on MIME
+  });
+
+  try {
+    await s3Client.send(command);
+    return keyName; // return key only, for private access
+  } catch (err) {
+    console.error("Upload failed:", err);
+    return null;
+  }
+};
+```
+
+---
+
+### 🔗 4. **Generate Pre-Signed URL for Access**
+
+```ts
+// getPresignedUrl.ts
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { s3Client } from "./s3Client";
+
+const bucketName = "your-bucket-name";
+
+export const generatePresignedUrl = async (keyName: string): Promise<string | null> => {
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: keyName
+  });
+
+  try {
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
+    return signedUrl;
+  } catch (err) {
+    console.error("Failed to generate presigned URL:", err);
+    return null;
+  }
+};
+```
+
+---
+
+### 🧪 5. **Example Usage (API Route or Controller)**
+
+```ts
+// controller.ts
+import fs from "fs";
+import { uploadImageToS3Service } from "./uploadImageService";
+import { generatePresignedUrl } from "./getPresignedUrl";
+
+export const uploadAndGetUrl = async () => {
+  const fileBuffer = fs.readFileSync("sample.png"); // or from req.file.buffer (Multer)
+
+  const keyName = await uploadImageToS3Service("user-uploads", fileBuffer);
+  if (!keyName) {
+    return console.log("Upload failed");
+  }
+
+  const url = await generatePresignedUrl(keyName);
+  console.log("Access your private file at:", url);
+};
+```
+
+---
+
+## 🛡️ Security Recap
+
+* ✅ Bucket is **100% private** — no public access needed
+* ✅ Files are uploaded securely via SDK
+* ✅ Users access files via **signed URLs**
+* ✅ Works with APIs and file uploads (Multer etc.)
+
+---
+
+Let me know if you want to integrate with Multer for Express `req.file.buffer` or return URL in an API response.
+
