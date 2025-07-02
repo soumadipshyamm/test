@@ -1,3 +1,7 @@
+
+*************ISSUE***************** 
+
+
 export const uploadImageToS3Service = async (key: string, thumbnailBuffer: Buffer) => {
 	const keyName = `${key}/${Date.now()}photo.png`;
 	// console.log(" bucketName, s3Client, s3Url", bucketName, s3Client, s3Url);
@@ -36,7 +40,7 @@ This XML file does not appear to have any style information associated with it. 
 </Error>
 
 
-
+**********RND******************************************************************************************
 
 // getPresignedUrlService.ts
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -187,3 +191,41 @@ export const uploadAndGetUrl = async () => {
 
 Let me know if you want to integrate with Multer for Express `req.file.buffer` or return URL in an API response.
 
+
+
+
+*****************SOLUCTION******************************************************
+export const uploadImageToS3Service = async (key: string, buffer: Buffer) => {
+	const keyName = `${key}/${Date.now()}_photo.png`;
+
+	const command = new PutObjectCommand({
+		Bucket: bucketName,
+		Key: keyName,
+		Body: buffer,
+		ContentType: "image/png" // or dynamic based on MIME
+	});
+
+	try {
+		await s3Client.send(command);
+		return generatePresignedUrl(keyName);
+		// return keyName; // return key only, for private access
+	} catch (err) {
+		console.error("Upload failed:", err);
+		return null;
+	}
+};
+
+export const generatePresignedUrl = async (keyName: string): Promise<string | null> => {
+	const command = new GetObjectCommand({
+		Bucket: bucketName,
+		Key: keyName
+	});
+
+	try {
+		const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
+		return signedUrl;
+	} catch (err) {
+		console.error("Failed to generate presigned URL:", err);
+		return null;
+	}
+};
