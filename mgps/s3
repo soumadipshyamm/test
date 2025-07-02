@@ -34,3 +34,29 @@ This XML file does not appear to have any style information associated with it. 
 <RequestId>M5HRW4HYAWVCYP5P</RequestId>
 <HostId>I4PowDOBKg3vo5M67xZ0GiBjwIK7HzwEK2NZpZ8di8hqfnqa/eU9/yA6CMeqU6o7mcUgqF7ccQ8=</HostId>
 </Error>
+
+
+
+
+// getPresignedUrlService.ts
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { s3Client } from "./s3Client";
+
+const bucketName = "your-private-bucket";
+
+export const getPresignedUrl = async (key: string) => {
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+  });
+
+  try {
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // 1 hour
+    return signedUrl;
+  } catch (err) {
+    console.error("Presign Error:", err);
+    return null;
+  }
+};
+
