@@ -1,0 +1,36 @@
+export const uploadImageToS3Service = async (key: string, thumbnailBuffer: Buffer) => {
+	const keyName = `${key}/${Date.now()}photo.png`;
+	// console.log(" bucketName, s3Client, s3Url", bucketName, s3Client, s3Url);
+
+	const command = new PutObjectCommand({
+		Bucket: bucketName,
+		Key: keyName,
+		Body: thumbnailBuffer,
+		// ACL: "public-read" // Set the ACL as needed (e.g., public-read for public access)
+	});
+
+	console.log("command", command);
+
+	try {
+		const response = await s3Client.send(command);
+		// console.log("response", response);
+		// console.log("Image uploaded successfully:", s3Url, keyName);
+		if (response) {
+
+			return `${s3Url}/${keyName}`;
+		}
+		return null;
+	} catch (err) {
+		console.error(err);
+	}
+};
+
+
+
+This XML file does not appear to have any style information associated with it. The document tree is shown below.
+<Error>
+<Code>AccessDenied</Code>
+<Message>Access Denied</Message>
+<RequestId>M5HRW4HYAWVCYP5P</RequestId>
+<HostId>I4PowDOBKg3vo5M67xZ0GiBjwIK7HzwEK2NZpZ8di8hqfnqa/eU9/yA6CMeqU6o7mcUgqF7ccQ8=</HostId>
+</Error>
