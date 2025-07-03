@@ -192,38 +192,6 @@ export const uploadAndGetUrl = async () => {
 Let me know if you want to integrate with Multer for Express `req.file.buffer` or return URL in an API response.
 
 
-
-// server.ts or routes/image.ts
-import express from "express";
-import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { s3Client } from "./s3Client";
-
-const app = express();
-const bucketName = "your-private-bucket";
-
-app.get("/image/:key", async (req, res) => {
-  const key = decodeURIComponent(req.params.key);
-
-  try {
-    const command = new GetObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-    });
-
-    const data = await s3Client.send(command);
-    res.setHeader("Content-Type", data.ContentType || "image/jpeg");
-    data.Body.pipe(res); // Stream the image to the browser
-  } catch (error) {
-    console.error(error);
-    res.status(404).send("Image not found");
-  }
-});
-
-
-
-
-
-
 *****************SOLUCTION******************************************************
 export const uploadImageToS3Service = async (key: string, buffer: Buffer) => {
 	const keyName = `${key}/${Date.now()}_photo.png`;
