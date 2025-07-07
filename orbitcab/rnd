@@ -1,4 +1,236 @@
 
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dynamic Geofencing with Polygon Drawing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    #map {
+      height: 600px;
+      width: 100%;
+      margin-top: 20px;
+    }
+    #area-input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
+    #geofence-form {
+      margin-bottom: 20px;
+    }
+    #status {
+      margin-top: 20px;
+      font-weight: bold;
+    }
+  </style>
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_API_KEY&libraries=places,drawing,geometry"></script>
+</head>
+
+<body>
+  <h1>Dynamic Geofencing with Polygon Drawing</h1>
+  <input type="text" id="area-input" placeholder="Search for an area..." />
+  <div id="geofence-form">
+    <button id="start-drawing">Draw Geofence</button>
+    <button id="save-geofence" style="display:none;">Save Geofence</button>
+  </div>
+  <div id="map"></div>
+  <div id="status"></div>
+
+  <script>
+    let map;
+    let drawingManager;
+    let currentPolygon = null;
+    let geofences = {};
+    let markers = [];
+    let searchAreaRectangle = null;
+
+    function getRandomColor() {
+      const letters = '0123456789ABCDEF';
+      let color = '#';
+      for (let i = 0; i < 6; i++) color += letters[Math.floor(Math.random() * 16)];
+      return color;
+    }
+
+    function initMap() {
+      const input = document.getElementById('area-input');
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ['(cities)'],
+      });
+
+      autocomplete.addListener('place_changed', function () {
+        const place = autocomplete.getPlace();
+        if (place && place.geometry) {
+          const lat = place.geometry.location.lat();
+          const lng = place.geometry.location.lng();
+          const viewport = place.geometry.viewport;
+          map.setCenter({ lat, lng });
+          map.setZoom(12);
+
+          new google.maps.Marker({
+            position: { lat, lng },
+            map: map,
+            title: 'Selected Area'
+          });
+
+          highlightGeofences(lat, lng);
+          drawSearchArea(viewport);
+        } else {
+          alert("Invalid place selected.");
+        }
+      });
+
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 22.5726, lng: 88.3639 }, // Default to Kolkata
+        zoom: 10
+      });
+
+      map.addListener("click", function (e) {
+        if (!currentPolygon) return;
+
+        markers.forEach(m => m.setMap(null));
+        markers = [];
+
+        const latLng = e.latLng;
+        const marker = new google.maps.Marker({
+          position: latLng,
+          map: map,
+          title: "Request Location"
+        });
+        markers.push(marker);
+
+        const inside = google.maps.geometry.poly.containsLocation(latLng, currentPolygon);
+        document.getElementById("status").innerText = inside
+          ? "Location is INSIDE the service area."
+          : "Location is OUTSIDE the service area.";
+        document.getElementById("status").style.color = inside ? "green" : "red";
+      });
+    }
+
+    function drawSearchArea(viewport) {
+      if (searchAreaRectangle) searchAreaRectangle.setMap(null);
+      if (!viewport || !viewport.northeast || !viewport.southwest) return;
+
+      searchAreaRectangle = new google.maps.Rectangle({
+        bounds: {
+          north: viewport.northeast.lat(),
+          south: viewport.southwest.lat(),
+          east: viewport.northeast.lng(),
+          west: viewport.southwest.lng()
+        },
+        strokeColor: '#FF0000',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: '#FF9999',
+        fillOpacity: 0.3
+      });
+      searchAreaRectangle.setMap(map);
+    }
+
+    document.getElementById('start-drawing').addEventListener('click', function () {
+      if (currentPolygon) currentPolygon.setMap(null);
+
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ['polygon'],
+        },
+        polygonOptions: {
+          fillColor: '#00FF00',
+          fillOpacity: 0.5,
+          strokeWeight: 2,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+        if (currentPolygon) currentPolygon.setMap(null);
+        currentPolygon = event.overlay;
+        drawingManager.setDrawingMode(null);
+        drawingManager.setMap(null);
+        document.getElementById('save-geofence').style.display = 'inline-block';
+      });
+    });
+
+    document.getElementById('save-geofence').addEventListener('click', function () {
+      if (!currentPolygon) return alert("Please draw a polygon first.");
+      const areaName = prompt("Enter name for this area:");
+      if (!areaName) return;
+
+      const coords = currentPolygon.getPath().getArray().map(coord => ({
+        lat: coord.lat(),
+        lng: coord.lng()
+      }));
+
+      const color = getRandomColor();
+      geofences[areaName] = { coords, color };
+
+      const polygon = new google.maps.Polygon({
+        paths: coords,
+        strokeColor: '#000000',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: color,
+        fillOpacity: 0.35,
+      });
+      polygon.setMap(map);
+
+      alert(`Geofence "${areaName}" saved.`);
+      currentPolygon.setMap(null);
+      currentPolygon = null;
+      document.getElementById('save-geofence').style.display = 'none';
+    });
+
+    function highlightGeofences(lat, lng) {
+      for (const name in geofences) {
+        const area = geofences[name];
+        const polygon = new google.maps.Polygon({
+          paths: area.coords,
+          strokeColor: '#000000',
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: area.color,
+          fillOpacity: 0.35
+        });
+        polygon.setMap(map);
+
+        const point = new google.maps.LatLng(lat, lng);
+        if (google.maps.geometry.poly.containsLocation(point, polygon)) {
+          alert(`This location is inside the "${name}" zone.`);
+        }
+      }
+    }
+
+    google.maps.event.addDomListener(window, 'load', initMap);
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Great — you're looking for **automatic suggestions** while typing city names, i.e., **live autocomplete using Google Places API** with **only city-level results**.
 
 ### ✅ You already get this by using:
