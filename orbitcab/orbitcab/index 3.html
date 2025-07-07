@@ -1,48 +1,100 @@
+
+
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Cab Service Area - Geofencing</title>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=geometry,drawing"></script>
+  <meta charset="UTF-8">
+  <title>City Geo-Fence Outline</title>
   <style>
-    #map {
-      height: 90vh;
-      width: 100%;
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
     }
-    #status {
-      padding: 10px;
-      font-weight: bold;
+
+    #map {
+      height: 600px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    #search-box {
+      width: 300px;
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    #polygon-data {
+      margin-top: 15px;
+      width: 100%;
+      height: 120px;
     }
   </style>
 </head>
 <body>
-  <h2>Define Cab Service Area (Geofencing)</h2>
-  Select a city : <select name="cities" id="citites" onchange="initMap(this.value)">
-  <option value="22.5726,88.3639" selected>Kolakta</option>
-  <option value="22.5754,88.4798">New Town</option>
-  <option value="22.5818,88.3362">Howrah</option>
-  <option value="28.6139,77.2088">Delhi NCR</option>
-  </select>
+  <h2>Draw City Geo-Fence Outline</h2>
+  <input id="search-box" type="text" placeholder="Enter a city name" />
   <div id="map"></div>
-  <div id="status">Click on the map to simulate a cab request location</div>
+  <textarea id="polygon-data" placeholder="Geo-fence coordinates will appear here..." readonly></textarea>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing&callback=initMap"
+    async defer></script>
 
   <script>
-	
     let map;
-    let serviceAreaPolygon = null;
-    let markers = [];
+    let geoFencePolygon = null;
+    let geoFenceCircle = null;
+    let drawingManager;
 
-    function initMap(location) {
-	  var data = location;
-	  //console.log(typeof data);
-      var limitedData = data.toString().split(",", 2);
-      //alert(limitedData[1]);
+    function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: parseFloat(limitedData[0]), lng: parseFloat(limitedData[1]) }, // Kolkata center example
-        zoom: 12,
+        zoom: 6,
+        center: { lat: 22.5726, lng: 88.3639 }, // Default to Kolkata
+        mapTypeId: "roadmap",
       });
 
-      // Enable drawing tool
-      const drawingManager = new google.maps.drawing.DrawingManager({
+      const input = document.getElementById("search-box");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"]
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) return;
+
+        const center = place.geometry.location;
+        map.setCenter(center);
+        map.setZoom(13);
+
+        // Clear previous circle
+        if (geoFenceCircle) geoFenceCircle.setMap(null);
+
+        // Draw a circular geo-fence around the city
+        geoFenceCircle = new google.maps.Circle({
+          strokeColor: "#FF0000",
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: "#FF0000",
+          fillOpacity: 0.2,
+          map: map,
+          center: center,
+          radius: 3000 // in meters
+        });
+
+        document.getElementById("polygon-data").value = JSON.stringify({
+          center: {
+            lat: center.lat(),
+            lng: center.lng()
+          },
+          radius: 3000
+        }, null, 2);
+      });
+
+      // Drawing tool for polygonal geo-fence
+      drawingManager = new google.maps.drawing.DrawingManager({
         drawingMode: google.maps.drawing.OverlayType.POLYGON,
         drawingControl: true,
         drawingControlOptions: {
@@ -51,9 +103,9 @@
         },
         polygonOptions: {
           fillColor: "#00FF00",
-          fillOpacity: 0.2,
+          fillOpacity: 0.25,
           strokeWeight: 2,
-          clickable: false,
+          clickable: true,
           editable: true,
           zIndex: 1,
         },
@@ -61,43 +113,831 @@
 
       drawingManager.setMap(map);
 
-      // Capture the polygon when completed
-      google.maps.event.addListener(drawingManager, "overlaycomplete", (event) => {
-        if (serviceAreaPolygon) {
-          serviceAreaPolygon.setMap(null);
-        }
-        serviceAreaPolygon = event.overlay;
-        drawingManager.setDrawingMode(null); // disable drawing again
-      });
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (geoFencePolygon) geoFencePolygon.setMap(null); // remove old one
+        geoFencePolygon = event.overlay;
 
-      // Click map to test location
-      map.addListener("click", (e) => {
-        if (!serviceAreaPolygon) {
-          alert("Please draw the service area polygon first.");
-          return;
-        }
+        const coords = geoFencePolygon.getPath().getArray().map(latlng => ({
+          lat: latlng.lat(),
+          lng: latlng.lng()
+        }));
 
-        // Clear previous markers
-        markers.forEach(m => m.setMap(null));
-        markers = [];
-
-        const latLng = e.latLng;
-        const marker = new google.maps.Marker({
-          position: latLng,
-          map: map,
-          title: "Cab Request Location",
-        });
-        markers.push(marker);
-
-        const inside = google.maps.geometry.poly.containsLocation(latLng, serviceAreaPolygon);
-        document.getElementById("status").innerText = inside
-          ? "Location is INSIDE the service area."
-          : "Location is OUTSIDE the service area.";
-        document.getElementById("status").style.color = inside ? "green" : "red";
+        document.getElementById("polygon-data").value = JSON.stringify(coords, null, 2);
       });
     }
-
-    window.onload = initMap('22.5726,88.3639');
   </script>
 </body>
 </html>
+
+
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>City Highlighter with Lines & Boundary</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    #map {
+      height: 600px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    #search-box {
+      width: 300px;
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    #polygon-data {
+      margin-top: 15px;
+      width: 100%;
+      height: 120px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>City Highlighter with Lines & Boundary</h2>
+  <input id="search-box" type="text" placeholder="Enter a city name" />
+  <div id="map"></div>
+  <textarea id="polygon-data" placeholder="Polygon coordinates will appear here..." readonly></textarea>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing&callback=initMap"
+    async defer></script>
+
+  <script>
+    let map;
+    let overlays = [];
+    let drawingManager;
+    let currentPolygon;
+    let boundaryPolygon;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 6,
+        center: { lat: 22.5726, lng: 88.3639 },
+        mapTypeId: "roadmap",
+      });
+
+      const input = document.getElementById("search-box");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"]
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) return;
+
+        map.setCenter(place.geometry.location);
+        map.setZoom(12);
+
+        clearOverlays();
+
+        const center = place.geometry.location;
+        const boxSize = 0.05;
+
+        // 1. Line-Based Layout
+        drawPolyline([
+          { lat: center.lat() - boxSize, lng: center.lng() - boxSize },
+          { lat: center.lat() - boxSize, lng: center.lng() + boxSize },
+          { lat: center.lat() + boxSize, lng: center.lng() + boxSize },
+          { lat: center.lat() + boxSize, lng: center.lng() - boxSize },
+          { lat: center.lat() - boxSize, lng: center.lng() - boxSize },
+        ], '#FF0000');
+
+        drawPolyline([
+          { lat: center.lat(), lng: center.lng() - boxSize * 2 },
+          { lat: center.lat(), lng: center.lng() + boxSize * 2 },
+        ], '#00BFFF');
+
+        drawPolyline([
+          { lat: center.lat() - boxSize * 2, lng: center.lng() },
+          { lat: center.lat() + boxSize * 2, lng: center.lng() },
+        ], '#00BFFF');
+
+        drawPolyline([
+          { lat: center.lat() - boxSize, lng: center.lng() - boxSize },
+          { lat: center.lat() + boxSize, lng: center.lng() + boxSize }
+        ], '#FFA500');
+
+        drawPolyline([
+          { lat: center.lat() - boxSize, lng: center.lng() + boxSize },
+          { lat: center.lat() + boxSize, lng: center.lng() - boxSize }
+        ], '#FFA500');
+
+        const circlePoints = [];
+        for (let angle = 0; angle <= 360; angle += 10) {
+          const radius = 0.03;
+          const rad = angle * (Math.PI / 180);
+          circlePoints.push({
+            lat: center.lat() + radius * Math.cos(rad),
+            lng: center.lng() + radius * Math.sin(rad)
+          });
+        }
+        drawPolyline(circlePoints, '#008000');
+
+        // 2. Boundary Highlight (approximate using viewport)
+        if (boundaryPolygon) boundaryPolygon.setMap(null);
+        if (place.geometry.viewport) {
+          const ne = place.geometry.viewport.getNorthEast();
+          const sw = place.geometry.viewport.getSouthWest();
+
+          const boundaryCoords = [
+            { lat: sw.lat(), lng: sw.lng() },
+            { lat: sw.lat(), lng: ne.lng() },
+            { lat: ne.lat(), lng: ne.lng() },
+            { lat: ne.lat(), lng: sw.lng() },
+            { lat: sw.lat(), lng: sw.lng() }
+          ];
+
+          boundaryPolygon = new google.maps.Polygon({
+            paths: boundaryCoords,
+            strokeColor: "#000",
+            strokeOpacity: 1,
+            strokeWeight: 2,
+            fillColor: "#000",
+            fillOpacity: 0.05,
+            map: map
+          });
+
+          overlays.push(boundaryPolygon);
+        }
+      });
+
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.35,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (currentPolygon) currentPolygon.setMap(null);
+        currentPolygon = event.overlay;
+
+        const coords = currentPolygon.getPath().getArray().map(latlng => ({
+          lat: latlng.lat(),
+          lng: latlng.lng()
+        }));
+
+        document.getElementById("polygon-data").value = JSON.stringify(coords, null, 2);
+      });
+    }
+
+    function drawPolyline(path, color) {
+      const polyline = new google.maps.Polyline({
+        path,
+        geodesic: true,
+        strokeColor: color,
+        strokeOpacity: 1.0,
+        strokeWeight: 2,
+        map: map,
+      });
+      overlays.push(polyline);
+    }
+
+    function clearOverlays() {
+      for (const item of overlays) {
+        item.setMap(null);
+      }
+      overlays = [];
+    }
+  </script>
+</body>
+
+</html>
+ -->
+
+
+
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>City Highlighter with Lines</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    #map {
+      height: 600px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    #search-box {
+      width: 300px;
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    #polygon-data {
+      margin-top: 15px;
+      width: 100%;
+      height: 120px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>City Line-Based Highlighters</h2>
+  <input id="search-box" type="text" placeholder="Enter a city name" />
+  <div id="map"></div>
+  <textarea id="polygon-data" placeholder="Polygon coordinates will appear here..." readonly></textarea>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing&callback=initMap"
+    async defer></script>
+
+  <script>
+    let map;
+    let overlays = [];
+    let drawingManager;
+    let currentPolygon;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 6,
+        center: { lat: 22.5726, lng: 88.3639 },
+        mapTypeId: "roadmap",
+      });
+
+      const input = document.getElementById("search-box");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"]
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) return;
+
+        map.setCenter(place.geometry.location);
+        map.setZoom(12);
+
+        clearOverlays();
+
+        const center = place.geometry.location;
+        const boxSize = 0.05;
+
+        // 1. Rectangle outline
+        drawPolyline([
+          { lat: center.lat() - boxSize, lng: center.lng() - boxSize },
+          { lat: center.lat() - boxSize, lng: center.lng() + boxSize },
+          { lat: center.lat() + boxSize, lng: center.lng() + boxSize },
+          { lat: center.lat() + boxSize, lng: center.lng() - boxSize },
+          { lat: center.lat() - boxSize, lng: center.lng() - boxSize },
+        ], '#FF0000');
+
+        // 2. Crosshair
+        drawPolyline([
+          { lat: center.lat(), lng: center.lng() - boxSize * 2 },
+          { lat: center.lat(), lng: center.lng() + boxSize * 2 },
+        ], '#00BFFF');
+
+        drawPolyline([
+          { lat: center.lat() - boxSize * 2, lng: center.lng() },
+          { lat: center.lat() + boxSize * 2, lng: center.lng() },
+        ], '#00BFFF');
+
+        // 3. Diagonal Cross (X)
+        drawPolyline([
+          { lat: center.lat() - boxSize, lng: center.lng() - boxSize },
+          { lat: center.lat() + boxSize, lng: center.lng() + boxSize }
+        ], '#FFA500');
+
+        drawPolyline([
+          { lat: center.lat() - boxSize, lng: center.lng() + boxSize },
+          { lat: center.lat() + boxSize, lng: center.lng() - boxSize }
+        ], '#FFA500');
+
+        // 4. Circular Outline using polyline
+        const circlePoints = [];
+        for (let angle = 0; angle <= 360; angle += 10) {
+          const radius = 0.03;
+          const rad = angle * (Math.PI / 180);
+          circlePoints.push({
+            lat: center.lat() + radius * Math.cos(rad),
+            lng: center.lng() + radius * Math.sin(rad)
+          });
+        }
+        drawPolyline(circlePoints, '#008000');
+
+        // 5. Grid Overlay
+        for (let i = -2; i <= 2; i++) {
+          drawPolyline([
+            { lat: center.lat() + i * 0.01, lng: center.lng() - 0.05 },
+            { lat: center.lat() + i * 0.01, lng: center.lng() + 0.05 }
+          ], '#888');
+
+          drawPolyline([
+            { lat: center.lat() - 0.05, lng: center.lng() + i * 0.01 },
+            { lat: center.lat() + 0.05, lng: center.lng() + i * 0.01 }
+          ], '#888');
+        }
+      });
+
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.35,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (currentPolygon) currentPolygon.setMap(null);
+        currentPolygon = event.overlay;
+
+        const coords = currentPolygon.getPath().getArray().map(latlng => ({
+          lat: latlng.lat(),
+          lng: latlng.lng()
+        }));
+
+        document.getElementById("polygon-data").value = JSON.stringify(coords, null, 2);
+      });
+    }
+
+    function drawPolyline(path, color) {
+      const polyline = new google.maps.Polyline({
+        path,
+        geodesic: true,
+        strokeColor: color,
+        strokeOpacity: 1.0,
+        strokeWeight: 2,
+        map: map,
+      });
+      overlays.push(polyline);
+    }
+
+    function clearOverlays() {
+      for (const item of overlays) {
+        item.setMap(null);
+      }
+      overlays = [];
+    }
+  </script>
+</body>
+
+</html>
+ -->
+
+
+
+<!-- <!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>City Layout Line with Polygon Drawing</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    #map {
+      height: 600px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    #search-box {
+      width: 300px;
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    #polygon-data {
+      margin-top: 15px;
+      width: 100%;
+      height: 120px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Search City & Draw Polygon</h2>
+  <input id="search-box" type="text" placeholder="Enter a city name" />
+  <div id="map"></div>
+  <textarea id="polygon-data" placeholder="Polygon coordinates will appear here..." readonly></textarea>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing&callback=initMap"
+    async defer></script>
+
+  <script>
+    let map;
+    let cityLayoutLine;
+    let drawingManager;
+    let currentPolygon;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 6,
+        center: { lat: 22.5726, lng: 88.3639 }, // Kolkata default
+        mapTypeId: "roadmap",
+      });
+
+      const input = document.getElementById("search-box");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"]
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.geometry || !place.geometry.location) {
+          return;
+        }
+
+        const center = place.geometry.location;
+        map.setCenter(center);
+        map.setZoom(12);
+
+        // Clear previous line
+        if (cityLayoutLine) cityLayoutLine.setMap(null);
+
+        // Define rectangular boundary around city
+        const boxSize = 0.05; // ~5km approx (adjust as needed)
+        const boundsCoords = [
+          { lat: center.lat() - boxSize, lng: center.lng() - boxSize }, // SW
+          { lat: center.lat() - boxSize, lng: center.lng() + boxSize }, // SE
+          { lat: center.lat() + boxSize, lng: center.lng() + boxSize }, // NE
+          { lat: center.lat() + boxSize, lng: center.lng() - boxSize }, // NW
+          { lat: center.lat() - boxSize, lng: center.lng() - boxSize }, // Close loop
+        ];
+
+        // Draw layout line as Polyline
+        cityLayoutLine = new google.maps.Polyline({
+          path: boundsCoords,
+          geodesic: true,
+          strokeColor: "#00BFFF",
+          strokeOpacity: 1.0,
+          strokeWeight: 2,
+          map: map
+        });
+      });
+
+      // Drawing tool for polygon
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.35,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      // Get drawn polygon coordinates
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (currentPolygon) currentPolygon.setMap(null);
+
+        currentPolygon = event.overlay;
+        const coords = currentPolygon.getPath().getArray().map(latlng => ({
+          lat: latlng.lat(),
+          lng: latlng.lng()
+        }));
+
+        document.getElementById("polygon-data").value = JSON.stringify(coords, null, 2);
+      });
+    }
+  </script>
+</body>
+
+</html> -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- 
+
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>City Autocomplete with Polygon Drawing</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    #map {
+      height: 600px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    #search-box {
+      width: 300px;
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    #polygon-data {
+      margin-top: 15px;
+      width: 100%;
+      height: 120px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Search City & Draw Polygon</h2>
+  <input id="search-box" type="text" placeholder="Enter a city name" />
+  <div id="map"></div>
+  <textarea id="polygon-data" placeholder="Polygon coordinates will appear here..." readonly></textarea>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing&callback=initMap"
+    async defer></script>
+
+  <script>
+    let map;
+    let cityLine;
+    let drawingManager;
+    let currentPolygon;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 6,
+        center: { lat: 22.5726, lng: 88.3639 }, // Kolkata
+        mapTypeId: "roadmap",
+      });
+
+      const input = document.getElementById("search-box");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"]
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.geometry || !place.geometry.location) {
+          return;
+        }
+
+        map.setCenter(place.geometry.location);
+        map.setZoom(12);
+
+        if (cityLine) cityLine.setMap(null);
+
+        const cityCenter = place.geometry.location;
+        const offsetPoint = {
+          lat: cityCenter.lat() + 0.01,
+          lng: cityCenter.lng() + 0.01
+        };
+
+        cityLine = new google.maps.Polyline({
+          path: [cityCenter, offsetPoint],
+          geodesic: true,
+          strokeColor: "#4285F4",
+          strokeOpacity: 1.0,
+          strokeWeight: 2,
+          map: map
+        });
+      });
+
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.35,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (currentPolygon) currentPolygon.setMap(null);
+
+        currentPolygon = event.overlay;
+        const coords = currentPolygon.getPath().getArray().map(latlng => ({
+          lat: latlng.lat(),
+          lng: latlng.lng()
+        }));
+
+        document.getElementById("polygon-data").value = JSON.stringify(coords, null, 2);
+      });
+    }
+  </script>
+</body>
+
+</html>
+
+
+ -->
+
+
+
+
+
+
+
+
+<!-- 
+ <!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>City Autocomplete with Polygon Drawing</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+
+    #map {
+      height: 600px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    #search-box {
+      width: 300px;
+      padding: 8px;
+      font-size: 16px;
+    }
+
+    #polygon-data {
+      margin-top: 15px;
+      width: 100%;
+      height: 120px;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Search City & Draw Polygon</h2>
+  <input id="search-box" type="text" placeholder="Enter a city name" />
+  <div id="map"></div>
+  <textarea id="polygon-data" placeholder="Polygon coordinates will appear here..." readonly></textarea>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing&callback=initMap"
+    async defer></script>
+
+  <script>
+    let map;
+    let cityCircle;
+    let drawingManager;
+    let currentPolygon;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 6,
+        center: { lat: 22.5726, lng: 88.3639 }, // Kolkata by default
+        mapTypeId: "roadmap",
+      });
+
+      const input = document.getElementById("search-box");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"]
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.geometry || !place.geometry.location) {
+          return;
+        }
+
+        map.setCenter(place.geometry.location);
+        map.setZoom(12);
+
+        if (cityCircle) cityCircle.setMap(null);
+
+        cityCircle = new google.maps.Circle({
+          strokeColor: "#4285F4",
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: "#4285F4",
+          fillOpacity: 0.15,
+          map: map,
+          center: place.geometry.location,
+          radius: 5000
+        });
+      });
+
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.35,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (currentPolygon) currentPolygon.setMap(null);
+
+        currentPolygon = event.overlay;
+        const coords = currentPolygon.getPath().getArray().map(latlng => ({
+          lat: latlng.lat(),
+          lng: latlng.lng()
+        }));
+
+        document.getElementById("polygon-data").value = JSON.stringify(coords, null, 2);
+      });
+    }
+  </script>
+</body>
+
+</html> -->
