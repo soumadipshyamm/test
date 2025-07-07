@@ -198,10 +198,10 @@ Would you like the next step: **fetching saved cities to select and draw polygon
 
 
 
+************************************************************************************************************************************************
 
 
 
-************************
 To store polygon data in your **Laravel** app and check whether a location is **inside** or **outside** a polygon (geofence), follow this approach:
 
 ---
