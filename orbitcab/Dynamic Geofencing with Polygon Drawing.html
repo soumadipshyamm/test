@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Geofencing with Polygon Drawing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        #map {
+            height: 600px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        #area-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        #geofence-form {
+            margin-bottom: 20px;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing,geometry"></script>
+</head>
+
+<body>
+    <h1>Dynamic Geofencing with Polygon Drawing</h1>
+    <input type="text" id="area-input" placeholder="Search for an area..." />
+    <div id="geofence-form">
+        <button id="start-drawing">Draw Geofence</button>
+        <button id="save-geofence" style="display:none;">Save Geofence</button>
+    </div>
+    <div id="map"></div>
+    <div id="status"></div>
+
+    <script>
+        let map;
+        let geofences = {};
+        let drawingManager;
+        let currentPolygon = null;
+        let markers = []; // Array to hold markers
+        let serviceAreaPolygon = null; // To hold the drawn polygon
+
+        const input = document.getElementById('area-input');
+        const autocomplete = new google.maps.places.Autocomplete(input, {
+            types: ['geocode'],
+        });
+
+        autocomplete.addListener('place_changed', function () {
+            const place = autocomplete.getPlace();
+            if (place && place.geometry) {
+                const lat = place.geometry.location.lat();
+                const lng = place.geometry.location.lng();
+                input.value = place.formatted_address; // Set the input value to the selected place
+                showMap(lat, lng); // Show the map at the selected location
+                highlightGeofences(lat, lng); // Highlight the geofence if applicable
+            }
+        });
+
+        function showMap(lat, lng) {
+            const mapOptions = {
+                center: { lat: lat, lng: lng },
+                zoom: 12,
+            };
+            map = new google.maps.Map(document.getElementById('map'), mapOptions);
+            new google.maps.Marker({
+                position: { lat: lat, lng: lng },
+                map: map,
+                title: 'Selected Area'
+            });
+
+            // Add click listener to the map to check location
+            map.addListener("click", (e) => {
+                if (!currentPolygon) {
+                    alert("Please draw the service area polygon first.");
+                    return;
+                }
+
+                // Clear previous markers
+                markers.forEach(m => m.setMap(null));
+                markers = [];
+
+                const latLng = e.latLng;
+                const marker = new google.maps.Marker({
+                    position: latLng,
+                    map: map,
+                    title: "Cab Request Location",
+                });
+                markers.push(marker);
+
+                const inside = google.maps.geometry.poly.containsLocation(latLng, currentPolygon);
+                document.getElementById("status").innerText = inside
+                    ? "Location is INSIDE the service area."
+                    : "Location is OUTSIDE the service area.";
+                document.getElementById("status").style.color = inside ? "green" : "red";
+            });
+        }
+
+        function highlightGeofences(lat, lng) {
+            for (const area in geofences) {
+                const polygon = new google.maps.Polygon({
+                    paths: geofences[area].coords,
+                    strokeColor: '#000000',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                    fillColor: geofences[area].color,
+                    fillOpacity: 0.35,
+                });
+                polygon.setMap(map);
+
+                // Check if the point is within the polygon
+                const point = new google.maps.LatLng(lat, lng);
+                if (google.maps.geometry.poly.containsLocation(point, polygon)) {
+                    alert(`You are within the ${area} area!`);
+                }
+            }
+        }
+
+        document.getElementById('start-drawing').addEventListener('click', function () {
+            if (currentPolygon) {
+                currentPolygon.setMap(null); // Remove the previous polygon
+            }
+
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: google.maps.drawing.OverlayType.POLYGON,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ['polygon'],
+                },
+                polygonOptions: {
+                    fillColor: '#00FF00',
+                    fillOpacity: 0.5,
+                    strokeWeight: 2,
+                    clickable: false,
+                    editable: true,
+                    zIndex: 1,
+                },
+            });
+
+            drawingManager.setMap(map);
+
+            google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+                if (currentPolygon) {
+                    currentPolygon.setMap(null); // Remove the previous polygon
+                }
+                currentPolygon = event.overlay;
+                serviceAreaPolygon = currentPolygon; // Save the current polygon for checking later
+                drawingManager.setMap(null); // Disable drawing
+
+                // Show the save button
+                document.getElementById('save-geofence').style.display = 'block';
+            });
+        });
+
+        document.getElementById('save-geofence').addEventListener('click', function () {
+            const areaName = prompt("Enter a name for this geofence:");
+            if (areaName && currentPolygon) {
+                console.log("Saving geofence...");
+                // Save the polygon coordinates and name in the geofences object
+                console.log("currentPolygon", currentPolygon);
+                console.log("currentPolygon.getPath().getArray()", currentPolygon.getPath().getArray());
+                
+                
+                const coords = currentPolygon.getPath().getArray().map(coord => ({
+                    lat: coord.lat(),
+                    lng: coord.lng()
+                }));
+
+                geofences[areaName] = {
+                    coords: coords,
+                    color: '#00FF00' // You can customize the color here
+                };
+
+                alert(`Geofence "${areaName}" saved!`);
+                currentPolygon.setMap(null); // Clear the polygon from the map
+                this.style.display = 'none'; // Hide the save button
+            } else {
+                alert("Please draw a polygon first or provide a valid name.");
+            }
+        });
+    </script>
+</body>
+
+</html>
