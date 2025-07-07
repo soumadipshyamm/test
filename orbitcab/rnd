@@ -1,5 +1,172 @@
 
 
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Advanced City Search & Highlight with Polygon</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #search-container {
+      padding: 10px;
+      background-color: #f8f8f8;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #search-box {
+      width: 300px;
+      padding: 8px;
+      font-size: 16px;
+    }
+    #map {
+      height: 600px;
+      width: 100%;
+    }
+    #coordinates {
+      width: 100%;
+      height: 100px;
+      padding: 10px;
+      font-size: 14px;
+    }
+    button {
+      padding: 8px 12px;
+      font-size: 14px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="search-container">
+    <input id="search-box" type="text" placeholder="Search a city..." />
+    <button onclick="clearPolygon()">Clear Polygon</button>
+  </div>
+  <div id="map"></div>
+  <textarea id="coordinates" placeholder="Polygon coordinates will appear here..."></textarea>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places,drawing&callback=initMap"
+    async
+    defer
+  ></script>
+
+  <script>
+    let map;
+    let drawingManager;
+    let cityMarker = null;
+    let cityCircle = null;
+    let polygon = null;
+
+    function initMap() {
+      const defaultLocation = { lat: 20.5937, lng: 78.9629 }; // India
+
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: defaultLocation,
+        zoom: 5,
+      });
+
+      const input = document.getElementById("search-box");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"],
+      });
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.geometry || !place.geometry.location) {
+          alert("No details available for input: '" + place.name + "'");
+          return;
+        }
+
+        map.panTo(place.geometry.location);
+        map.setZoom(12);
+
+        if (cityMarker) cityMarker.setMap(null);
+        cityMarker = new google.maps.Marker({
+          map,
+          position: place.geometry.location,
+          title: place.name,
+        });
+
+        if (cityCircle) cityCircle.setMap(null);
+        cityCircle = new google.maps.Circle({
+          strokeColor: "#4285F4",
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: "#4285F4",
+          fillOpacity: 0.2,
+          map,
+          center: place.geometry.location,
+          radius: 10000,
+        });
+      });
+
+      initDrawingManager();
+    }
+
+    function initDrawingManager() {
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.3,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (polygon) polygon.setMap(null);
+        polygon = event.overlay;
+
+        const coordinates = polygon.getPath().getArray().map((latLng) => ({
+          lat: latLng.lat(),
+          lng: latLng.lng(),
+        }));
+
+        document.getElementById("coordinates").value = JSON.stringify(coordinates, null, 2);
+      });
+    }
+
+    function clearPolygon() {
+      if (polygon) {
+        polygon.setMap(null);
+        polygon = null;
+        document.getElementById("coordinates").value = "";
+      }
+    }
+
+    window.initMap = initMap;
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
 
 <!DOCTYPE html>
 <html lang="en">
