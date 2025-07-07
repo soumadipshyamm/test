@@ -1,4 +1,207 @@
 
+
+
+
+
+To start with **searching a city** via Google Maps and **storing its name, latitude, and longitude** in your **Laravel** backend, follow this step-by-step guide:
+
+---
+
+## ✅ Step 1: Frontend (Search City + Get Lat/Lng)
+
+Use Google Maps **Places Autocomplete** to allow the user to search a city.
+
+### ✅ HTML + JS (Autocomplete Search + Send to Laravel)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>City Search and Save</title>
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places"></script>
+</head>
+<body>
+  <h2>Search City</h2>
+  <input id="cityInput" type="text" placeholder="Enter city name" />
+  <button onclick="saveCity()">Save City</button>
+
+  <script>
+    let autocomplete;
+    let selectedPlace = null;
+
+    function initAutocomplete() {
+      const input = document.getElementById("cityInput");
+      autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"]
+      });
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry) return;
+
+        selectedPlace = {
+          name: place.name,
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng()
+        };
+
+        console.log("Selected City:", selectedPlace);
+      });
+    }
+
+    function saveCity() {
+      if (!selectedPlace) {
+        alert("Please select a city first.");
+        return;
+      }
+
+      fetch("/api/cities", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify(selectedPlace)
+      })
+      .then(response => response.json())
+      .then(data => {
+        alert("City saved successfully!");
+        console.log(data);
+      })
+      .catch(error => {
+        alert("Error saving city.");
+        console.error(error);
+      });
+    }
+
+    window.onload = initAutocomplete;
+  </script>
+</body>
+</html>
+```
+
+---
+
+## ✅ Step 2: Laravel Setup
+
+### 🔸 Migration for `cities` table
+
+```bash
+php artisan make:migration create_cities_table
+```
+
+```php
+// database/migrations/xxxx_xx_xx_create_cities_table.php
+public function up()
+{
+    Schema::create('cities', function (Blueprint $table) {
+        $table->id();
+        $table->string('name');
+        $table->decimal('lat', 10, 7);
+        $table->decimal('lng', 10, 7);
+        $table->timestamps();
+    });
+}
+```
+
+```bash
+php artisan migrate
+```
+
+---
+
+### 🔸 Create City Model
+
+```bash
+php artisan make:model City
+```
+
+---
+
+### 🔸 API Route
+
+```php
+// routes/api.php
+Route::post('/cities', [CityController::class, 'store']);
+```
+
+---
+
+### 🔸 Controller Logic
+
+```bash
+php artisan make:controller CityController
+```
+
+```php
+// app/Http/Controllers/CityController.php
+use App\Models\City;
+use Illuminate\Http\Request;
+
+class CityController extends Controller
+{
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string',
+            'lat' => 'required|numeric',
+            'lng' => 'required|numeric',
+        ]);
+
+        $city = City::create([
+            'name' => $request->name,
+            'lat' => $request->lat,
+            'lng' => $request->lng,
+        ]);
+
+        return response()->json(['success' => true, 'city' => $city], 201);
+    }
+}
+```
+
+---
+
+### 🔸 Allow Mass Assignment in City Model
+
+```php
+// app/Models/City.php
+protected $fillable = ['name', 'lat', 'lng'];
+```
+
+---
+
+## ✅ Done!
+
+Now you can:
+
+* ✅ Search cities with Google Maps Autocomplete
+* ✅ Extract `lat`, `lng`, and `name`
+* ✅ Save it to your Laravel DB
+
+---
+
+### 🧪 Sample API Data Sent
+
+```json
+{
+  "name": "Kolkata",
+  "lat": 22.5726,
+  "lng": 88.3639
+}
+```
+
+---
+
+Would you like the next step: **fetching saved cities to select and draw polygons**?
+
+
+
+
+
+
+
+
+************************
 To store polygon data in your **Laravel** app and check whether a location is **inside** or **outside** a polygon (geofence), follow this approach:
 
 ---
