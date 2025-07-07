@@ -1,4 +1,183 @@
 
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Advanced City Search with Highlights & Polygon Drawing</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #search-container {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      background: white;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    #search-box {
+      width: 300px;
+      padding: 8px;
+    }
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+    #coordinates {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      width: 350px;
+      height: 120px;
+      z-index: 5;
+      background: #fff;
+      padding: 10px;
+      font-size: 12px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div id="search-container">
+    <input id="search-box" type="text" placeholder="Search city, locality, or place..." />
+  </div>
+  <div id="map"></div>
+  <div id="coordinates" placeholder="Polygon coordinates...">Draw a polygon to see coordinates.</div>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places,drawing,geometry" defer></script>
+  <script>
+    let map;
+    let marker = null;
+    let cityCircle = null;
+    let polygon = null;
+
+    function initMap() {
+      const defaultCenter = { lat: 22.5726, lng: 88.3639 }; // Kolkata
+
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: defaultCenter,
+        zoom: 6,
+      });
+
+      const input = document.getElementById("search-box");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(regions)", "(cities)", "geocode"],
+      });
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        if (!place.geometry || !place.geometry.location) {
+          alert("No details available for: '" + place.name + "'");
+          return;
+        }
+
+        const location = place.geometry.location;
+
+        // Move map to location
+        map.setCenter(location);
+        map.setZoom(13);
+
+        // Clear previous marker/circle
+        if (marker) marker.setMap(null);
+        if (cityCircle) cityCircle.setMap(null);
+
+        // Add marker
+        marker = new google.maps.Marker({
+          map: map,
+          position: location,
+        });
+
+        // Add highlight circle
+        cityCircle = new google.maps.Circle({
+          strokeColor: "#0088ff",
+          strokeOpacity: 0.6,
+          strokeWeight: 2,
+          fillColor: "#0088ff",
+          fillOpacity: 0.2,
+          map,
+          center: location,
+          radius: 5000,
+        });
+      });
+
+      initDrawingTool();
+    }
+
+    function initDrawingTool() {
+      const drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: null,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.4,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (polygon) polygon.setMap(null); // remove previous
+
+        polygon = event.overlay;
+
+        // Show coordinates
+        updateCoordinates(polygon.getPath());
+
+        // Update on edit
+        google.maps.event.addListener(polygon.getPath(), "set_at", () =>
+          updateCoordinates(polygon.getPath())
+        );
+        google.maps.event.addListener(polygon.getPath(), "insert_at", () =>
+          updateCoordinates(polygon.getPath())
+        );
+      });
+    }
+
+    function updateCoordinates(path) {
+      const coords = [];
+      for (let i = 0; i < path.getLength(); i++) {
+        const latLng = path.getAt(i);
+        coords.push({ lat: latLng.lat(), lng: latLng.lng() });
+      }
+
+      document.getElementById("coordinates").innerText = JSON.stringify(coords, null, 2);
+    }
+
+    window.initMap = initMap;
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 <!DOCTYPE html>
 <html>
