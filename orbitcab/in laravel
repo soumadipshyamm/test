@@ -1,0 +1,235 @@
+Here’s how to **implement the cab geofencing feature in Laravel**, including:
+
+---
+
+## ✅ Features:
+
+1. **Draw polygon (Geo-Fence) on map**
+2. **Save polygon data to database**
+3. **Check if a point (lat/lng) is inside any stored geofence**
+
+---
+
+## ✅ Step-by-Step Laravel Implementation
+
+---
+
+### 🧩 1. **Migration: `cab_zones` Table**
+
+```bash
+php artisan make:migration create_cab_zones_table
+```
+
+```php
+// database/migrations/xxxx_xx_xx_create_cab_zones_table.php
+public function up()
+{
+    Schema::create('cab_zones', function (Blueprint $table) {
+        $table->id();
+        $table->string('name');
+        $table->json('coordinates'); // store polygon as JSON
+        $table->timestamps();
+    });
+}
+```
+
+```bash
+php artisan migrate
+```
+
+---
+
+### 🧠 2. **Model: CabZone**
+
+```php
+// app/Models/CabZone.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class CabZone extends Model
+{
+    protected $fillable = ['name', 'coordinates'];
+
+    protected $casts = [
+        'coordinates' => 'array',
+    ];
+}
+```
+
+---
+
+### 🖼 3. **Blade View: Map + Polygon Drawing**
+
+```blade
+<!-- resources/views/cab-zones/create.blade.php -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Define Cab Zone</title>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=drawing"></script>
+</head>
+<body>
+    <h2>Draw & Save Cab Service Area</h2>
+    <form method="POST" action="{{ route('cab-zones.store') }}">
+        @csrf
+        <input type="text" name="name" placeholder="Zone Name" required><br><br>
+        <input type="hidden" name="coordinates" id="coordinates">
+        <div id="map" style="height:500px; width:100%;"></div><br>
+        <button type="submit">Save Zone</button>
+    </form>
+
+    <script>
+        let map;
+        let drawingManager;
+        let polygon;
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: 22.5726, lng: 88.3639 },
+                zoom: 12,
+            });
+
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: google.maps.drawing.OverlayType.POLYGON,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ["polygon"],
+                },
+                polygonOptions: {
+                    editable: true,
+                },
+            });
+
+            drawingManager.setMap(map);
+
+            google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+                if (polygon) polygon.setMap(null);
+                polygon = event.overlay;
+
+                const coordinates = polygon.getPath().getArray().map(latlng => ({
+                    lat: latlng.lat(),
+                    lng: latlng.lng()
+                }));
+
+                document.getElementById("coordinates").value = JSON.stringify(coordinates);
+            });
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>
+```
+
+---
+
+### 📥 4. **Controller to Store Polygon**
+
+```php
+// app/Http/Controllers/CabZoneController.php
+namespace App\Http\Controllers;
+
+use App\Models\CabZone;
+use Illuminate\Http\Request;
+
+class CabZoneController extends Controller
+{
+    public function create()
+    {
+        return view('cab-zones.create');
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string',
+            'coordinates' => 'required|json',
+        ]);
+
+        CabZone::create([
+            'name' => $request->name,
+            'coordinates' => $request->coordinates,
+        ]);
+
+        return redirect()->route('cab-zones.create')->with('success', 'Zone saved!');
+    }
+}
+```
+
+---
+
+### 📍 5. **Check Point Inside Polygon (Backend)**
+
+Install [vincenty/polygon](https://github.com/vincenty/polygon) or create a simple helper function.
+
+#### ✅ Create Helper:
+
+```php
+// app/Helpers/GeoHelper.php
+namespace App\Helpers;
+
+class GeoHelper
+{
+    public static function pointInPolygon($point, $polygon)
+    {
+        $x = $point['lng'];
+        $y = $point['lat'];
+
+        $inside = false;
+        $n = count($polygon);
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            $xi = $polygon[$i]['lng']; $yi = $polygon[$i]['lat'];
+            $xj = $polygon[$j]['lng']; $yj = $polygon[$j]['lat'];
+
+            $intersect = (($yi > $y) != ($yj > $y)) &&
+                         ($x < ($xj - $xi) * ($y - $yi) / ($yj - $yi + 0.0000001) + $xi);
+            if ($intersect) $inside = !$inside;
+        }
+
+        return $inside;
+    }
+}
+```
+
+#### ✅ Usage Example:
+
+```php
+use App\Models\CabZone;
+use App\Helpers\GeoHelper;
+
+public function checkLocation(Request $request)
+{
+    $point = ['lat' => $request->lat, 'lng' => $request->lng];
+
+    foreach (CabZone::all() as $zone) {
+        if (GeoHelper::pointInPolygon($point, $zone->coordinates)) {
+            return response()->json(['zone' => $zone->name, 'status' => 'inside']);
+        }
+    }
+
+    return response()->json(['zone' => null, 'status' => 'outside']);
+}
+```
+
+---
+
+### 📡 6. **Routes**
+
+```php
+Route::get('/cab-zones/create', [CabZoneController::class, 'create'])->name('cab-zones.create');
+Route::post('/cab-zones/store', [CabZoneController::class, 'store'])->name('cab-zones.store');
+Route::post('/cab-zones/check', [CabZoneController::class, 'checkLocation']);
+```
+
+---
+
+## ✅ Result:
+
+* You can **draw and save** geofence polygons.
+* Later, check any coordinates against them to see if **inside/outside** the area.
+
+---
+
+Would you like me to build this into a Laravel Livewire or Vue component?
