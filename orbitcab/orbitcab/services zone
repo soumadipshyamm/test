@@ -1,0 +1,83 @@
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+@section('content')
+    <div class="container">
+        <h2>Create Service Zone</h2>
+        <form method="POST" action="{{ route('admin.service-zones.store') }}">
+            @csrf
+            {{-- @dd(getServiceZoneCity('')) --}}
+            <div class="form-group">
+                <label for="country">Country</label>
+                <select id="country" name="country_id" class="form-control" required>
+                    <option value="">Select Country</option>
+                </select>
+                
+            </div>
+            <div class="form-group">
+                <label for="state">State</label>
+                <select id="state" name="state_id" class="form-control" required>
+                    <option value="">Select State</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="city">City</label>
+                <select id="city" name="city_id" class="form-control" required>
+                    <option value="">Select City</option>
+                </select>
+            </div>
+
+            <!-- Optional: Add coordinates field, or integrate Google Maps as before -->
+            <button type="submit" class="btn btn-primary">Create Zone</button>
+        </form>
+    </div>
+@endsection
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+
+        // axios.defaults.baseURL=url();
+        document.addEventListener('DOMContentLoaded', function() {
+            // Populate countries
+            axios.get('/ajax/countries').then(res => {
+                let countrySelect = document.getElementById('country');
+                res.data.forEach(function(country) {
+                    countrySelect.innerHTML +=
+                        `<option value="${country.id}">${country.name}</option>`;
+                });
+            });
+
+            // Populate states based on selected country
+            document.getElementById('country').addEventListener('change', function() {
+                let countryId = this.value;
+                let stateSelect = document.getElementById('state');
+                stateSelect.innerHTML = '<option value="">Select State</option>';
+                document.getElementById('city').innerHTML = '<option value="">Select City</option>';
+                if (!countryId) return;
+                axios.get(`/ajax/states/${countryId}`).then(res => {
+                    res.data.forEach(function(state) {
+                        stateSelect.innerHTML +=
+                            `<option value="${state.id}">${state.name}</option>`;
+                    });
+                });
+            });
+
+            // Populate cities based on selected state
+            document.getElementById('state').addEventListener('change', function() {
+                let stateId = this.value;
+                let citySelect = document.getElementById('city');
+                citySelect.innerHTML = '<option value="">Select City</option>';
+                if (!stateId) return;
+                axios.get(`/ajax/cities/${stateId}`).then(res => {
+                    res.data.forEach(function(city) {
+                        citySelect.innerHTML +=
+                            `<option value="${city.id}">${city.name}</option>`;
+                    });
+                });
+            });
+        });
+    </script>
+@endpush
