@@ -8,6 +8,224 @@
         <h2>Create Service Zone</h2>
         <form method="POST" action="{{ route('admin.service-zones.store') }}">
             @csrf
+            <div class="form-group">
+                <label for="country">Country</label>
+                <select id="country" name="country_id" class="form-control" required>
+                    <option value="">Select Country</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="state">State</label>
+                <select id="state" name="state_id" class="form-control" required>
+                    <option value="">Select State</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="city">City</label>
+                <select id="city" name="city_id" class="form-control" required>
+                    <option value="">Select City</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Create Zone</button>
+        </form>
+    </div>
+@endsection
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const baseUrl = "{{ url('/') }}";
+
+            // Set Axios base URL globally
+            axios.defaults.baseURL = baseUrl;
+
+            // Populate countries
+            axios.get('/ajax/countries').then(res => {
+                let countrySelect = document.getElementById('country');
+                res.data.forEach(function (country) {
+                    countrySelect.innerHTML += `<option value="${country.id}">${country.name}</option>`;
+                });
+            });
+
+            // When a country is selected
+            document.getElementById('country').addEventListener('change', function () {
+                let countryId = this.value;
+                let stateSelect = document.getElementById('state');
+                stateSelect.innerHTML = '<option value="">Select State</option>';
+                document.getElementById('city').innerHTML = '<option value="">Select City</option>';
+
+                if (!countryId) return;
+
+                axios.get(`/ajax/states/${countryId}`).then(res => {
+                    res.data.forEach(function (state) {
+                        stateSelect.innerHTML += `<option value="${state.id}">${state.name}</option>`;
+                    });
+                });
+            });
+
+            // When a state is selected
+            document.getElementById('state').addEventListener('change', function () {
+                let stateId = this.value;
+                let citySelect = document.getElementById('city');
+                citySelect.innerHTML = '<option value="">Select City</option>';
+
+                if (!stateId) return;
+
+                axios.get(`/ajax/cities/${stateId}`).then(res => {
+                    res.data.forEach(function (city) {
+                        citySelect.innerHTML += `<option value="${city.id}">${city.name}</option>`;
+                    });
+                });
+            });
+        });
+    </script>
+@endpush
+
+
+
+
+
+
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+@section('content')
+<div class="container">
+    <h2>Create Service Zone</h2>
+    <form method="POST" action="{{ route('admin.service-zones.store') }}">
+        @csrf
+        <div class="form-group">
+            <label for="country">Country</label>
+            <select id="country" name="country_id" class="form-control" required>
+                <option value="">Select Country</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="state">State</label>
+            <select id="state" name="state_id" class="form-control" required>
+                <option value="">Select State</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="city">City</label>
+            <select id="city" name="city_id" class="form-control" required>
+                <option value="">Select City</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Zone</button>
+    </form>
+</div>
+@endsection
+
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const baseUrl = "{{ url('/') }}";
+
+        // Set global base URL for Axios
+        axios.defaults.baseURL = baseUrl;
+
+        // Dropdown selectors
+        const countrySelect = document.getElementById('country');
+        const stateSelect = document.getElementById('state');
+        const citySelect = document.getElementById('city');
+
+        /**
+         * Helper: Populate a dropdown with data
+         */
+        const populateSelect = (selectElement, data, placeholder) => {
+            selectElement.innerHTML = `<option value="">${placeholder}</option>`;
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = item.name;
+                selectElement.appendChild(option);
+            });
+        };
+
+        /**
+         * Helper: Fetch and populate countries
+         */
+        const loadCountries = async () => {
+            try {
+                const res = await axios.get('/ajax/countries');
+                populateSelect(countrySelect, res.data, 'Select Country');
+            } catch (err) {
+                console.error('Error loading countries:', err);
+            }
+        };
+
+        /**
+         * Helper: Fetch and populate states
+         */
+        const loadStates = async (countryId) => {
+            try {
+                const res = await axios.get(`/ajax/states/${countryId}`);
+                populateSelect(stateSelect, res.data, 'Select State');
+            } catch (err) {
+                console.error('Error loading states:', err);
+            }
+        };
+
+        /**
+         * Helper: Fetch and populate cities
+         */
+        const loadCities = async (stateId) => {
+            try {
+                const res = await axios.get(`/ajax/cities/${stateId}`);
+                populateSelect(citySelect, res.data, 'Select City');
+            } catch (err) {
+                console.error('Error loading cities:', err);
+            }
+        };
+
+        /**
+         * Event Listeners
+         */
+        countrySelect.addEventListener('change', (e) => {
+            const countryId = e.target.value;
+            populateSelect(stateSelect, [], 'Select State');
+            populateSelect(citySelect, [], 'Select City');
+            if (countryId) loadStates(countryId);
+        });
+
+        stateSelect.addEventListener('change', (e) => {
+            const stateId = e.target.value;
+            populateSelect(citySelect, [], 'Select City');
+            if (stateId) loadCities(stateId);
+        });
+
+        /**
+         * Init
+         */
+        loadCountries();
+    });
+</script>
+@endpush
+
+
+
+
+
+
+
+
+
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+@section('content')
+    <div class="container">
+        <h2>Create Service Zone</h2>
+        <form method="POST" action="{{ route('admin.service-zones.store') }}">
+            @csrf
             {{-- @dd(getServiceZoneCity('')) --}}
             <div class="form-group">
                 <label for="country">Country</label>
