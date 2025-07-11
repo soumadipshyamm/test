@@ -1,3 +1,24 @@
+Error Payments not yet enabled. To create a payment link, complete 
+required tasks
+ to enable live payments for your account.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 To generate a **Stripe payment link** for donations or any product/service, here are the **full step-by-step instructions** for both **no-code (Stripe Dashboard)** and **code-based (API)** methods.
 
 ---
