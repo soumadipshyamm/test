@@ -6,3 +6,159 @@ how to get donation pay in stripe account
 
 
 How to Accept Online Donations with Stripe
+
+
+
+Here’s a **common reusable function** in **Node.js + MongoDB + TypeScript** to:
+
+> ✅ Generate a Stripe donation payment link
+> ✅ Create a QR code for the link
+> ✅ Save the link + QR image buffer to MongoDB
+
+---
+
+## ✅ 1. Setup
+
+### Dependencies (install with npm or yarn):
+
+```bash
+npm install stripe qrcode mongoose
+npm install --save-dev @types/qrcode @types/mongoose
+```
+
+---
+
+## ✅ 2. TypeScript + Node + Mongo Code
+
+### 🔸 **models/Donation.ts**
+
+```ts
+import mongoose, { Document, Schema } from "mongoose";
+
+export interface IDonation extends Document {
+  amount: number;
+  paymentLink: string;
+  qrCodeBase64: string;
+}
+
+const DonationSchema = new Schema<IDonation>({
+  amount: { type: Number, required: true },
+  paymentLink: { type: String, required: true },
+  qrCodeBase64: { type: String, required: true }
+});
+
+export const DonationModel = mongoose.model<IDonation>('Donation', DonationSchema);
+```
+
+---
+
+### 🔸 **services/donationService.ts**
+
+```ts
+import Stripe from 'stripe';
+import QRCode from 'qrcode';
+import { DonationModel } from '../models/Donation';
+
+const stripe = new Stripe('sk_test_YOUR_SECRET_KEY', {
+  apiVersion: '2024-04-10',
+});
+
+export const createDonationWithQR = async (amount: number): Promise<{ paymentLink: string; qrCodeBase64: string }> => {
+  // Create a Stripe Payment Link
+  const product = await stripe.products.create({ name: 'Donation' });
+  const price = await stripe.prices.create({
+    product: product.id,
+    unit_amount: amount * 100,
+    currency: 'usd',
+  });
+
+  const paymentLink = await stripe.paymentLinks.create({
+    line_items: [{ price: price.id, quantity: 1 }],
+  });
+
+  // Generate QR Code
+  const qrCodeBase64 = await QRCode.toDataURL(paymentLink.url);
+
+  // Save to MongoDB
+  const donation = new DonationModel({
+    amount,
+    paymentLink: paymentLink.url,
+    qrCodeBase64
+  });
+
+  await donation.save();
+
+  return {
+    paymentLink: paymentLink.url,
+    qrCodeBase64,
+  };
+};
+```
+
+---
+
+## ✅ 3. Example Route (Express)
+
+### 🔸 **routes/donationRoute.ts**
+
+```ts
+import express from 'express';
+import { createDonationWithQR } from '../services/donationService';
+
+const router = express.Router();
+
+router.post('/create-donation', async (req, res) => {
+  const { amount } = req.body;
+  try {
+    const result = await createDonationWithQR(amount);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to create donation link' });
+  }
+});
+
+export default router;
+```
+
+---
+
+## ✅ 4. Sample Mongo Document
+
+```json
+{
+  "_id": "abc123",
+  "amount": 50,
+  "paymentLink": "https://buy.stripe.com/test_abc123",
+  "qrCodeBase64": "data:image/png;base64,iVBORw..."
+}
+```
+
+---
+
+## 🔄 Response Sample
+
+```json
+{
+  "paymentLink": "https://buy.stripe.com/test_abc123",
+  "qrCodeBase64": "data:image/png;base64,iVBORw0..."
+}
+```
+
+---
+
+## ✅ Bonus: Use QR image on frontend
+
+```html
+<img src="data:image/png;base64,{{qrCodeBase64}}" />
+```
+
+---
+
+Would you like to:
+
+* Upload the QR to AWS S3 instead of saving Base64?
+* Create recurring donations?
+* Add email confirmation?
+
+Let me know and I’ll help build that too!
