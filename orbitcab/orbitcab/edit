@@ -1,3 +1,15 @@
+   public function editPolygonDraw($cityId,$id){
+        // dd($cityId,$id);
+        $cabZone = ServiceZoneCity::where('id',$cityId)->first();
+        // $cabZone = ServiceZoneCity::where('id',$cityId)->first();
+        // dd($cabZone->city);
+        return view('admin.cab-zones.create',compact('cabZone','cityId'));
+    }
+
+
+
+
+
 @extends('layouts.app', [
     'isSidebar' => true,
     'isNavbar' => true,
