@@ -1,0 +1,109 @@
+@extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
+
+
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/icheck/icheck.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/toggle/bootstrap-switch.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/toggle/switchery.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/css/plugins/forms/switch.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/vendor/datatables/responsive.bootstrap4.min.css') }}">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+@endpush
+
+
+@section('content')
+    <div class="content-header row top_header">
+        <h4 class="py-2 mb-0"><span class="text-muted fw-light">{{ __(' City Services Zone List') }}</span></h4>
+        <div class="d-flex align-content-center flex-wrap gap-3">
+            <a href="{{ route('admin.service-zones.create') }}" class="btn btn-primary">{{ __('Add Service City') }}</a>
+        </div>
+    </div>
+
+    <div class="content-body">
+        <section id="row-selection">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <a class="heading-elements-toggle"><i class="fa fa-ellipsis-v font-medium-3"></i></a>
+                            <div class="heading-elements">
+                                <ul class="list-inline mb-0">
+                                    <li><a data-action="collapse"><i class="ft-minus"></i></a></li>
+                                    <li><a data-action="reload"><i class="ft-rotate-cw"></i></a></li>
+                                    <li><a data-action="expand"><i class="ft-maximize"></i></a></li>
+                                    <li><a data-action="close"><i class="ft-x"></i></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card-content collapse show">
+                            <div class="card-body">
+                                <table class="table table-striped table-bordered customdatatable" id="carTooable">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ __('Sr. No.') }}</th>
+                                            <th>{{ __('City Name') }}</th>
+                                            <th>{{ __('Service Area') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($zones as $key => $valu)
+                                            {{-- Uncomment for debugging: @dd($valu->cabZone) --}}
+                                            <tr>
+                                                <td>{{ $key + 1 }}</td>
+                                                <td>{{ $valu->city->name }}</td>
+                                                <td>
+                                                    <a
+                                                        href="{{ route('admin.service-zones.editPolygonDraw', [$valu->id, $valu->city->id]) }}">
+                                                        <i class="fa-solid fa-draw-polygon"></i>
+                                                    </a>
+                                                    <a
+                                                        href="{{ route('admin.service-zones.viewPolygonDraw', [$valu->id, $valu->city->id]) }}">
+                                                        <i class="fa-solid fa-street-view"></i>
+                                                    </a>
+                                                </td>
+                                                {{-- {{$valu->cabZone->first()->status }} --}}
+                                                <td>
+                                                    <div class="">
+                                                        <label class="switch">
+                                                            <input type="checkbox" class="changeStatus"
+                                                                id="switchery_inline{{ $valu->cabZone->first()->uuid }}"
+                                                                name="is_active" {{ $valu->cabZone->first()->status ? 'checked' : '' }}
+                                                                data-uuid="{{ $valu->cabZone->first()->uuid }}" data-table="cab_zones"
+                                                                data-message="deactive">
+                                                            <span class="slider round"></span>
+                                                        </label>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        </section>
+    </div>
+@endsection
+@push('scripts')
+    <script src="{{ asset('app-assets/vendors/js/forms/icheck/icheck.min.js') }}"></script>
+    <script src="{{ asset('app-assets/vendors/js/forms/toggle/bootstrap-switch.min.js') }}"></script>
+    <script src="{{ asset('app-assets/vendors/js/forms/toggle/switchery.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/dataTables.bootstrap4.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/dataTables.responsive.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/responsive.bootstrap4.min.js') }}"></script>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.flash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.print.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script src="{{ asset('assets/custom/js/datatableajax.js') }}"></script>
+@endpush
