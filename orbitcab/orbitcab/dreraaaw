@@ -327,3 +327,24 @@
         }
     </script>
 @endpush
+
+
+
+public function savePolygon(Request $request)
+{
+    $request->validate([
+        'city_id' => 'required|exists:cities,id',
+        'coordinates' => 'required|array',
+    ]);
+
+    $zone = CabZone::updateOrCreate(
+        ['city_id' => $request->city_id],
+        ['polygon_coordinates' => json_encode($request->coordinates)]
+    );
+
+    return response()->json([
+        'message' => 'Polygon saved successfully',
+        'zone' => $zone
+    ]);
+}
+
