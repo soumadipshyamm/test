@@ -1,0 +1,469 @@
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+
+@push('styles')
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        #city {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        #geofence-form {
+            margin-bottom: 20px;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+@endpush
+
+@section('content')
+    <h2>Dynamic Geofencing (City-wise)</h2>
+    <div class="d-flex align-content-center flex-wrap gap-3">
+        <x-site.back />
+    </div>
+    <select id="city" class="form-control" required>
+        <option value="">Select City</option>
+    </select>
+    <div id="geofence-form">
+        <button id="start-drawing" type="button" disabled>Draw Geofence</button>
+        <button id="save-geofence" type="button" style="display:none;">Save Geofence</button>
+    </div>
+    <div id="map"></div>
+    <div id="status"></div>
+@endsection
+
+@push('scripts')
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=drawing,geometry">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        let map, drawingManager, currentPolygon = null,
+            markers = [],
+            city = '',
+            cityLatLng = null;
+        let zonePolygons = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load cities
+            axios.get('/ajax/service-zone/cities').then(({
+                data
+            }) => {
+                let citySel = document.getElementById('city');
+                data.forEach(row =>
+                    citySel.innerHTML +=
+                    `<option value="${row.id}" data-lat="${row.latitude}" data-lng="${row.longitude}">${row.name}</option>`
+                );
+            });
+
+            // On city select, center map, highlight zones
+            document.getElementById('city').addEventListener('change', function() {
+                let citySel = this;
+                let cityId = citySel.value;
+                city = citySel.options[citySel.selectedIndex].text;
+                document.getElementById('start-drawing').disabled = !cityId;
+
+                // Remove polygons from last city
+                zonePolygons.forEach(p => p.setMap(null));
+                zonePolygons = [];
+
+                if (cityId) {
+                    // Center map to city
+                    let opt = citySel.options[citySel.selectedIndex];
+                    let lat = parseFloat(opt.getAttribute('data-lat'));
+                    let lng = parseFloat(opt.getAttribute('data-lng'));
+                    if (!map) {
+                        initMap(lat, lng);
+                    } else {
+                        map.setCenter({
+                            lat: lat,
+                            lng: lng
+                        });
+                        map.setZoom(12);
+                    }
+                    cityLatLng = {
+                        lat: lat,
+                        lng: lng
+                    };
+
+                    // Highlight existing zones for city
+                    axios.get('/ajax/service-zone/cities/zones/' + cityId).then(({
+                        data
+                    }) => {
+                        data.forEach(zone => {
+                            if (!zone.coordinates) return;
+                            let paths;
+                            if (typeof zone.coordinates === "string") {
+                                try {
+                                    paths = JSON.parse(zone.coordinates);
+                                } catch (e) {
+                                    console.error("Invalid JSON in zone.coordinates", zone
+                                        .coordinates);
+                                    return;
+                                }
+                            } else {
+                                paths = zone.coordinates;
+                            }
+
+                            let polygon = new google.maps.Polygon({
+                                paths: paths,
+                                strokeColor: '#4285F4',
+                                strokeOpacity: 0.8,
+                                strokeWeight: 2,
+                                fillColor: '#4285F4',
+                                fillOpacity: 0.25,
+                                map: map
+                            });
+
+                            // Highlight border on mouseover
+                            google.maps.event.addListener(polygon, 'mouseover', function() {
+                                this.setOptions({
+                                    strokeColor: '#FF0000', // Highlight color (red)
+                                    strokeWeight: 4,
+                                    fillOpacity: 0.35
+                                });
+                            });
+                            // Reset border on mouseout
+                            google.maps.event.addListener(polygon, 'mouseout', function() {
+                                this.setOptions({
+                                    strokeColor: '#4285F4',
+                                    strokeWeight: 2,
+                                    fillOpacity: 0.25
+                                });
+                            });
+                            // Click to select polygon (highlight green)
+                            google.maps.event.addListener(polygon, 'click', function() {
+                                zonePolygons.forEach(p => p.setOptions({
+                                    strokeColor: '#4285F4',
+                                    strokeWeight: 2,
+                                    fillOpacity: 0.25
+                                }));
+                                this.setOptions({
+                                    strokeColor: '#00C853',
+                                    strokeWeight: 4,
+                                    fillOpacity: 0.40
+                                });
+                            });
+
+                            zonePolygons.push(polygon);
+                        });
+                    });
+                }
+            });
+        });
+
+        function initMap(lat = 22.5726, lng = 88.3639) {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: {
+                    lat: lat,
+                    lng: lng
+                },
+                zoom: 12,
+                mapTypeId: 'roadmap'
+            });
+
+            map.addListener("click", (e) => {
+                if (!currentPolygon) {
+                    document.getElementById("status").innerText = "Please draw the service area polygon first.";
+                    document.getElementById("status").style.color = "orange";
+                    return;
+                }
+                markers.forEach(m => m.setMap(null));
+                markers = [];
+                let marker = new google.maps.Marker({
+                    position: e.latLng,
+                    map,
+                    title: "Test Point"
+                });
+                markers.push(marker);
+                let inside = google.maps.geometry.poly.containsLocation(e.latLng, currentPolygon);
+                document.getElementById("status").innerText = inside ?
+                    "Location is INSIDE the service area." :
+                    "Location is OUTSIDE the service area.";
+                document.getElementById("status").style.color = inside ? "green" : "red";
+            });
+        }
+
+        document.getElementById('start-drawing').addEventListener('click', function() {
+            if (currentPolygon) currentPolygon.setMap(null);
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: google.maps.drawing.OverlayType.POLYGON,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ['polygon'],
+                },
+                polygonOptions: {
+                    fillColor: '#00FF00',
+                    fillOpacity: 0.5,
+                    strokeWeight: 2,
+                    clickable: false,
+                    editable: true,
+                    zIndex: 2,
+                },
+            });
+            drawingManager.setMap(map);
+            google.maps.event.addListener(drawingManager, 'overlaycomplete', function(event) {
+                if (currentPolygon) currentPolygon.setMap(null);
+                currentPolygon = event.overlay;
+                drawingManager.setMap(null);
+                document.getElementById('save-geofence').style.display = 'block';
+            });
+        });
+
+        document.getElementById('save-geofence').addEventListener('click', function() {
+            const areaName = prompt("Enter a name for this geofence:");
+            if (areaName && currentPolygon) {
+                const coords = currentPolygon.getPath().getArray().map(coord => ({
+                    lat: coord.lat(),
+                    lng: coord.lng()
+                }));
+                let citySel = document.getElementById('city');
+                let cityId = citySel.value;
+                axios.post("{{ route('admin.service-zones.storePolygon') }}", {
+                    name: areaName,
+                    services_id: "{{ $cityId }}",
+                    city_id: cityId,
+                    coordinates: coords
+                }).then(function(response) {
+                    alert('Geofence "' + areaName + '" saved to database!');
+                    currentPolygon.setMap(null);
+                    document.getElementById('save-geofence').style.display = 'none';
+                    // Optionally re-trigger city dropdown to reload highlighted zones
+                    let citySelect = document.getElementById('city');
+                    let evt = new Event('change');
+                    citySelect.dispatchEvent(evt);
+                }).catch(function(error) {
+                    alert('Failed to save geofence.');
+                });
+            } else {
+                alert("Please draw a polygon first or provide a valid name.");
+            }
+        });
+    </script>
+@endpush
+
+{{-- 
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+
+@push('styles')
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        #city {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        #geofence-form {
+            margin-bottom: 20px;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+@endpush
+
+@section('content')
+    <h2>Dynamic Geofencing (City-wise)</h2>
+    <select id="city" class="form-control" required>
+        <option value="">Select City</option>
+    </select>
+    <div id="geofence-form">
+        <button id="start-drawing" type="button" disabled>Draw Geofence</button>
+        <button id="save-geofence" type="button" style="display:none;">Save Geofence</button>
+    </div>
+    <div id="map"></div>
+    <div id="status"></div>
+@endsection
+
+@push('scripts')
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=drawing,geometry">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        let map, drawingManager, currentPolygon = null,
+            markers = [],
+            city = '',
+            cityLatLng = null;
+        let zonePolygons = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load cities
+            axios.get('/ajax/service-zone/cities').then(({
+                data
+            }) => {
+                let citySel = document.getElementById('city');
+                data.forEach(row =>
+                    citySel.innerHTML +=
+                    `<option value="${row.id}" data-lat="${row.latitude}" data-lng="${row.longitude}">${row.name}</option>`
+                );
+            });
+
+            // On city select, center map, highlight zones
+            document.getElementById('city').addEventListener('change', function() {
+                let citySel = this;
+                let cityId = citySel.value;
+                city = citySel.options[citySel.selectedIndex].text;
+                document.getElementById('start-drawing').disabled = !cityId;
+
+                // Remove polygons from last city
+                zonePolygons.forEach(p => p.setMap(null));
+                zonePolygons = [];
+
+                if (cityId) {
+                    // Center map to city
+                    let opt = citySel.options[citySel.selectedIndex];
+                    let lat = parseFloat(opt.getAttribute('data-lat'));
+                    let lng = parseFloat(opt.getAttribute('data-lng'));
+                    if (!map) {
+                        initMap(lat, lng);
+                    } else {
+                        map.setCenter({
+                            lat: lat,
+                            lng: lng
+                        });
+                        map.setZoom(12);
+                    }
+                    cityLatLng = {
+                        lat: lat,
+                        lng: lng
+                    };
+
+                    // Highlight existing zones for city
+                    axios.get('/ajax/service-zone/cities/zones/' + cityId).then(({
+                        data
+                    }) => {
+                        // data.forEach(zone => {
+                        //     if (!zone.coordinates) return;
+                            let polygon = new google.maps.Polygon({
+                                paths: JSON.parse([lat:data->latitude, lng:data->longitude]),
+                                strokeColor: '#4285F4',
+                                strokeOpacity: 0.8,
+                                strokeWeight: 2,
+                                fillColor: '#4285F4',
+                                fillOpacity: 0.25,
+                                map: map
+                            });
+                            zonePolygons.push(polygon);
+                        // });
+                    });
+                }
+            });
+        });
+
+        function initMap(lat = 22.5726, lng = 88.3639) {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: {
+                    lat: lat,
+                    lng: lng
+                },
+                zoom: 12,
+                mapTypeId: 'roadmap'
+            });
+
+            map.addListener("click", (e) => {
+                if (!currentPolygon) {
+                    document.getElementById("status").innerText = "Please draw the service area polygon first.";
+                    document.getElementById("status").style.color = "orange";
+                    return;
+                }
+                markers.forEach(m => m.setMap(null));
+                markers = [];
+                let marker = new google.maps.Marker({
+                    position: e.latLng,
+                    map,
+                    title: "Test Point"
+                });
+                markers.push(marker);
+                let inside = google.maps.geometry.poly.containsLocation(e.latLng, currentPolygon);
+                document.getElementById("status").innerText = inside ?
+                    "Location is INSIDE the service area." :
+                    "Location is OUTSIDE the service area.";
+                document.getElementById("status").style.color = inside ? "green" : "red";
+            });
+        }
+
+        document.getElementById('start-drawing').addEventListener('click', function() {
+            if (currentPolygon) currentPolygon.setMap(null);
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: google.maps.drawing.OverlayType.POLYGON,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ['polygon'],
+                },
+                polygonOptions: {
+                    fillColor: '#00FF00',
+                    fillOpacity: 0.5,
+                    strokeWeight: 2,
+                    clickable: false,
+                    editable: true,
+                    zIndex: 2,
+                },
+            });
+            drawingManager.setMap(map);
+            google.maps.event.addListener(drawingManager, 'overlaycomplete', function(event) {
+                if (currentPolygon) currentPolygon.setMap(null);
+                currentPolygon = event.overlay;
+                drawingManager.setMap(null);
+                document.getElementById('save-geofence').style.display = 'block';
+            });
+        });
+
+        document.getElementById('save-geofence').addEventListener('click', function() {
+            const areaName = prompt("Enter a name for this geofence:");
+            if (areaName && currentPolygon) {
+                const coords = currentPolygon.getPath().getArray().map(coord => ({
+                    lat: coord.lat(),
+                    lng: coord.lng()
+                }));
+                let citySel = document.getElementById('city');
+                let cityId = citySel.value;
+                axios.post("{{ route('admin.cab-zones.store') }}", {
+                    name: areaName,
+                    city: city,
+                    city_id: cityId,
+                    coordinates: coords
+                }).then(function(response) {
+                    alert('Geofence "' + areaName + '" saved to database!');
+                    currentPolygon.setMap(null);
+                    document.getElementById('save-geofence').style.display = 'none';
+                    // Optionally re-trigger city dropdown to reload highlighted zones
+                    let citySelect = document.getElementById('city');
+                    let evt = new Event('change');
+                    citySelect.dispatchEvent(evt);
+                }).catch(function(error) {
+                    alert('Failed to save geofence.');
+                });
+            } else {
+                alert("Please draw a polygon first or provide a valid name.");
+            }
+        });
+    </script>
+@endpush --}}
