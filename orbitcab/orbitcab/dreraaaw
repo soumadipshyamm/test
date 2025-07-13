@@ -1,88 +1,329 @@
-@extends('layouts.app', [
-    'isSidebar' => true,
-    'isNavbar' => true,
-    'isFooter' => false,
-])
+@extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
+
 @section('content')
     <div class="container">
         <h2>Create Service Zone</h2>
         <div class="d-flex align-content-center flex-wrap gap-3">
             <x-site.back />
         </div>
+
         <form method="POST" action="{{ route('admin.service-zones.store') }}">
             @csrf
-            {{-- @dd(getServiceZoneCity('')) --}}
             <div class="form-group">
                 <label for="country">Country</label>
                 <select id="country" name="country_id" class="form-control" required>
                     <option value="">Select Country</option>
                 </select>
-
             </div>
+
             <div class="form-group">
                 <label for="state">State</label>
                 <select id="state" name="state_id" class="form-control" required>
                     <option value="">Select State</option>
                 </select>
             </div>
+
             <div class="form-group">
                 <label for="city">City</label>
                 <select id="city" name="city_id" class="form-control" required>
                     <option value="">Select City</option>
                 </select>
             </div>
-            <!-- Optional: Add coordinates field, or integrate Google Maps as before -->
+
+            <div class="form-group">
+                <label>Draw Service Area</label>
+                <div id="map" style="height: 400px; border: 1px solid #ccc;"></div>
+                <small class="form-text text-muted">Draw polygon to define service area. It will auto-save.</small>
+            </div>
+
             <button type="submit" class="btn btn-primary">Create Zone</button>
         </form>
     </div>
 @endsection
 
 @push('scripts')
+    {{-- Google Maps + Axios --}}
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=drawing"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
     <script>
-        // axios.defaults.baseURL=url();
-        document.addEventListener('DOMContentLoaded', function() {
+        let map, drawingManager, selectedPolygon = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
             const baseUrl = "{{ url('/') }}";
-            // Set Axios base URL globally
             axios.defaults.baseURL = baseUrl;
-            // Populate countries
+
+            // Load countries
             axios.get('/ajax/countries').then(res => {
                 let countrySelect = document.getElementById('country');
-                res.data.forEach(function(country) {
-                    countrySelect.innerHTML +=
-                        `<option value="${country.id}">${country.name}</option>`;
+                res.data.forEach(country => {
+                    countrySelect.innerHTML += `<option value="${country.id}">${country.name}</option>`;
                 });
             });
 
-            // Populate states based on selected country
-            document.getElementById('country').addEventListener('change', function() {
+            // States based on country
+            document.getElementById('country').addEventListener('change', function () {
                 let countryId = this.value;
-                let stateSelect = document.getElementById('state');
-                stateSelect.innerHTML = '<option value="">Select State</option>';
-                document.getElementById('city').innerHTML =
-                    '<option value="">Select City</option>';
+                document.getElementById('state').innerHTML = '<option value="">Select State</option>';
+                document.getElementById('city').innerHTML = '<option value="">Select City</option>';
                 if (!countryId) return;
+
                 axios.get(`/ajax/states/${countryId}`).then(res => {
-                    res.data.forEach(function(state) {
-                        stateSelect.innerHTML +=
-                            `<option value="${state.id}">${state.name}</option>`;
+                    res.data.forEach(state => {
+                        document.getElementById('state').innerHTML += `<option value="${state.id}">${state.name}</option>`;
                     });
                 });
             });
 
-            // Populate cities based on selected state
-            document.getElementById('state').addEventListener('change', function() {
+            // Cities based on state
+            document.getElementById('state').addEventListener('change', function () {
                 let stateId = this.value;
-                let citySelect = document.getElementById('city');
-                citySelect.innerHTML = '<option value="">Select City</option>';
+                document.getElementById('city').innerHTML = '<option value="">Select City</option>';
                 if (!stateId) return;
+
                 axios.get(`/ajax/cities/${stateId}`).then(res => {
-                    res.data.forEach(function(city) {
-                        citySelect.innerHTML +=
-                            `<option value="${city.id}">${city.name}</option>`;
+                    res.data.forEach(city => {
+                        document.getElementById('city').innerHTML += `<option value="${city.id}">${city.name}</option>`;
                     });
                 });
             });
+
+            // Init map
+            initMap();
         });
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: 22.5726, lng: 88.3639 },
+                zoom: 12,
+            });
+
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: google.maps.drawing.OverlayType.POLYGON,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ["polygon"]
+                },
+                polygonOptions: {
+                    editable: true,
+                    fillColor: '#007bff',
+                    fillOpacity: 0.2,
+                    strokeWeight: 2,
+                    clickable: false,
+                    draggable: false
+                }
+            });
+
+            drawingManager.setMap(map);
+
+            // On draw complete
+            google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+                if (selectedPolygon) {
+                    selectedPolygon.setMap(null);
+                }
+
+                selectedPolygon = event.overlay;
+                const path = selectedPolygon.getPath();
+                const coordinates = [];
+
+                for (let i = 0; i < path.getLength(); i++) {
+                    const latLng = path.getAt(i);
+                    coordinates.push({ lat: latLng.lat(), lng: latLng.lng() });
+                }
+
+                const cityId = document.getElementById('city').value;
+                if (!cityId) {
+                    alert("Select a city first.");
+                    selectedPolygon.setMap(null);
+                    return;
+                }
+
+                // Save polygon via AJAX
+                axios.post("{{ route('admin.service-zones.savePolygon') }}", {
+                    city_id: cityId,
+                    coordinates: coordinates
+                })
+                .then(res => {
+                    console.log("Polygon saved:", res.data);
+                })
+                .catch(err => {
+                    console.error("Save failed:", err.response?.data || err.message);
+                });
+            });
+        }
+    </script>
+@endpush
+***********************************************************************************************
+
+
+@extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
+
+@section('content')
+    <div class="container">
+        <h2>Create Service Zone</h2>
+
+        {{-- Back Button --}}
+        <div class="d-flex align-content-center flex-wrap gap-3">
+            <x-site.back />
+        </div>
+
+        {{-- Zone Creation Form --}}
+        <form method="POST" action="{{ route('admin.service-zones.store') }}">
+            @csrf
+
+            {{-- Country Dropdown --}}
+            <div class="form-group">
+                <label for="country">Country</label>
+                <select id="country" name="country_id" class="form-control" required>
+                    <option value="">Select Country</option>
+                </select>
+            </div>
+
+            {{-- State Dropdown --}}
+            <div class="form-group">
+                <label for="state">State</label>
+                <select id="state" name="state_id" class="form-control" required>
+                    <option value="">Select State</option>
+                </select>
+            </div>
+
+            {{-- City Dropdown --}}
+            <div class="form-group">
+                <label for="city">City</label>
+                <select id="city" name="city_id" class="form-control" required>
+                    <option value="">Select City</option>
+                </select>
+            </div>
+
+            {{-- Google Maps Area for Polygon Drawing --}}
+            <div class="form-group">
+                <label>Draw Service Area on Map</label>
+                <div id="map" style="height: 400px; border: 1px solid #ccc;"></div>
+                <small class="form-text text-muted">After selecting a city, draw the polygon. It auto-saves without a popup.</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Create Zone</button>
+        </form>
+    </div>
+@endsection
+
+@push('scripts')
+    {{-- Google Maps Drawing Library & Axios --}}
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=drawing"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        let map, drawingManager, selectedPolygon = null;
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const baseUrl = "{{ url('/') }}";
+            axios.defaults.baseURL = baseUrl;
+
+            /** Step 1: Populate Country Dropdown **/
+            axios.get('/ajax/countries').then(response => {
+                const countrySelect = document.getElementById('country');
+                response.data.forEach(country => {
+                    countrySelect.innerHTML += `<option value="${country.id}">${country.name}</option>`;
+                });
+            });
+
+            /** Step 2: Populate States on Country Change **/
+            document.getElementById('country').addEventListener('change', function () {
+                const countryId = this.value;
+                resetDropdowns(['state', 'city']);
+                if (!countryId) return;
+
+                axios.get(`/ajax/states/${countryId}`).then(response => {
+                    response.data.forEach(state => {
+                        document.getElementById('state').innerHTML += `<option value="${state.id}">${state.name}</option>`;
+                    });
+                });
+            });
+
+            /** Step 3: Populate Cities on State Change **/
+            document.getElementById('state').addEventListener('change', function () {
+                const stateId = this.value;
+                resetDropdowns(['city']);
+                if (!stateId) return;
+
+                axios.get(`/ajax/cities/${stateId}`).then(response => {
+                    response.data.forEach(city => {
+                        document.getElementById('city').innerHTML += `<option value="${city.id}">${city.name}</option>`;
+                    });
+                });
+            });
+
+            /** Step 4: Initialize Google Map with Drawing Tools **/
+            initMap();
+        });
+
+        function resetDropdowns(ids) {
+            ids.forEach(id => {
+                document.getElementById(id).innerHTML = `<option value="">Select ${capitalize(id)}</option>`;
+            });
+        }
+
+        function capitalize(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: 22.5726, lng: 88.3639 }, // Default to Kolkata
+                zoom: 12,
+            });
+
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: google.maps.drawing.OverlayType.POLYGON,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ["polygon"]
+                },
+                polygonOptions: {
+                    editable: true,
+                    fillColor: '#007bff',
+                    fillOpacity: 0.2,
+                    strokeWeight: 2,
+                    draggable: false
+                }
+            });
+
+            drawingManager.setMap(map);
+
+            /** Auto-Save Polygon When Drawn **/
+            google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+                if (selectedPolygon) selectedPolygon.setMap(null); // Remove old
+
+                selectedPolygon = event.overlay;
+                const path = selectedPolygon.getPath();
+                const coordinates = [];
+
+                for (let i = 0; i < path.getLength(); i++) {
+                    const latLng = path.getAt(i);
+                    coordinates.push({ lat: latLng.lat(), lng: latLng.lng() });
+                }
+
+                const cityId = document.getElementById('city').value;
+                if (!cityId) {
+                    alert("Please select a city before drawing.");
+                    selectedPolygon.setMap(null);
+                    return;
+                }
+
+                // Send polygon to backend without popup
+                axios.post("{{ route('admin.service-zones.savePolygon') }}", {
+                    city_id: cityId,
+                    coordinates: coordinates
+                })
+                .then(res => {
+                    console.log("Polygon saved successfully", res.data);
+                })
+                .catch(err => {
+                    console.error("Polygon save failed", err);
+                });
+            });
+        }
     </script>
 @endpush
