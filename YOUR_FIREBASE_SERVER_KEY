@@ -1,3 +1,19 @@
+bcf774f5bfcd145f3932055d
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 To send push notifications using Firebase via **cURL** in Laravel, you can create a reusable function or implement it in a Laravel Job for sending notifications in the background. Here’s how to use Firebase with cURL to send a notification to 100 users at once:
 
