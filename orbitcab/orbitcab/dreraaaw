@@ -1,3 +1,135 @@
+
+
+
+
+You're seeing **critical errors** because your Google Maps setup is **not using a vector map style with the required Feature Layer (`LOCALITY`) enabled**.
+
+Let’s break it down and solve it step-by-step.
+
+---
+
+## ❌ Errors You're Seeing Explained
+
+| Error Message                                         | Root Cause                                                      |
+| ----------------------------------------------------- | --------------------------------------------------------------- |
+| `The map is not a vector map`                         | You're using a default raster (non-vector) map.                 |
+| `FeatureLayer LOCALITY is not configured`             | Your map style does not include the **Locality** feature layer. |
+| `No FeatureLayers configured for data-driven styling` | Your custom map style is missing Feature Layer support.         |
+
+---
+
+## ✅ Solution: Use a Properly Configured Vector Map ID
+
+You **must create and use a custom vector map style** with **Feature Layers enabled**, especially `LOCALITY`.
+
+---
+
+### 🔧 Step-by-Step: Create a Working Vector Map ID with Feature Layers
+
+1. Go to the [Google Cloud Map Style Editor](https://console.cloud.google.com/maps/styler)
+2. Click **"Create Map Style"**
+3. Select **Vector Map**
+4. Choose **"Administrative Boundaries"** → ✅ Enable:
+
+   * **`Locality`** (for cities)
+   * You can optionally enable `Country`, `Province`, `District`, or `Postal Code` too
+5. Click **Next**, then **Save**
+6. Copy the **Map ID** shown
+
+---
+
+### ✅ Example Output You Need:
+
+This must replace this line in your HTML code:
+
+```js
+mapId: "YOUR_VECTOR_MAP_ID", // ← replace this with actual working Map ID
+```
+
+If you're using the default map (no custom style), this WILL NOT work.
+
+---
+
+## 🔍 Quick Checklist for Success
+
+| ✅ Item                           | Required? | Notes                                                |
+| -------------------------------- | --------- | ---------------------------------------------------- |
+| Google Maps JavaScript API key   | ✅         | Must have **Maps JS API** and **Places API** enabled |
+| Map is **Vector type**           | ✅         | Raster maps can't use `FeatureLayer.style()`         |
+| Feature Layer `LOCALITY` enabled | ✅         | Must be explicitly enabled in Map Style editor       |
+| Using custom `mapId`             | ✅         | Passed into `map` options as `mapId: "..."`          |
+| Libraries param in script tag    | ✅         | Must include `libraries=places` and `loading=async`  |
+
+---
+
+## ✅ Confirm with This Final Setup:
+
+```html
+<script
+  src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places&callback=initMap&loading=async"
+  async
+  defer
+></script>
+```
+
+Then in your `initMap()`:
+
+```js
+map = new google.maps.Map(document.getElementById("map"), {
+  center: { lat: 22.5726, lng: 88.3639 },
+  zoom: 12,
+  mapId: "YOUR_VECTOR_MAP_ID", // ✅ Replace this with actual working ID
+});
+```
+
+---
+
+### 🧪 Still not working?
+
+Run this in the browser DevTools console:
+
+```js
+console.log(map.mapId);
+console.log(map.getMapCapabilities().isVector);
+```
+
+* `isVector` must return `true`
+* If it’s `false`, you're **not using a vector map**, which is why the boundary highlight fails
+
+---
+
+Would you like me to:
+
+* Generate the map style and share the exact setup instructions?
+* Help debug your specific map ID?
+* Show how to check if your style has `LOCALITY` enabled?
+
+Just let me know.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @extends('layouts.app', [
     'isSidebar' => true,
     'isNavbar' => true,
