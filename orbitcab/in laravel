@@ -1,4 +1,220 @@
+@extends('layouts.app')
 
+@section('content')
+<div id="controls">
+    <input id="city-input" type="text" placeholder="Enter city name" />
+    <p><strong>Place ID:</strong></p>
+    <textarea id="place-id-txt" rows="2" readonly style="width:100%; resize: none;"></textarea>
+    
+    <button onclick="savePolygon()">Save Polygon</button>
+    <hr />
+    <div id="polygon-info"></div>
+</div>
+
+<div id="map"></div>
+
+<style>
+    #map {
+        height: 90vh;
+        width: 100%;
+    }
+
+    #controls {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: white;
+        z-index: 10;
+        padding: 12px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        font-family: Arial, sans-serif;
+        max-width: 300px;
+        overflow-y: auto;
+        max-height: 95vh;
+    }
+
+    #controls input,
+    #controls button {
+        width: 100%;
+        margin-bottom: 8px;
+        padding: 8px;
+        font-size: 14px;
+    }
+
+    #controls button {
+        background-color: #6200ee;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+
+    #polygon-info {
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+</style>
+
+<script>
+    let map, drawingManager, drawnPolygon = null, selectedPlace = null;
+
+    function initMap() {
+        map = new google.maps.Map(document.getElementById("map"), {
+            center: { lat: 22.57, lng: 88.36 },
+            zoom: 13,
+        });
+
+        const featureLayer = map.getFeatureLayer("LOCALITY");
+        initAutocomplete(featureLayer);
+        initDrawingManager();
+    }
+
+    function initAutocomplete(featureLayer) {
+        const input = document.getElementById("city-input");
+        const autocomplete = new google.maps.places.Autocomplete(input, {
+            types: ["(cities)"],
+            fields: ["place_id", "geometry", "name"],
+        });
+
+        autocomplete.bindTo("bounds", map);
+
+        autocomplete.addListener("place_changed", () => {
+            const place = autocomplete.getPlace();
+
+            if (!place.place_id || !place.geometry) {
+                alert("Please select a valid city from the suggestions.");
+                return;
+            }
+
+            selectedPlace = place;
+            document.getElementById("place-id-txt").value = place.place_id;
+
+            map.setCenter(place.geometry.location);
+            map.setZoom(14);
+
+            const style = {
+                strokeColor: "#810FCB",
+                strokeOpacity: 1.0,
+                strokeWeight: 2.0,
+                fillColor: "#810FCB",
+                fillOpacity: 0.4,
+            };
+
+            featureLayer.style = (params) => {
+                return params.feature.placeId === place.place_id ? style : null;
+            };
+        });
+    }
+
+    function initDrawingManager() {
+        drawingManager = new google.maps.drawing.DrawingManager({
+            drawingMode: null,
+            drawingControl: true,
+            drawingControlOptions: {
+                position: google.maps.ControlPosition.TOP_CENTER,
+                drawingModes: ["polygon"],
+            },
+            polygonOptions: {
+                fillColor: "#FF0000",
+                fillOpacity: 0.4,
+                strokeWeight: 2,
+                clickable: true,
+                editable: true,
+                zIndex: 1,
+            },
+        });
+
+        drawingManager.setMap(map);
+
+        google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+            if (drawnPolygon) {
+                drawnPolygon.setMap(null);
+            }
+
+            if (event.type === "polygon") {
+                drawnPolygon = event.overlay;
+                drawingManager.setDrawingMode(null);
+                showPolygonDetails(drawnPolygon);
+            }
+        });
+    }
+
+    function showPolygonDetails(polygon) {
+        const path = polygon.getPath();
+        const bounds = new google.maps.LatLngBounds();
+        const coords = [];
+
+        for (let i = 0; i < path.getLength(); i++) {
+            const latLng = path.getAt(i);
+            coords.push({ lat: latLng.lat(), lng: latLng.lng() });
+            bounds.extend(latLng);
+        }
+
+        const area = google.maps.geometry.spherical.computeArea(path);
+        const info = `
+📏 Area: ${(area / 1000000).toFixed(4)} km²
+🧭 Bounds:
+  SW: ${bounds.getSouthWest().lat().toFixed(5)}, ${bounds.getSouthWest().lng().toFixed(5)}
+  NE: ${bounds.getNorthEast().lat().toFixed(5)}, ${bounds.getNorthEast().lng().toFixed(5)}
+
+🧾 Coordinates:
+${JSON.stringify(coords, null, 2)}
+`;
+
+        drawnPolygon.polygonCoords = coords;
+        document.getElementById("polygon-info").textContent = info;
+    }
+
+    function savePolygon() {
+        if (!drawnPolygon || !selectedPlace) {
+            alert("Please select a city and draw a polygon first.");
+            return;
+        }
+
+        const postData = {
+            place_id: selectedPlace.place_id,
+            city_name: selectedPlace.name,
+            coordinates: drawnPolygon.polygonCoords,
+        };
+
+        fetch("{{ route('admin.service-zones.store') }}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            },
+            body: JSON.stringify(postData),
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert("Polygon saved successfully.");
+            console.log("Saved:", data);
+        })
+        .catch(error => {
+            console.error("Error saving polygon:", error);
+            alert("Failed to save polygon.");
+        });
+    }
+</script>
+
+<script
+    src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places,drawing,geometry&callback=initMap"
+    async defer></script>
+@endsection
+
+
+
+
+
+***********************************************************************************************************************************
+***********************************************************************************************************************************
+***********************************************************************************************************************************
+***********************************************************************************************************************************
 
 
 @extends('layouts.app', [
