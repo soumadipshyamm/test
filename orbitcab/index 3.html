@@ -1,3 +1,846 @@
+
+
+
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Draw & View Area Boundary</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      z-index: 10;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      font-family: Arial, sans-serif;
+      max-width: 300px;
+      overflow-y: auto;
+      max-height: 95vh;
+    }
+
+    #controls input,
+    #controls button {
+      width: 100%;
+      margin-bottom: 8px;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    #controls button {
+      background-color: #6200ee;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #polygon-info {
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <input id="city-input" type="text" placeholder="Enter city name" />
+    <p><strong>Place ID:</strong> <span id="place-id"></span></p>
+    <textarea id="place-id-txt" rows="2" readonly style="width:100%; resize: none;"></textarea>
+
+    <button onclick="savePolygon()">Save Polygon</button>
+    <button onclick="loadPolygons()">Load & Show Saved Polygons</button>
+    <hr />
+    <div id="polygon-info"></div>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    let map, drawingManager, drawnPolygon = null;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 22.57, lng: 88.36 },
+        zoom: 13,
+        mapId: "bcf774f5bfcd145f3932055d"
+      });
+
+      const featureLayer = map.getFeatureLayer("LOCALITY");
+      initAutocomplete(featureLayer);
+      initDrawingManager();
+    }
+
+    function initAutocomplete(featureLayer) {
+      const input = document.getElementById("city-input");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"],
+        fields: ["place_id", "geometry", "name"],
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.place_id || !place.geometry) {
+          alert("Please select a valid city from the suggestions.");
+          return;
+        }
+        document.getElementById("place-id-txt").value = place;
+        document.getElementById("place-id").textContent = place.place_id;
+        console.log("Selected Place ID:", place);
+        console.log("Selected Place ID 11:", place.geometry);
+        console.log("Selected Place ID 222:", place.geometry.location);
+
+        map.setCenter(place.geometry.location);
+        map.setZoom(14);
+
+        const style = {
+          strokeColor: "#810FCB",
+          strokeOpacity: 1.0,
+          strokeWeight: 2.0,
+          fillColor: "#810FCB",
+          fillOpacity: 0.4,
+        };
+
+        featureLayer.style = (params) => {
+          return params.feature.placeId === place.place_id ? style : null;
+        };
+      });
+    }
+
+    function initDrawingManager() {
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: null,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.4,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (drawnPolygon) {
+          drawnPolygon.setMap(null);
+        }
+        if (event.type === "polygon") {
+          drawnPolygon = event.overlay;
+          drawingManager.setDrawingMode(null);
+          showPolygonDetails(drawnPolygon);
+        }
+      });
+    }
+
+    function showPolygonDetails(polygon) {
+      const path = polygon.getPath();
+      const bounds = new google.maps.LatLngBounds();
+      const coords = [];
+
+      for (let i = 0; i < path.getLength(); i++) {
+        const latLng = path.getAt(i);
+        coords.push({ lat: latLng.lat(), lng: latLng.lng() });
+        bounds.extend(latLng);
+      }
+
+      const area = google.maps.geometry.spherical.computeArea(path); // in m²
+      const info = `
+📏 Area: ${(area / 1000000).toFixed(4)} km²
+🧭 Bounds:
+  SW: ${bounds.getSouthWest().lat().toFixed(5)}, ${bounds.getSouthWest().lng().toFixed(5)}
+  NE: ${bounds.getNorthEast().lat().toFixed(5)}, ${bounds.getNorthEast().lng().toFixed(5)}
+
+🧾 Coordinates:
+${JSON.stringify(coords, null, 2)}
+`;
+
+      document.getElementById("polygon-info").textContent = info;
+    }
+
+    function savePolygon() {
+      if (!drawnPolygon) {
+        alert("Please draw a polygon first.");
+        return;
+      }
+      showPolygonDetails(drawnPolygon);
+    }
+
+    function loadPolygons() {
+      const savedPolygons = [
+        [
+          { lat: 22.575, lng: 88.365 },
+          { lat: 22.578, lng: 88.362 },
+          { lat: 22.576, lng: 88.355 },
+          { lat: 22.572, lng: 88.356 },
+        ],
+      ];
+
+      const bounds = new google.maps.LatLngBounds();
+
+      savedPolygons.forEach(coords => {
+        const polygon = new google.maps.Polygon({
+          paths: coords,
+          strokeColor: "#009688",
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: "#009688",
+          fillOpacity: 0.35,
+        });
+
+        polygon.setMap(map);
+        coords.forEach(c => bounds.extend(c));
+        showPolygonDetails(polygon); // Show info for each loaded polygon
+      });
+
+      map.fitBounds(bounds);
+    }
+  </script>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing,geometry&callback=initMap"
+    async defer></script>
+</body>
+
+</html>
+
+
+
+
+<!-- <!DOCTYPE html>
+<html>
+<head>
+  <title>Draw Area Boundary (Feature Layer Highlight + Polygon Draw)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      z-index: 10;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      font-family: Arial, sans-serif;
+    }
+
+    #controls input,
+    #controls button {
+      width: 250px;
+      margin-bottom: 8px;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    #controls button {
+      background-color: #6200ee;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #controls p {
+      font-size: 13px;
+      margin: 4px 0;
+    }
+
+    #polygon-coords {
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <input id="city-input" type="text" placeholder="Enter city name" />
+    <p><strong>Place ID:</strong> <span id="place-id"></span></p>
+    <button onclick="savePolygon()">Save Polygon</button>
+    <div id="polygon-coords"></div>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    let map, featureLayer, drawingManager, drawnPolygon = null;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 20.793, lng: -156.005 },
+        zoom: 12,
+        mapId: "bcf774f5bfcd145f3932055d", // Replace with your custom Map ID
+      });
+
+      featureLayer = map.getFeatureLayer("LOCALITY");
+      initAutocomplete();
+      initDrawingManager();
+    }
+
+    function initAutocomplete() {
+      const input = document.getElementById("city-input");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"],
+        fields: ["place_id", "geometry", "name"],
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.place_id || !place.geometry) {
+          alert("Please select a valid city from the suggestions.");
+          return;
+        }
+
+        document.getElementById("place-id").textContent = place.place_id;
+        map.setCenter(place.geometry.location);
+        map.setZoom(14);
+
+        const style = {
+          strokeColor: "#810FCB",
+          strokeOpacity: 1.0,
+          strokeWeight: 2.0,
+          fillColor: "#810FCB",
+          fillOpacity: 0.4,
+        };
+
+        featureLayer.style = (params) => {
+          if (params.feature.placeId === place.place_id) {
+            return style;
+          }
+          return null;
+        };
+      });
+    }
+
+    function initDrawingManager() {
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: null,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#FF0000",
+          fillOpacity: 0.4,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+        if (drawnPolygon) {
+          drawnPolygon.setMap(null); // Remove previous
+        }
+        if (event.type === "polygon") {
+          drawnPolygon = event.overlay;
+          drawingManager.setDrawingMode(null);
+        }
+      });
+    }
+
+    function savePolygon() {
+      if (!drawnPolygon) {
+        alert("Please draw a polygon first.");
+        return;
+      }
+
+      const path = drawnPolygon.getPath();
+      const coordinates = [];
+
+      for (let i = 0; i < path.getLength(); i++) {
+        const point = path.getAt(i);
+        coordinates.push({ lat: point.lat(), lng: point.lng() });
+      }
+
+      document.getElementById("polygon-coords").textContent = JSON.stringify(coordinates, null, 2);
+
+      // Optional: send to server via fetch/AJAX
+      /*
+      fetch('/save-polygon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ coordinates })
+      });
+      */
+    }
+  </script>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing&callback=initMap" async defer></script>
+</body>
+</html> -->
+
+
+
+
+<!-- <!DOCTYPE html>
+<html>
+
+<head>
+  <title>Draw Area Boundary (Feature Layer Highlight + Polygon)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      z-index: 10;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      font-family: Arial, sans-serif;
+    }
+
+    #controls input,
+    #controls button {
+      width: 250px;
+      margin-bottom: 8px;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    #controls button {
+      background-color: #6200ee;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #controls p {
+      font-size: 13px;
+      margin: 4px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <input id="city-input" type="text" placeholder="Enter city name" />
+    <p><strong>Place ID:</strong> <span id="place-id"></span></p>
+    <button onclick="savePolygon()">Save Polygon</button>
+    <p><strong>Coordinates:</strong></p>
+    <textarea id="coords-output" rows="5" style="width:100%; font-size: 12px;"></textarea>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    let map, featureLayer, drawingManager, drawnPolygon = null;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 20.793, lng: -156.005 },
+        zoom: 12,
+        mapId: "bcf774f5bfcd145f3932055d", // ✅ Replace with your map ID
+      });
+
+      featureLayer = map.getFeatureLayer("LOCALITY");
+      initAutocomplete();
+      initDrawing();
+    }
+
+    function initAutocomplete() {
+      const input = document.getElementById("city-input");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        types: ["(cities)"],
+        fields: ["place_id", "geometry", "name"],
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.place_id || !place.geometry) {
+          alert("Please select a valid city from the suggestions.");
+          return;
+        }
+
+        document.getElementById("place-id").textContent = place.place_id;
+        map.setCenter(place.geometry.location);
+        map.setZoom(14);
+
+        const style = {
+          strokeColor: "#810FCB",
+          strokeOpacity: 1.0,
+          strokeWeight: 2.0,
+          fillColor: "#810FCB",
+          fillOpacity: 0.4,
+        };
+
+        featureLayer.style = (params) => {
+          if (params.feature.placeId === place.place_id) {
+            return style;
+          }
+          return null;
+        };
+      });
+    }
+
+    function initDrawing() {
+      drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ['polygon']
+        },
+        polygonOptions: {
+          fillColor: '#FF0000',
+          fillOpacity: 0.35,
+          strokeWeight: 2,
+          clickable: true,
+          editable: true,
+          zIndex: 1
+        }
+      });
+
+      drawingManager.setMap(map);
+
+      google.maps.event.addListener(drawingManager, 'overlaycomplete', function (event) {
+        if (drawnPolygon) {
+          drawnPolygon.setMap(null); // remove previous
+        }
+        drawnPolygon = event.overlay;
+      });
+    }
+
+    function savePolygon() {
+      if (!drawnPolygon) {
+        alert("Please draw a polygon first.");
+        return;
+      }
+
+      const path = drawnPolygon.getPath();
+      const coordinates = [];
+
+      for (let i = 0; i < path.getLength(); i++) {
+        const point = path.getAt(i);
+        coordinates.push({ lat: point.lat(), lng: point.lng() });
+      }
+
+      document.getElementById("coords-output").value = JSON.stringify(coordinates, null, 2);
+
+      // 🔹 You can also send the coordinates to the server using fetch/ajax
+      // fetch('/save-polygon', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ coordinates }),
+      // }).then(...);
+    }
+  </script>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing&callback=initMap"
+    async defer></script>
+</body>
+
+</html> -->
+
+
+
+
+
+<!-- <!DOCTYPE html>
+<html>
+
+<head>
+  <title>Smart Area Boundary Finder</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      z-index: 10;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+      font-family: Arial, sans-serif;
+    }
+
+    #controls input {
+      width: 280px;
+      padding: 10px;
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+
+    #details p {
+      margin: 6px 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <input id="location-input" type="text" placeholder="Search area or city..." />
+    <div id="details">
+      <p><strong>Place ID:</strong> <span id="place-id">-</span></p>
+      <p><strong>Latitude:</strong> <span id="lat">-</span></p>
+      <p><strong>Longitude:</strong> <span id="lng">-</span></p>
+      <p><strong>Address:</strong> <span id="address">-</span></p>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    let map, featureLayer;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 20.5937, lng: 78.9629 },
+        zoom: 5,
+        mapId: "bcf774f5bfcd145f3932055d", // Replace with your custom map ID with feature layer
+      });
+
+      featureLayer = map.getFeatureLayer("LOCALITY");
+      initAutocomplete();
+    }
+
+    function initAutocomplete() {
+      const input = document.getElementById("location-input");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        fields: ["place_id", "geometry", "formatted_address", "name"],
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.geometry || !place.place_id) {
+          alert("Please select a valid location.");
+          return;
+        }
+
+        const location = place.geometry.location;
+        const lat = location.lat();
+        const lng = location.lng();
+
+        // Update details
+        document.getElementById("place-id").textContent = place.place_id;
+        document.getElementById("lat").textContent = lat.toFixed(6);
+        document.getElementById("lng").textContent = lng.toFixed(6);
+        document.getElementById("address").textContent =
+          place.formatted_address || place.name;
+
+        // Move map
+        map.setCenter(location);
+        map.setZoom(13);
+
+        // Clear previous style and highlight new one
+        const style = {
+          strokeColor: "#ff5722",
+          strokeOpacity: 1.0,
+          strokeWeight: 2.5,
+          fillColor: "#ffc107",
+          fillOpacity: 0.3,
+        };
+
+        featureLayer.style = (params) => {
+          return params.feature.placeId === place.place_id ? style : null;
+        };
+      });
+    }
+  </script>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places&callback=initMap" async defer></script>
+</body>
+
+</html>
+ -->
+
+
+
+<!-- <!DOCTYPE html>
+<html>
+
+<head>
+  <title>Highlight Area & Show Location Details</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      z-index: 10;
+      padding: 12px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      font-family: Arial, sans-serif;
+    }
+
+    #controls input {
+      width: 280px;
+      margin-bottom: 10px;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    #details p {
+      font-size: 13px;
+      margin: 6px 0;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <input id="location-input" type="text" placeholder="Search any location..." />
+    <div id="details">
+      <p><strong>Place ID:</strong> <span id="place-id">-</span></p>
+      <p><strong>Latitude:</strong> <span id="lat">-</span></p>
+      <p><strong>Longitude:</strong> <span id="lng">-</span></p>
+      <p><strong>Formatted Address:</strong> <span id="address">-</span></p>
+      <p><strong>City ID (Locality Feature):</strong> <span id="city-id">-</span></p>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    let map, featureLayer, geocoder;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 20.5937, lng: 78.9629 }, // India center
+        zoom: 5,
+        mapId: "bcf774f5bfcd145f3932055d", // ✅ Replace with your vector map ID with LOCALITY enabled
+      });
+
+      featureLayer = map.getFeatureLayer("LOCALITY");
+      geocoder = new google.maps.Geocoder();
+
+      initAutocomplete();
+    }
+
+    function initAutocomplete() {
+      const input = document.getElementById("location-input");
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        fields: ["place_id", "geometry", "name", "formatted_address"],
+      });
+
+      autocomplete.bindTo("bounds", map);
+
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+
+        if (!place.geometry || !place.place_id) {
+          alert("Please select a valid location.");
+          return;
+        }
+
+        const location = place.geometry.location;
+        const lat = location.lat();
+        const lng = location.lng();
+
+        // Update display values
+        document.getElementById("place-id").textContent = place.place_id;
+        document.getElementById("lat").textContent = lat;
+        document.getElementById("lng").textContent = lng;
+        document.getElementById("address").textContent = place.formatted_address || place.name;
+
+        map.setCenter(location);
+        map.setZoom(14);
+
+        const style = {
+          strokeColor: "#007BFF",
+          strokeOpacity: 1.0,
+          strokeWeight: 2.5,
+          fillColor: "#2196F3",
+          fillOpacity: 0.3,
+        };
+
+        // Highlight feature layer if it matches the place_id
+        featureLayer.style = (params) => {
+          if (params.feature.placeId === place.place_id) {
+            document.getElementById("city-id").textContent = params.feature.placeId;
+            return style;
+          }
+          return null;
+        };
+
+        // Fallback if not matched with feature layer
+        document.getElementById("city-id").textContent = "-";
+      });
+    }
+  </script>
+
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places&callback=initMap" async
+    defer></script>
+</body>
+
+</html> -->
+
+
+
+<!-- ************************************************************************************************************************************************ -->
+
+
 <!DOCTYPE html>
 <html>
 
