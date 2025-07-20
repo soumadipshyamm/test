@@ -169,3 +169,280 @@ Larave'
     </script>
 @endpush
 
+
+
+&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+
+@push('styles')
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+            margin-top: 20px;
+            position: relative;
+        }
+
+        #status {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            z-index: 999;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+    </style>
+@endpush
+
+@section('content')
+<div class="d-flex align-content-center flex-wrap gap-3">
+    <x-site.back />
+</div>
+
+<h2>Geofence ({{ $cabZone->city->name }})</h2>
+
+<div style="position: relative;">
+    <div id="map"></div>
+    <div id="status">Click on the map to check point location.</div>
+</div>
+@endsection
+
+@push('scripts')
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=drawing,geometry"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        let map, drawingManager, currentPolygon = null;
+        let markers = [];
+        let zonePolygons = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap({{ (float)$cabZone->city->latitude }}, {{ (float)$cabZone->city->longitude }});
+            drawPredefinedPolygon({!! json_encode($cabZone->coordinates) !!});
+        });
+
+        function initMap(lat, lng) {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: lat, lng: lng },
+                zoom: 12,
+                mapTypeId: 'roadmap'
+            });
+
+            map.addListener("click", (e) => {
+                if (!currentPolygon) {
+                    updateStatus("Please draw the service area polygon first.", "orange");
+                    return;
+                }
+
+                markers.forEach(m => m.setMap(null));
+                markers = [];
+
+                const marker = new google.maps.Marker({
+                    position: e.latLng,
+                    map,
+                    title: "Test Point"
+                });
+
+                markers.push(marker);
+
+                const inside = google.maps.geometry.poly.containsLocation(e.latLng, currentPolygon);
+                updateStatus(
+                    inside ? "✅ Location is INSIDE the service area." : "❌ Location is OUTSIDE the service area.",
+                    inside ? "green" : "red"
+                );
+            });
+        }
+
+        function updateStatus(message, color) {
+            const statusBox = document.getElementById("status");
+            statusBox.innerText = message;
+            statusBox.style.color = color;
+        }
+
+        function drawPredefinedPolygon(predefinedCoordinates) {
+            const polygon = new google.maps.Polygon({
+                paths: predefinedCoordinates,
+                strokeColor: '#4285F4',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+                fillColor: '#4285F4',
+                fillOpacity: 0.25,
+                map: map
+            });
+
+            zonePolygons.push(polygon);
+            currentPolygon = polygon;
+
+            google.maps.event.addListener(polygon, 'mouseover', function() {
+                this.setOptions({
+                    strokeColor: '#FF0000',
+                    strokeWeight: 4,
+                    fillOpacity: 0.35
+                });
+            });
+
+            google.maps.event.addListener(polygon, 'mouseout', function() {
+                this.setOptions({
+                    strokeColor: '#4285F4',
+                    strokeWeight: 2,
+                    fillOpacity: 0.25
+                });
+            });
+        }
+
+        function saveGeofence() {
+            const areaName = prompt("Enter a name for this geofence:");
+            if (areaName && currentPolygon) {
+                const coords = currentPolygon.getPath().getArray().map(coord => ({
+                    lat: coord.lat(),
+                    lng: coord.lng()
+                }));
+
+                axios.post("{{ route('admin.cab-zones.store') }}", {
+                    name: areaName,
+                    coordinates: coords
+                }).then(() => {
+                    alert('Geofence "' + areaName + '" saved to database!');
+                    currentPolygon.setMap(null);
+                    document.getElementById('save-geofence').style.display = 'none';
+                }).catch(() => {
+                    alert('Failed to save geofence.');
+                });
+            } else {
+                alert("Please draw a polygon first or provide a valid name.");
+            }
+        }
+    </script>
+@endpush
+
+
+
+
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+
+@section('content')
+<h2>Geofence Drawing</h2>
+<div style="position: relative;">
+    <div id="map"></div>
+    <div id="status-box"></div>
+</div>
+@endsection
+
+@push('styles')
+<style>
+    #map {
+        height: 600px;
+        width: 100%;
+        margin-top: 20px;
+    }
+
+    #status-box {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: #fff;
+        padding: 10px 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        font-weight: bold;
+        z-index: 100;
+        display: none;
+        font-size: 14px;
+    }
+</style>
+@endpush
+
+@push('scripts')
+<script>
+    let map, drawingManager, currentPolygon = null;
+    let markers = [];
+
+    function initMap() {
+        map = new google.maps.Map(document.getElementById("map"), {
+            center: { lat: 22.5726, lng: 88.3639 }, // Default to Kolkata
+            zoom: 12,
+        });
+
+        drawingManager = new google.maps.drawing.DrawingManager({
+            drawingMode: google.maps.drawing.OverlayType.POLYGON,
+            drawingControl: true,
+            drawingControlOptions: {
+                position: google.maps.ControlPosition.TOP_CENTER,
+                drawingModes: ["polygon"],
+            },
+            polygonOptions: {
+                fillColor: "#FF0000",
+                fillOpacity: 0.3,
+                strokeWeight: 2,
+                clickable: false,
+                editable: false,
+                zIndex: 1,
+            },
+        });
+
+        drawingManager.setMap(map);
+
+        google.maps.event.addListener(drawingManager, "overlaycomplete", function (event) {
+            if (currentPolygon) {
+                currentPolygon.setMap(null); // Remove previous polygon
+            }
+
+            drawingManager.setDrawingMode(null); // Stop drawing mode
+
+            currentPolygon = event.overlay;
+
+            const path = currentPolygon.getPath().getArray();
+            console.log("Polygon Coordinates:", path.map(p => ({ lat: p.lat(), lng: p.lng() })));
+        });
+
+        // Handle map clicks
+        map.addListener("click", (e) => {
+            if (!currentPolygon) {
+                showStatus("Please draw the service area polygon first.", "orange");
+                return;
+            }
+
+            // Remove old markers
+            markers.forEach(m => m.setMap(null));
+            markers = [];
+
+            const marker = new google.maps.Marker({
+                position: e.latLng,
+                map: map,
+                title: "Clicked Point"
+            });
+            markers.push(marker);
+
+            const inside = google.maps.geometry.poly.containsLocation(e.latLng, currentPolygon);
+            showStatus(
+                inside ? "✅ Inside Service Area" : "❌ Outside Service Area",
+                inside ? "green" : "red"
+            );
+        });
+    }
+
+    function showStatus(message, color) {
+        const box = document.getElementById("status-box");
+        box.innerText = message;
+        box.style.color = color;
+        box.style.display = "block";
+    }
+</script>
+
+<!-- Load Google Maps JS API with Drawing + Geometry libraries -->
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=drawing,geometry&callback=initMap" async defer></script>
+@endpush
+
