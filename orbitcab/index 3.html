@@ -1,5 +1,166 @@
 <!DOCTYPE html>
 <html>
+
+<head>
+  <title>Cab Service Area - Geofencing</title>
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=geometry,drawing"></script>
+  <style>
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+
+    #status {
+      padding: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <h2>Define Cab Service Area (Geofencing)</h2>
+  Select a city : <select name="cities" id="citites" onchange="initMap(this.value)">
+    <option value="22.5726,88.3639" selected>Kolakta</option>
+    <option value="22.5754,88.4798">New Town</option>
+    <option value="22.5818,88.3362">Howrah</option>
+    <option value="28.6139,77.2088">Delhi NCR</option>
+  </select>
+  <div id="map"></div>
+  <div id="status">Click on the map to simulate a cab request location</div>
+
+  <script>
+
+    let map;
+    let serviceAreaPolygon = null;
+    let markers = [];
+
+    function initMap(location) {
+    var data = location;
+    //console.log(typeof data);
+      var limitedData = data.toString().split(",", 2);
+      //alert(limitedData[1]);
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: parseFloat(limitedData[0]), lng: parseFloat(limitedData[1]) }, // Kolkata center example
+        zoom: 12,
+      });
+
+      // Enable drawing tool
+      const drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: google.maps.drawing.OverlayType.POLYGON,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: ["polygon"],
+        },
+        polygonOptions: {
+          fillColor: "#00FF00",
+          fillOpacity: 0.2,
+          strokeWeight: 2,
+          clickable: false,
+          editable: true,
+          zIndex: 1,
+        },
+      });
+
+      drawingManager.setMap(map);
+
+      // Capture the polygon when completed
+      google.maps.event.addListener(drawingManager, "overlaycomplete", (event) => {
+        if (serviceAreaPolygon) {
+          serviceAreaPolygon.setMap(null);
+        }
+        serviceAreaPolygon = event.overlay;
+        drawingManager.setDrawingMode(null); // disable drawing again
+      });
+
+      // Click map to test location
+      map.addListener("click", (e) => {
+        if (!serviceAreaPolygon) {
+          alert("Please draw the service area polygon first.");
+          return;
+        }
+
+        // Clear previous markers
+        markers.forEach(m => m.setMap(null));
+        markers = [];
+
+        const latLng = e.latLng;
+        const marker = new google.maps.Marker({
+          position: latLng,
+          map: map,
+          title: "Cab Request Location",
+        });
+        markers.push(marker);
+
+        const inside = google.maps.geometry.poly.containsLocation(latLng, serviceAreaPolygon);
+        document.getElementById("status").innerText = inside
+          ? "Location is INSIDE the service area."
+          : "Location is OUTSIDE the service area.";
+        document.getElementById("status").style.color = inside ? "green" : "red";
+      });
+
+    }
+
+    // // let map;
+    // //@ts-ignore
+    let featureLayer;
+
+    async function initMap(location) {
+      var data = location;
+
+      // Request needed libraries.
+      const { Map } = await google.maps.importLibrary("maps");
+
+      var limitedData = data.toString().split(",", 2);
+
+
+        map = new Map(document.getElementById("map"), {
+        center: { lat: parseFloat(limitedData[0]), lng: parseFloat(limitedData[1]) }, // Kolkata center example
+        zoom: 12,
+        });
+        map = new Map(document.getElementById("map"), {
+          center: { lat: 20.773, lng: -156.01 }, // Hana, HI
+          zoom: 12,
+        // In the cloud console, configure this Map ID with a style that enables the
+        // "Locality" feature layer.
+        mapId: "a3efe1c035bad51b", // <YOUR_MAP_ID_HERE>,
+      });
+      //@ts-ignore
+      featureLayer = map.getFeatureLayer("LOCALITY");
+
+      // Define a style with purple fill and border.
+      //@ts-ignore
+      const featureStyleOptions = {
+        strokeColor: "#810FCB",
+        strokeOpacity: 1.0,
+        strokeWeight: 3.0,
+        fillColor: "#810FCB",
+        fillOpacity: 0.5,
+      };
+
+      // Apply the style to a single boundary.
+      //@ts-ignore
+      featureLayer.style = (options) => {
+        if (options.feature.placeId == "ChIJ0zQtYiWsVHkRk8lRoB1RNPo") {
+          // Hana, HI
+          return featureStyleOptions;
+        }
+      };
+    }
+
+    window.onload = initMap('22.5726,88.3639');
+  </script>
+</body>
+
+</html>
+
+
+
+
+
+<!DOCTYPE html>
+<html>
 <head>
   <title>Cab Service Area - Geofencing</title>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=geometry,drawing"></script>
