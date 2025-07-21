@@ -1,3 +1,8 @@
+const inside = google.maps.geometry.poly.containsLocation(latLng, serviceAreaPolygon);
+convert to laravel  php
+
+
+
 
 
 
