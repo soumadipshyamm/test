@@ -1,3 +1,83 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    public function checkMultipleZones(Request $request)
+    {
+        $request->validate([
+            // 'city_id' => 'required',
+            'lat' => 'required|numeric',
+            'lng' => 'required|numeric',
+        ]);
+        // dd($request->all());
+        $lat = $request->lat;
+        $lng = $request->lng;
+        // $zones = CabZone::where('city_id', $request->city_id)->get();
+        // dd($zones);
+        $zones = CabZone::all();
+        $insideZones = false;
+
+        // [
+        //     'status' => false
+        // ];
+        foreach ($zones as $zone) {
+            $inside = $this->pointInPolygon([$lat, $lng], $zone->coordinates);
+            if ($inside) {
+                $insideZones = $inside;
+                // [
+                //     'id' => $zone->id,
+                //     'name' => $zone->name,
+                //     'status' => $inside,
+                // ];
+            }
+        }
+        // dd($insideZones);
+        return response()->json([
+            'inside_zones' => $insideZones,
+            'message' => $insideZones
+                ? 'Location is inside one or more service areas.'
+                : 'Location is outside all service areas.',
+        ]);
+    }
+
+    private function pointInPolygon($point, $polygon)
+    {
+        $x = $point[0]; // lat
+        $y = $point[1]; // lng
+        $inside = false;
+        $n = count($polygon);
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            $xi = $polygon[$i]['lat'];
+            $yi = $polygon[$i]['lng'];
+            $xj = $polygon[$j]['lat'];
+            $yj = $polygon[$j]['lng'];
+            $intersect = (($yi > $y) != ($yj > $y))
+                && ($x < ($xj - $xi) * ($y - $yi) / (($yj - $yi) ?: 1e-10) + $xi);
+            if ($intersect) $inside = !$inside;
+        }
+        return $inside;
+    }
+
+
+
+*************************************************************************************************************************
+
+
+
+
+
+
+
 <!DOCTYPE html>
 <html>
 
