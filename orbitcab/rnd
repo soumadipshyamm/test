@@ -3,6 +3,68 @@
 
 
 
+public function checkMultipleZones(Request $request)
+{
+    $request->validate([
+        'lat' => 'required|numeric',
+        'lng' => 'required|numeric',
+    ]);
+
+    $lat = $request->lat;
+    $lng = $request->lng;
+
+    $zones = \App\Models\CabZone::all(); // Adjust model namespace if needed
+    $matchedZones = [];
+
+    foreach ($zones as $zone) {
+        // Parse coordinates: should be a JSON array of { lat, lng } objects
+        $coordinates = json_decode($zone->coordinates, true);
+
+        if (!is_array($coordinates)) {
+            continue;
+        }
+
+        // Use [lng, lat] format because lng = x, lat = y in point-in-polygon
+        if ($this->pointInPolygon([$lng, $lat], $coordinates)) {
+            $matchedZones[] = [
+                'id' => $zone->id,
+                'name' => $zone->name,
+            ];
+        }
+    }
+
+    return response()->json([
+        'inside_zones' => $matchedZones,
+        'status' => count($matchedZones) > 0,
+        'message' => count($matchedZones) > 0
+            ? 'Location is inside one or more service areas.'
+            : 'Location is outside all service areas.',
+    ]);
+}
+
+private function pointInPolygon(array $point, array $polygon): bool
+{
+    $x = $point[0]; // lng
+    $y = $point[1]; // lat
+    $inside = false;
+    $n = count($polygon);
+
+    for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+        $xi = $polygon[$i]['lng'];
+        $yi = $polygon[$i]['lat'];
+        $xj = $polygon[$j]['lng'];
+        $yj = $polygon[$j]['lat'];
+
+        $intersect = (($yi > $y) !== ($yj > $y)) &&
+            ($x < ($xj - $xi) * ($y - $yi) / (($yj - $yi) ?: 1e-10) + $xi);
+
+        if ($intersect) {
+            $inside = !$inside;
+        }
+    }
+
+    return $inside;
+}
 
 
 
