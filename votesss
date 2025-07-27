@@ -1,6 +1,62 @@
 
 
 
+
+
+
+
+
+[
+        {
+            "content": {
+                "description": null,
+                "upload_date_time": null,
+                "files": []
+            },
+            "_id": "68866d8a73f5f8562928ca52",
+            "competition_object_id": "686511f355f17472d78fac58",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "686511f355f17472d78fac5a",
+            "competition_name": "Annual Coding Challenge2",
+            "round_no": 2,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": null,
+            "participant_payment_intant_id": null,
+            "transaction_object_id": null,
+            "status": "PARTICIPATED",
+            "createdAt": "2025-07-27T18:18:50.060Z",
+            "updatedAt": "2025-07-27T18:18:50.079Z",
+            "__v": 0,
+            "id": "68866d8a73f5f8562928ca52"
+        },
+        {
+            "content": {
+                "description": null,
+                "upload_date_time": null,
+                "files": []
+            },
+            "_id": "68866d8a73f5f8562928ca59",
+            "competition_object_id": "686511f355f17472d78fac58",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "686511f355f17472d78fac5b",
+            "competition_name": "Annual Coding Challenge2",
+            "round_no": 3,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": null,
+            "participant_payment_intant_id": null,
+            "transaction_object_id": null,
+            "status": "PARTICIPATING",
+            "createdAt": "2025-07-27T18:18:50.077Z",
+            "updatedAt": "2025-07-27T18:18:50.077Z",
+            "__v": 0,
+            "id": "68866d8a73f5f8562928ca59"
+        }
+    ]
+
+
+
 export const getCompetitionDetails = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const { id } = req.params;
@@ -72,6 +128,13 @@ export const getCompetitionDetails = async (req: Request, res: Response): Promis
 		});
 	}
 };
+
+
+
+
+
+
+____________________________________________________------------------------------------------------------------------------------------------------------------------________________________
 
 import { Request, Response } from "express";
 import CompetitionModel from "../models/Competition"; // Adjust path as needed
