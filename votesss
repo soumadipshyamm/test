@@ -1,3 +1,156 @@
+
+
+import { Request, Response } from "express";
+import CompetitionModel from "../models/Competition"; // Adjust path as needed
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+dayjs.extend(duration);
+
+// Type for simplified round info
+interface RoundInfo {
+	status: 'ongoing' | 'upcoming';
+	time_status: string;
+	round: any;
+}
+
+const getTimeDifferenceMessage = (startDate: string): string => {
+	const diffMs = dayjs(startDate).diff(dayjs());
+	const dur = dayjs.duration(diffMs);
+
+	if (diffMs <= 0) return "Started";
+	return `Starts in ${dur.days()}d ${dur.hours()}h ${dur.minutes()}m`;
+};
+
+const findCurrentOrUpcomingRound = (rounds: any[]): RoundInfo | null => {
+	const now = dayjs();
+
+	// 1. Find ongoing round
+	const ongoing = rounds.find(round => {
+		const start = dayjs(round.start_date_time);
+		const end = dayjs(round.end_date_time);
+		return now.isAfter(start) && now.isBefore(end);
+	});
+
+	if (ongoing) {
+		return {
+			status: 'ongoing',
+			time_status: 'Ongoing now',
+			round: ongoing,
+		};
+	}
+
+	// 2. Sort and find nearest upcoming round
+	const upcoming = rounds
+		.filter(round => dayjs(round.start_date_time).isAfter(now))
+		.sort((a, b) => dayjs(a.start_date_time).diff(dayjs(b.start_date_time)))[0];
+
+	if (upcoming) {
+		return {
+			status: 'upcoming',
+			time_status: getTimeDifferenceMessage(upcoming.start_date_time),
+			round: upcoming,
+		};
+	}
+
+	return null;
+};
+
+export const currentRound = async (req: Request, res: Response): Promise<void> => {
+	try {
+		const competitionId = "6864d6a4f450a36e6f51a53d"; // TODO: make dynamic if needed
+		const competition = await CompetitionModel.findById(competitionId);
+
+		if (!competition || !competition.rounds?.length) {
+			return res.status(404).json({ message: "No rounds found." });
+		}
+
+		const result = findCurrentOrUpcomingRound(competition.rounds);
+
+		if (!result) {
+			return res.status(404).json({ message: "No current or upcoming rounds available." });
+		}
+
+		res.status(200).json(result);
+	} catch (error) {
+		console.error("Error in currentRound:", error);
+		res.status(500).json({ message: "Internal server error", error });
+	}
+};
+
+
+
+
+
+
+
+
+
+
+import { Request, Response } from "express";
+import CompetitionModel from "../models/Competition"; // Adjust as needed
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+
+dayjs.extend(duration);
+
+export const currentRound = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const competition = await CompetitionModel.findById("6864d6a4f450a36e6f51a53d");
+
+		if (!competition || !competition.rounds || competition.rounds.length === 0) {
+			return res.status(404).json({ message: "No rounds found" });
+		}
+
+		const now = new Date();
+
+		// Try to find ongoing round
+		let round = competition.rounds.find(r => {
+			const start = new Date(r.start_date_time);
+			const end = new Date(r.end_date_time);
+			return start <= now && now <= end;
+		});
+
+		if (round) {
+			return res.status(200).json({
+				status: "ongoing",
+				time_status: "Ongoing now",
+				round
+			});
+		}
+
+		// If no ongoing, find nearest upcoming
+		const upcomingRounds = competition.rounds
+			.filter(r => new Date(r.start_date_time) > now)
+			.sort((a, b) => new Date(a.start_date_time).getTime() - new Date(b.start_date_time).getTime());
+
+		if (upcomingRounds.length === 0) {
+			return res.status(404).json({ message: "No upcoming rounds available" });
+		}
+
+		const upcoming = upcomingRounds[0];
+		const timeUntil = dayjs(upcoming.start_date_time).diff(dayjs(), 'millisecond');
+		const durationObj = dayjs.duration(timeUntil);
+
+		return res.status(200).json({
+			status: "upcoming",
+			time_status: `Starts in ${durationObj.days()}d ${durationObj.hours()}h ${durationObj.minutes()}m`,
+			round: upcoming
+		});
+	} catch (error) {
+		console.error("Error determining current/upcoming round:", error);
+		return res.status(500).json({ message: "Internal server error" });
+	}
+};
+
+
+
+
+
+
+
+
+
+
 "rounds": [
         {
             "round_no": 1,
