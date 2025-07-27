@@ -1,0 +1,51 @@
+"rounds": [
+        {
+            "round_no": 1,
+            "price": 100,
+            "start_date_time": "2025-06-15T10:00:00.000Z",
+            "end_date_time": "2025-07-20T12:00:00.000Z",
+            "additional_vote_package": "68495783b453f6a14433bc85",
+            "checkpoints": "Checkpoint 1 details",
+            "free_voting_duration": 60,
+            "no_of_participant_proceeding": 10,
+            "_id": "6864d6a4f450a36e6f51a53e"
+        },
+        {
+            "round_no": 2,
+            "price": 150,
+            "start_date_time": "2025-07-20T10:00:00.000Z",
+            "end_date_time": "2025-07-21T12:00:00.000Z",
+            "additional_vote_package": "68540f999c1c30cc24e04563",
+            "checkpoints": "Checkpoint 2 details",
+            "free_voting_duration": 45,
+            "no_of_participant_proceeding": 8,
+            "_id": "6864d6a4f450a36e6f51a53f"
+        },
+        {
+            "round_no": 3,
+            "price": 200,
+            "start_date_time": "2025-07-25T10:00:00.000Z",
+            "end_date_time": "2025-07-28T12:00:00.000Z",
+            "additional_vote_package": "68495ed8e1f2f08d1c0053ec",
+            "checkpoints": "Checkpoint 3 details",
+            "free_voting_duration": 30,
+            "no_of_participant_proceeding": 5,
+            "_id": "6864d6a4f450a36e6f51a540"
+        }
+    ],
+
+export const currentRound = async (req: Request, res: Response): Promise<any> => {
+	const fetchCurrentRounds = await CompetitionModel.findById("6864d6a4f450a36e6f51a53d"); // Await the result of the asynchronous operation
+	console.log("Fetched current rounds:", fetchCurrentRounds);
+
+	currentRound.rounds.forEach(round => {
+		console.log(`Round No: ${round.round_no}, Price: ${round.price}`);
+	});
+
+	// Accessing the first round directly
+	const firstRound = data.rounds[0];
+	console.log(`First Round Checkpoints: ${firstRound.checkpoints}`);
+
+	// Send the fetched data as a response
+	res.status(200).json(fetchCurrentRounds);
+}
