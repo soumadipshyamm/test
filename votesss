@@ -1,5 +1,78 @@
 
 
+
+export const getCompetitionDetails = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const { id } = req.params;
+		const competition = await CompetitionModel.findById(id).populate('competition_type')
+			.populate('created_by')
+			.populate('creator_company')
+			.populate({
+				path: 'rounds.additional_vote_package'
+			}).lean();
+
+		if (!competition) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: "Competition not found",
+			});
+		}
+		const userDetails = await getDetailsByEmail(req.user.email);
+
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'User not authenticated.'
+			});
+		}
+		// Format competition response
+		const competitionDetails = await formatCompetitionResponse(competition, userDetails);
+
+		console.log("competitionDetails", competitionDetails);
+
+
+		// Find participants by competition
+		const findParticipantsByCompetition = await ParticipantModel.find({
+			competition_object_id: id,
+			participant_object_id: userDetails?._id,
+			status: { $in: ['PARTICIPATING', 'PARTICIPATED'] },
+			round_no: competitionDetails?.current_round
+		})
+			.populate([
+				{ path: 'transaction_object_id' },
+				{ path: 'round_object_id' }
+			])
+			.lean();
+
+		// Initialize variables
+		let participantCompetition = false;
+		let participantTransactionDetails = [];
+
+		// Check if participants were found
+		if (findParticipantsByCompetition && findParticipantsByCompetition.length > 0) {
+			participantCompetition = true; // Set to true if participants are found
+			participantTransactionDetails = findParticipantsByCompetition.map(participant => participant.transaction_object_id);
+		}
+
+		// Update competitionDetails object
+		competitionDetails.participantCompetition = participantCompetition;
+		competitionDetails.participantTransactionDetails = participantTransactionDetails;
+
+		console.log("----------competitionDetails", competitionDetails.current_round);
+		console.log("findParticipantsByCompetition------", findParticipantsByCompetition);
+
+
+		return res.status(StatusCodes.OK).json({
+			message: MESSAGE.get.succ,
+			Result: competitionDetails
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error
+		});
+	}
+};
+
 import { Request, Response } from "express";
 import CompetitionModel from "../models/Competition"; // Adjust path as needed
 import dayjs from "dayjs";
