@@ -1,5 +1,130 @@
 
 
+import { Request, Response } from "express";
+import { StatusCodes } from "http-status-codes";
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+import CompetitionModel from "../models/Competition";
+import ParticipantModel from "../models/Participant";
+import { getDetailsByEmail } from "../services/userService";
+import { formatCompetitionResponse } from "../utils/formatters";
+import MESSAGE from "../constants/messages";
+
+dayjs.extend(duration);
+
+// Interfaces
+interface IRound {
+	_id: string;
+	round_no: number;
+	start_date_time: string;
+	end_date_time: string;
+	[key: string]: any;
+}
+
+interface IParticipant {
+	_id: string;
+	round_no: number;
+	transaction_object_id?: any;
+	round_object_id?: any;
+	[key: string]: any;
+}
+
+interface ICompetition {
+	_id: string;
+	rounds: IRound[];
+	[key: string]: any;
+}
+
+export const getCompetitionDetails = async (req: Request, res: Response): Promise<void> => {
+	try {
+		const { id } = req.params;
+
+		// Fetch competition
+		const competition: ICompetition | null = await CompetitionModel.findById(id)
+			.populate('competition_type')
+			.populate('created_by')
+			.populate('creator_company')
+			.populate({ path: 'rounds.additional_vote_package' })
+			.lean();
+
+		if (!competition) {
+			res.status(StatusCodes.NOT_FOUND).json({ message: "Competition not found" });
+			return;
+		}
+
+		// Get user
+		const userDetails = await getDetailsByEmail(req.user.email);
+		if (!userDetails) {
+			res.status(StatusCodes.UNAUTHORIZED).json({ message: "User not authenticated" });
+			return;
+		}
+
+		// Determine current or upcoming round
+		const now = dayjs();
+		const sortedRounds: IRound[] = (competition.rounds || []).sort((a, b) =>
+			dayjs(a.start_date_time).diff(dayjs(b.start_date_time))
+		);
+
+		let roundStatus: "ongoing" | "upcoming" | "none" = "none";
+		let currentRound: IRound | undefined = sortedRounds.find(r =>
+			dayjs(r.start_date_time).isBefore(now) && dayjs(r.end_date_time).isAfter(now)
+		);
+
+		if (!currentRound) {
+			currentRound = sortedRounds.find(r => dayjs(r.start_date_time).isAfter(now));
+			if (currentRound) roundStatus = "upcoming";
+		} else {
+			roundStatus = "ongoing";
+		}
+
+		// Time status
+		let time_status = "Ongoing now";
+		if (roundStatus === "upcoming" && currentRound) {
+			const ms = dayjs(currentRound.start_date_time).diff(now);
+			const dur = dayjs.duration(ms);
+			time_status = `Starts in ${dur.days()}d ${dur.hours()}h ${dur.minutes()}m`;
+		}
+
+		// Format competition response
+		const competitionDetails: any = await formatCompetitionResponse(competition, userDetails);
+		competitionDetails.current_round = currentRound?.round_no ?? null;
+		competitionDetails.round_status = roundStatus;
+		competitionDetails.time_status = time_status;
+
+		// Fetch participant data
+		const participants: IParticipant[] = await ParticipantModel.find({
+			competition_object_id: id,
+			participant_object_id: userDetails._id,
+			status: { $in: ['PARTICIPATED', 'PARTICIPATING'] },
+			round_no: currentRound?.round_no
+		})
+			.populate([{ path: 'transaction_object_id' }, { path: 'round_object_id' }])
+			.lean();
+
+		competitionDetails.participantCompetition = participants.length > 0;
+		competitionDetails.participantTransactionDetails = participants.map(p => p.transaction_object_id);
+		competitionDetails.participantDetails = participants;
+
+		res.status(StatusCodes.OK).json({
+			message: MESSAGE.get.succ,
+			Result: competitionDetails
+		});
+	} catch (error) {
+		console.error("Error in getCompetitionDetails:", error);
+		res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error
+		});
+	}
+};
+
+
+
+
+
+
+
+
 
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
