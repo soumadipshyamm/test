@@ -1,3 +1,133 @@
+
+// models/Competition.model.ts
+import mongoose, { Schema, Document, Types } from 'mongoose';
+
+export interface IRound {
+  round_no: number;
+  price: number;
+  start_date_time: Date;
+  end_date_time: Date;
+  additional_vote_package: string;
+  checkpoints: string;
+  free_voting_duration: number;
+  no_of_participant_proceeding: number;
+}
+
+export interface ICompetition extends Document {
+  name: string;
+  rounds: IRound[];
+}
+
+const RoundSchema = new Schema<IRound>({
+  round_no: Number,
+  price: Number,
+  start_date_time: Date,
+  end_date_time: Date,
+  additional_vote_package: String,
+  checkpoints: String,
+  free_voting_duration: Number,
+  no_of_participant_proceeding: Number
+});
+
+const CompetitionSchema = new Schema<ICompetition>({
+  name: { type: String, required: true },
+  rounds: [RoundSchema]
+});
+
+export default mongoose.model<ICompetition>('Competition', CompetitionSchema);
+
+// models/Participant.model.ts
+import mongoose, { Schema, Document, Types } from 'mongoose';
+
+export interface IParticipant extends Document {
+  participant_object_id: Types.ObjectId;
+  competition_object_id: Types.ObjectId;
+  round_object_id: Types.ObjectId;
+  round_no: number;
+  status: 'PARTICIPATED' | 'PARTICIPATING';
+}
+
+const ParticipantSchema = new Schema<IParticipant>({
+  participant_object_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  competition_object_id: { type: Schema.Types.ObjectId, ref: 'Competition', required: true },
+  round_object_id: { type: Schema.Types.ObjectId, required: true },
+  round_no: Number,
+  status: { type: String, enum: ['PARTICIPATED', 'PARTICIPATING'], required: true }
+});
+
+export default mongoose.model<IParticipant>('Participant', ParticipantSchema);
+
+// controllers/getParticipantRoundStatuses.ts
+import { Request, Response } from 'express';
+import { StatusCodes } from 'http-status-codes';
+import mongoose from 'mongoose';
+import ParticipantModel from '../models/Participant.model';
+import CompetitionModel from '../models/Competition.model';
+import { getDetailsByEmail } from '../utils/auth';
+
+export const getParticipantRoundStatuses = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userDetails = await getDetailsByEmail(req.user.email);
+    if (!userDetails) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'User not authenticated.' });
+    }
+
+    const filterType = req.query.type as 'upcoming' | 'ongoing' | 'completed' | undefined;
+    const now = new Date();
+
+    const participants = await ParticipantModel.find({
+      participant_object_id: userDetails._id,
+      status: { $in: ['PARTICIPATED', 'PARTICIPATING'] }
+    })
+      .populate({ path: 'competition_object_id', select: 'name rounds' })
+      .lean();
+
+    const result = participants.map((p: any) => {
+      const comp = p.competition_object_id;
+      const round = comp?.rounds?.find((r: any) => r.round_no === p.round_no);
+
+      if (!round) return null;
+
+      let status: 'upcoming' | 'ongoing' | 'completed' = 'completed';
+      if (round.start_date_time <= now && round.end_date_time >= now) {
+        status = 'ongoing';
+      } else if (round.start_date_time > now) {
+        status = 'upcoming';
+      }
+
+      return {
+        competition_id: comp._id,
+        competition_name: comp.name,
+        round_no: round.round_no,
+        status,
+        round_start: round.start_date_time,
+        round_end: round.end_date_time
+      };
+    }).filter(Boolean);
+
+    let filteredResult = result;
+    if (filterType) {
+      filteredResult = result.filter(r => r.status === filterType);
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: 'Participant round status fetched successfully',
+      result: filteredResult
+    });
+  } catch (error) {
+    console.error('[getParticipantRoundStatuses] Error:', error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: 'Error fetching participant rounds',
+      error
+    });
+  }
+};
+
+
+
+
+
+
 import { Request, Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import mongoose, { Types } from 'mongoose';
