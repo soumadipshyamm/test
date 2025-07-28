@@ -1,6 +1,100 @@
 
 
 
+import { Request, Response } from "express";
+import { StatusCodes } from "http-status-codes";
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+dayjs.extend(duration);
+
+import CompetitionModel from "../models/Competition";
+import ParticipantModel from "../models/Participant";
+import { getDetailsByEmail } from "../helpers/userHelper";
+import { formatCompetitionResponse } from "../helpers/formatters";
+import { MESSAGE } from "../constants";
+
+export const getCompetitionDetails = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const { id } = req.params;
+
+		// Fetch competition
+		const competition = await CompetitionModel.findById(id)
+			.populate('competition_type')
+			.populate('created_by')
+			.populate('creator_company')
+			.populate({
+				path: 'rounds.additional_vote_package'
+			}).lean();
+
+		if (!competition) {
+			return res.status(StatusCodes.NOT_FOUND).json({ message: "Competition not found" });
+		}
+
+		// Authenticated user
+		const userDetails = await getDetailsByEmail(req.user.email);
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'User not authenticated.' });
+		}
+
+		// Determine current or upcoming round
+		const now = dayjs();
+		const sortedRounds = competition.rounds.sort((a, b) =>
+			dayjs(a.start_date_time).unix() - dayjs(b.start_date_time).unix()
+		);
+
+		let currentRound = sortedRounds.find(r =>
+			now.isAfter(dayjs(r.start_date_time)) && now.isBefore(dayjs(r.end_date_time))
+		);
+
+		let roundStatus = "ongoing";
+		let timeStatus = "Ongoing now";
+
+		if (!currentRound) {
+			currentRound = sortedRounds.find(r => dayjs(r.start_date_time).isAfter(now));
+			if (currentRound) {
+				roundStatus = "upcoming";
+				const diff = dayjs(currentRound.start_date_time).diff(now);
+				const dur = dayjs.duration(diff);
+				timeStatus = `Starts in ${dur.days()}d ${dur.hours()}h ${dur.minutes()}m`;
+			}
+		}
+
+		// Format competition response
+		const competitionDetails = await formatCompetitionResponse(competition, userDetails);
+		competitionDetails.current_round = currentRound?.round_no ?? null;
+		competitionDetails.current_round_object = currentRound ?? null;
+		competitionDetails.round_status = roundStatus;
+		competitionDetails.time_status = timeStatus;
+
+		// Fetch participant record for this round
+		const findParticipantsByCompetition = await ParticipantModel.find({
+			competition_object_id: id,
+			participant_object_id: userDetails._id,
+			status: { $in: ['PARTICIPATING', 'PARTICIPATED'] },
+			round_no: currentRound?.round_no
+		})
+			.populate([
+				{ path: 'transaction_object_id' },
+				{ path: 'round_object_id' }
+			])
+			.lean();
+
+		competitionDetails.participantCompetition = findParticipantsByCompetition.length > 0;
+		competitionDetails.participantTransactionDetails = findParticipantsByCompetition.map(p => p.transaction_object_id);
+		competitionDetails.participantDetails = findParticipantsByCompetition;
+
+		return res.status(StatusCodes.OK).json({
+			message: MESSAGE.get.succ,
+			Result: competitionDetails
+		});
+	} catch (error) {
+		console.error("Error in getCompetitionDetails:", error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error
+		});
+	}
+};
 
 
 
