@@ -1,5 +1,231 @@
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#####################################################################################################################################
+
+export const participantParticipatedCompetitionsList = async (req: Request, res: Response): Promise<any> => {
+	const user = await getDetailsByEmail(req.user.email);
+	const competitionId = req.params.competition_id;
+	const round_no = req.params.round_no;
+	const round_object_id = req.params.round_object_id;
+	// Check if user is authenticated
+	if (!user) {
+		return res.status(StatusCodes.UNAUTHORIZED).json({
+			message: 'User not authenticated.'
+		});
+	}
+
+	const participantId = user._id;
+	// Build the query object
+	const query: any = {
+		participant_object_id: participantId,
+		status: { $in: [PARTICIPATION_STATUS.participated, PARTICIPATION_STATUS.participating] }
+	};
+
+	// Add competition ID to the query if it exists
+	if (competitionId) {
+		query.competition_object_id = competitionId;
+	}
+	if (round_object_id) {
+		// query.round_no = round_no;
+		query.round_object_id = round_object_id;
+	}
+
+	// Fetch participant competitions based on the constructed query
+	const fetchParticipant = await ParticipantModel.find(query).lean();
+	// Check if any competitions were found
+	if (!fetchParticipant || fetchParticipant.length === 0) {
+		return res.status(StatusCodes.NOT_FOUND).json({
+			message: "No competitions found for this participant.",
+			result: []
+		});
+	}
+
+	// Return the fetched competitions
+	return res.status(StatusCodes.OK).json({
+		message: "Fetched participant competitions successfully.",
+		result: fetchParticipant
+	});
+};
+
+this is my code rember this
+
+
+this is a  "competition_object_id": {
+                "_id": "686511f355f17472d78fac58",
+                "name": "Annual Coding Challenge2",
+                "challenge_start_date": "2025-07-18T10:00:00.000Z",
+                "challenge_end_date": "2025-08-30T18:00:00.000Z",
+                "competition_type": "686f9c8144c81078efd12346",
+                "no_of_rounds": 3,
+                "rounds": [
+                    {
+                        "round_no": 1,
+                        "price": 100,
+                        "start_date_time": "2025-07-17T10:00:00.000Z",
+                        "end_date_time": "2025-07-17T12:00:00.000Z",
+                        "additional_vote_package": "68495783b453f6a14433bc85",
+                        "checkpoints": "Checkpoint 1 details",
+                        "free_voting_duration": 60,
+                        "no_of_participant_proceeding": 10,
+                        "_id": "686511f355f17472d78fac59"
+                    },
+                    {
+                        "round_no": 2,
+                        "price": 150,
+                        "start_date_time": "2025-07-20T10:00:00.000Z",
+                        "end_date_time": "2025-07-21T12:00:00.000Z",
+                        "additional_vote_package": "68495ed8e1f2f08d1c0053ec",
+                        "checkpoints": "Checkpoint 2 details",
+                        "free_voting_duration": 45,
+                        "no_of_participant_proceeding": 8,
+                        "_id": "686511f355f17472d78fac5a"
+                    },
+                    {
+                        "round_no": 3,
+                        "price": 200,
+                        "start_date_time": "2025-07-25T10:00:00.000Z",
+                        "end_date_time": "2025-07-30T12:00:00.000Z",
+                        "additional_vote_package": "68495ed8e1f2f08d1c0053ec",
+                        "checkpoints": "Checkpoint 3 details",
+                        "free_voting_duration": 30,
+                        "no_of_participant_proceeding": 5,
+                        "_id": "686511f355f17472d78fac5b"
+                    }
+                ],
+                "feature_image": "https://example.com/image.png",
+                "description": "This is the annual coding competition.",
+                "round_checkpoint_start_visibility": true,
+                "no_of_winner": 3,
+                "prizes": [
+                    {
+                        "name": "First Prize",
+                        "type": "money",
+                        "value": "500",
+                        "_id": "686511f355f17472d78fac5c"
+                    },
+                    {
+                        "name": "Second Prize",
+                        "type": "gift",
+                        "value": "Gift Card",
+                        "_id": "686511f355f17472d78fac5d"
+                    },
+                    {
+                        "name": "Third Prize",
+                        "type": "money",
+                        "value": "200",
+                        "_id": "686511f355f17472d78fac5e"
+                    }
+                ],
+                "status": "ACTIVE",
+                "file_type": [
+                    "JPEG",
+                    "PNG",
+                    "MP4"
+                ],
+                "created_by": "68765209c6ff9e5cb7072a90",
+                "creator_company": "685019ec02dc1f27d38947d5",
+                "creator_description": "Sample",
+                "createdAt": "2025-07-02T11:03:15.125Z",
+                "updatedAt": "2025-07-02T11:03:15.125Z",
+                "__v": 0
+            },
+
+
+
+
+and ther is a participant 
+"result": [
+        {
+            "_id": "68866d8773f5f8562928ca34",
+            "competition_object_id": "686511f355f17472d78fac58",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "686511f355f17472d78fac59",
+            "competition_name": "Annual Coding Challenge2",
+            "round_no": 1,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": "succeeded",
+            "participant_payment_intant_id": "pi_3Rps1mBuHqQNZg722SxsZWFo",
+            "transaction_object_id": "688788e2287424a0e2778d55",
+            "content": {
+                "description": null,
+                "upload_date_time": null,
+                "files": []
+            },
+            "status": "PARTICIPATED",
+            "createdAt": "2025-07-27T18:18:47.627Z",
+            "updatedAt": "2025-07-28T15:03:33.203Z",
+            "__v": 0
+        },
+        {
+            "_id": "68866d8a73f5f8562928ca52",
+            "competition_object_id": "686511f355f17472d78fac58",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "686511f355f17472d78fac5a",
+            "competition_name": "Annual Coding Challenge2",
+            "round_no": 2,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": null,
+            "participant_payment_intant_id": null,
+            "transaction_object_id": null,
+            "content": {
+                "description": null,
+                "upload_date_time": null,
+                "files": []
+            },
+            "status": "PARTICIPATED",
+            "createdAt": "2025-07-27T18:18:50.060Z",
+            "updatedAt": "2025-07-27T18:18:50.079Z",
+            "__v": 0
+        },
+        {
+            "_id": "68866d8a73f5f8562928ca59",
+            "competition_object_id": "686511f355f17472d78fac58",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "686511f355f17472d78fac5b",
+            "competition_name": "Annual Coding Challenge2",
+            "round_no": 3,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": null,
+            "participant_payment_intant_id": null,
+            "transaction_object_id": null,
+            "content": {
+                "description": null,
+                "upload_date_time": null,
+                "files": []
+            },
+            "status": "PARTICIPATING",
+            "createdAt": "2025-07-27T18:18:50.077Z",
+            "updatedAt": "2025-07-27T18:18:50.077Z",
+            "__v": 0
+        }
+    ]
+}
+
+make a function for participant list which have upcomming, ongoing, completed Competitions Round , 
+checking in competition_object_id."rounds": [
+        {"start_date_time": "2025-07-17T10:00:00.000Z",
+            "end_date_time": "2025-07-17T12:00:00.000Z",}]   to check currecnt date
+#####################################################################################################################################
+
+
 import { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import dayjs from "dayjs";
