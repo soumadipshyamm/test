@@ -1,3 +1,68 @@
+import { Request, Response } from 'express';
+import { StatusCodes } from 'http-status-codes';
+import mongoose, { Types } from 'mongoose';
+import ParticipantModel from '../models/Participant.model';
+import CompetitionModel from '../models/Competition.model';
+import { getDetailsByEmail } from '../utils/auth';
+
+export const getParticipantRoundStatuses = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userDetails = await getDetailsByEmail(req.user.email);
+    if (!userDetails) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'User not authenticated.' });
+    }
+
+    const participants = await ParticipantModel.find({
+      participant_object_id: userDetails._id,
+      status: { $in: ['PARTICIPATED', 'PARTICIPATING'] }
+    })
+      .populate({
+        path: 'competition_object_id',
+        select: 'name rounds'
+      })
+      .lean();
+
+    const now = new Date();
+    const result = participants.map((p: any) => {
+      const comp = p.competition_object_id;
+      const round = comp?.rounds?.find((r: any) => r.round_no === p.round_no);
+
+      if (!round) return null;
+
+      let status: 'upcoming' | 'ongoing' | 'completed' = 'completed';
+      if (round.start_date_time <= now && round.end_date_time >= now) {
+        status = 'ongoing';
+      } else if (round.start_date_time > now) {
+        status = 'upcoming';
+      }
+
+      return {
+        competition_id: comp._id,
+        competition_name: comp.name,
+        round_no: round.round_no,
+        status,
+        round_start: round.start_date_time,
+        round_end: round.end_date_time
+      };
+    }).filter(Boolean);
+
+    return res.status(StatusCodes.OK).json({
+      message: 'Participant round status fetched successfully',
+      result
+    });
+  } catch (error) {
+    console.error('[getParticipantRoundStatuses] Error:', error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: 'Error fetching participant rounds',
+      error
+    });
+  }
+};
+
+
+
+
+
 Property 'rounds' does not exist on type 'FlattenMaps<{ _id: ObjectId; }>'.ts(2339)
 Property 'name' does not exist on type 'FlattenMaps<{ _id: ObjectId; }>'.ts(2339)
 
