@@ -1,3 +1,5 @@
+Property 'rounds' does not exist on type 'FlattenMaps<{ _id: ObjectId; }>'.ts(2339)
+Property 'name' does not exist on type 'FlattenMaps<{ _id: ObjectId; }>'.ts(2339)
 
 
 
