@@ -1,5 +1,149 @@
 
 
+Here’s your **full optimized and complete code** with:
+
+* ✅ Participant details included
+* ✅ Clean async handling
+* ✅ Status filter (`upcoming`, `ongoing`, `completed`)
+* ✅ Populated competition and participant
+* ✅ Proper round status logic using `dayjs`
+* ✅ Safe and filtered output
+
+---
+
+### ✅ **Full Final Code: `getParticipantRoundStatuses`**
+
+```ts
+import { Request, Response } from 'express';
+import { StatusCodes } from 'http-status-codes';
+import dayjs from 'dayjs';
+import { ParticipantModel } from '../models/Participant';
+import { CompetitionModel } from '../models/Competition';
+import { getDetailsByEmail } from '../helpers/user.helper';
+import { get_round_status, getTimeStatus } from '../helpers/roundStatus.helper';
+
+export const getParticipantRoundStatuses = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const userDetails = await getDetailsByEmail(req.user.email);
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'User not authenticated.' });
+		}
+
+		const statusFilter = (req.query.status || req.params.status) as string;
+		const now = dayjs();
+
+		const participants = await ParticipantModel.find({
+			participant_object_id: userDetails._id,
+			status: { $in: ['PARTICIPATED', 'PARTICIPATING'] }
+		})
+			.populate('competition_object_id')
+			.populate('participant_object_id', 'name email phone gender') // Limit participant fields
+			.populate('transaction_object_id')
+			.lean();
+
+		const result = await Promise.all(participants.map(async (p: any) => {
+			const comp = p.competition_object_id;
+			if (!comp || !Array.isArray(comp.rounds)) return null;
+
+			const round = comp.rounds.find((r: any) => r.round_no === p.round_no);
+			if (!round) return null;
+
+			const roundStatus = get_round_status(round, now);
+			const time_status = getTimeStatus(round, now);
+
+			// Determine simplified round status
+			let status: 'upcoming' | 'ongoing' | 'completed' = 'completed';
+			if (dayjs(round.start_date_time).isAfter(now)) {
+				status = 'upcoming';
+			} else if (
+				dayjs(round.start_date_time).isBefore(now) &&
+				dayjs(round.end_date_time).isAfter(now)
+			) {
+				status = 'ongoing';
+			}
+
+			return {
+				current_rounds: [
+					{
+						...round,
+						roundStatus,
+						time_status
+					}
+				],
+				comp,
+				round_no: round.round_no,
+				status,
+				round_start: round.start_date_time,
+				round_end: round.end_date_time,
+				participant: p.participant_object_id
+			};
+		}));
+
+		// Filter out nulls (where no round or comp was matched)
+		const filtered = result.filter(Boolean);
+
+		// Apply status filter if provided
+		let filteredResult = filtered;
+		if (['upcoming', 'ongoing', 'completed'].includes(statusFilter)) {
+			filteredResult = filtered.filter(r => r?.status === statusFilter);
+		}
+
+		if (filteredResult.length === 0) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'No participant rounds found for the specified status.'
+			});
+		}
+
+		return res.status(StatusCodes.OK).json({
+			message: 'Participant round status fetched successfully',
+			result: filteredResult
+		});
+	} catch (error) {
+		console.error('[getParticipantRoundStatuses] Error:', error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: 'Error fetching participant rounds',
+			error
+		});
+	}
+};
+```
+
+---
+
+### 📦 **You Need These Helper Functions**
+
+If you haven’t written them yet:
+
+```ts
+// helpers/roundStatus.helper.ts
+export const get_round_status = (round: any, now: dayjs.Dayjs): string => {
+	if (!round?.start_date_time || !round?.end_date_time) return 'Invalid';
+	if (dayjs(now).isBefore(round.start_date_time)) return 'Upcoming';
+	if (dayjs(now).isAfter(round.end_date_time)) return 'Completed';
+	return 'Ongoing';
+};
+
+export const getTimeStatus = (round: any, now: dayjs.Dayjs): string => {
+	const diff = dayjs(round.end_date_time).diff(now, 'minute');
+	if (diff <= 0) return 'Ended';
+	if (diff < 60) return `${diff} minutes left`;
+	return `${Math.ceil(diff / 60)} hours left`;
+};
+```
+
+---
+
+### 📘 Want a matching schema for `CompetitionModel` or `ParticipantModel`?
+
+Let me know — I can provide those as well to complete the setup.
+
+Would you also like a sample route (`/participant/round-statuses`) to connect this controller?
+
+
+
+
+
+
 export const getParticipantRoundStatuses = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const userDetails = await getDetailsByEmail(req.user.email);
