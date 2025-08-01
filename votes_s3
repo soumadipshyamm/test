@@ -1,0 +1,51 @@
+export const uploadImageToS3Service = async (key: string, fileName: string, thumbnailBuffer: Buffer, mimeType: string) => {
+	fileName = fileName ? fileName : Date.now().toString();
+	const extension = getFileExtension(mimeType);
+	console.log("extension-->", extension);
+
+	const keyName = `${key}/${fileName}.${extension}`;
+	const command = new PutObjectCommand({
+		Bucket: bucketName,
+		Key: keyName,
+		Body: thumbnailBuffer,
+		ACL: "public-read",
+	});
+	console.log("Uploading to S3 with key:", command);
+
+	try {
+		const response = await s3Client.send(command);
+		if (response) {
+			return `${s3Url}/${keyName}`;
+		}
+		return null;
+	} catch (err) {
+		console.error(err);
+	}
+};
+
+export const uploadImageBase64Service = async (base64Image: string, folderName: string): Promise<any> => {
+
+	console.log("base64Image--", base64Image);
+	console.log("folderName--", folderName);
+
+	if (!base64Image) {
+		return null;
+		// throw new Error('No image provided');
+	}
+	const base64Data = Buffer.from(base64Image.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+
+	const mimeMatch = base64Image.match(/^data:(image\/\w+);base64,/);
+	if (!mimeMatch) {
+		throw new Error('Invalid base64 image format - missing MIME type');
+	}
+
+	const mimeType = mimeMatch[1];
+
+	const extension = getFileExtension(mimeType);
+	console.log("extension-->", extension);
+
+	const photoBuffer = base64Data;
+	const photoUrl = await uploadImageToS3Service(folderName, "", photoBuffer, "");
+	console.log("photo URL-->", photoUrl);
+	return photoUrl;
+};
