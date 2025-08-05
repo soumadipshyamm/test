@@ -1,0 +1,85 @@
+export const upcommingCompetitionList = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const currentDate = new Date(); // Get the current date
+		const userDetails = await getDetailsByEmail(req.user.email);
+
+		// Fetch upcoming competitions
+		const fetchUpcomingCompetitions = await CompetitionModel.find({
+			status: "ACTIVE",
+			challenge_start_date: { $gte: currentDate } // Filter for competitions starting from the current date
+		})
+			.populate('creator_company') // Populate the creator_company field
+			.populate('created_by')      // Populate the created_by field
+			.populate('competition_type') // Populate the competition_type field
+			.lean();
+
+		// Fetch saved competitions for the participant
+		const participant_object_id = userDetails?._id;
+		const savedCompetitions = await SavedCompetitionModel.find({ participant_object_id }).lean();
+
+		// Create a set of saved competition IDs for quick lookup
+		const savedCompetitionIds = new Set(savedCompetitions.map(comp => comp.competition_object_id.toString()));
+		const current_rounds = await currentRound("68920897fac654fd163e477a", res);
+
+		const competitionsWithSavedStatus = fetchUpcomingCompetitions.map(competition => ({
+			...competition,
+			competition_saved_status: savedCompetitionIds.has(competition._id.toString()) // Check if the competition is saved
+		}));
+
+
+		// Now you can return or use competitionsWithSavedStatus as needed
+		return res.status(StatusCodes.OK).json({
+			message: 'Fetched upcoming competitions with saved status',
+			Result: { competitionsWithSavedStatus, current_rounds }
+		});
+
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error: error // Include error message if available
+		});
+	}
+};
+
+
+{
+    "status": "upcoming",
+    "time_status": "Starts in 5d 18h 35m",
+    "round": {
+        "round_no": 1,
+        "price": 100,
+        "start_date_time": "2025-08-11T10:00:00.000Z",
+        "end_date_time": "2025-08-11T12:00:00.000Z",
+        "additional_vote_package": "68495783b453f6a14433bc85",
+        "checkpoints": "Checkpoint 1 details",
+        "free_voting_duration": 60,
+        "no_of_participant_proceeding": 10,
+        "_id": "68920897fac654fd163e477b"
+    }
+}
+
+
+
+ {
+                "_id": "688cbf0b03300380c684365f",
+                "competition_object_id": "688b5824de9c9b3067c07aa8",
+                "participant_object_id": "68765419c6ff9e5cb7072a94",
+                "round_object_id": "688b5824de9c9b3067c07aa9",
+                "competition_name": "Singing",
+                "round_no": 1,
+                "participant_name": "Ben Lashley",
+                "participant_payment_type": null,
+                "participant_payment_status": "SUCCESS",
+                "participant_payment_intant_id": "pi_3RrIsZBuHqQNZg723Um9cgKw",
+                "transaction_object_id": "688cbf0b03300380c684365b",
+                "content": {
+                    "description": null,
+                    "upload_date_time": null,
+                    "files": []
+                },
+                "status": "PARTICIPATED",
+                "createdAt": "2025-08-01T13:20:11.422Z",
+                "updatedAt": "2025-08-01T13:20:20.040Z",
+                "__v": 0
+            },
