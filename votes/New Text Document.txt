@@ -1,3 +1,386 @@
+
+Thanks for sharing your `upcommingCompetitionList` API and example response data. You're fetching upcoming competitions, checking if each one is saved by the participant, and returning both the competitions and the `current_rounds` from a hardcoded competition.
+
+---
+
+### ⚠️ **Problems / Optimizations Needed**
+
+1. 🔴 You’re calling `currentRound("68920897fac654fd163e477a", res);` with a **hardcoded competition ID** — this doesn't scale for multiple competitions.
+
+2. 🔴 You are not attaching the relevant `current_round` to **each** competition. You're fetching only **one**.
+
+3. ⚪ `competition_saved_status` is added properly, but your response doesn’t include current round or status per competition.
+
+---
+
+### ✅ Goal
+
+You likely want each **upcoming competition** to have:
+
+* `competition_saved_status: true/false`
+* `status: "upcoming" | "ongoing" | "completed"`
+* `time_status: "Starts in 5d 12h"` etc.
+* `current_round: { ... }` (only one round per competition, based on upcoming or ongoing round)
+
+---
+
+### ✅ Final Optimized Version of `upcommingCompetitionList`
+
+```ts
+export const upcommingCompetitionList = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const currentDate = new Date(); // Get current date/time
+		const userDetails = await getDetailsByEmail(req.user.email);
+		const participant_object_id = userDetails?._id;
+
+		// Fetch all upcoming competitions
+		const competitions = await CompetitionModel.find({
+			status: "ACTIVE",
+			challenge_start_date: { $gte: currentDate }
+		})
+			.populate('creator_company')
+			.populate('created_by')
+			.populate('competition_type')
+			.lean();
+
+		// Fetch saved competitions for current user
+		const savedCompetitions = await SavedCompetitionModel.find({ participant_object_id }).lean();
+		const savedIds = new Set(savedCompetitions.map(comp => comp.competition_object_id.toString()));
+
+		// Map over each competition to attach saved status and current round
+		const result = competitions.map(comp => {
+			const now = dayjs();
+
+			const upcomingOrOngoingRound = comp.rounds.find((round: any) => {
+				const start = dayjs(round.start_date_time);
+				const end = dayjs(round.end_date_time);
+				return now.isBefore(end); // Either upcoming or ongoing
+			});
+
+			let status: 'upcoming' | 'ongoing' | 'completed' = 'completed';
+			let time_status = 'Completed';
+
+			if (upcomingOrOngoingRound) {
+				const start = dayjs(upcomingOrOngoingRound.start_date_time);
+				const end = dayjs(upcomingOrOngoingRound.end_date_time);
+
+				if (start.isAfter(now)) {
+					status = 'upcoming';
+					const duration = start.diff(now);
+					time_status = `Starts in ${dayjs.duration(duration).humanize()}`;
+				} else if (start.isBefore(now) && end.isAfter(now)) {
+					status = 'ongoing';
+					const remaining = end.diff(now);
+					time_status = `Ends in ${dayjs.duration(remaining).humanize()}`;
+				}
+			}
+
+			return {
+				...comp,
+				competition_saved_status: savedIds.has(comp._id.toString()),
+				status,
+				time_status,
+				current_round: upcomingOrOngoingRound || null
+			};
+		});
+
+		return res.status(StatusCodes.OK).json({
+			message: 'Fetched upcoming competitions with saved status and current rounds',
+			result
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: 'Failed to fetch competitions',
+			error
+		});
+	}
+};
+```
+
+---
+
+### 🧪 Example Response Output
+
+```json
+{
+  "message": "Fetched upcoming competitions with saved status and current rounds",
+  "result": [
+    {
+      "_id": "688b5824de9c9b3067c07aa8",
+      "name": "Singing Competition",
+      "challenge_start_date": "2025-08-11T00:00:00.000Z",
+      "status": "ACTIVE",
+      "competition_saved_status": true,
+      "status": "upcoming",
+      "time_status": "Starts in 5 days",
+      "current_round": {
+        "round_no": 1,
+        "start_date_time": "2025-08-11T10:00:00.000Z",
+        "end_date_time": "2025-08-11T12:00:00.000Z",
+        "price": 100
+      }
+    },
+    {
+      "_id": "68xxx",
+      "name": "Dance Off",
+      "status": "ACTIVE",
+      "competition_saved_status": false,
+      "status": "ongoing",
+      "time_status": "Ends in 3 hours",
+      "current_round": {
+        ...
+      }
+    }
+  ]
+}
+```
+
+---
+
+### ✅ Summary of Enhancements
+
+| Feature                     | Status ✅ |
+| --------------------------- | -------- |
+| Saved status per user       | ✅        |
+| Upcoming or ongoing logic   | ✅        |
+| Human-readable time\_status | ✅        |
+| `current_round` attached    | ✅        |
+| Dynamic (no hardcoded ID)   | ✅        |
+
+---
+
+Let me know if you want:
+
+* Mongoose schema for `CompetitionModel`
+* Sample rounds data
+* Frontend integration guide to show this info cleanly
+
+Would you like a version that filters by `"ONGOING"` competitions only too?
+
+
+
+
+
+
+
+
+Here is the **fully optimized, modular, and advanced version** of your `upcommingCompetitionList` controller function in **TypeScript** using **Express**, **Mongoose**, and proper separation of logic for better scalability and readability.
+
+---
+
+### ✅ Features Included:
+
+* Upcoming, Ongoing, Completed competition categorization.
+* Round details and current round detection.
+* Saved competition status.
+* Participant details with transaction status.
+* Clean modular logic.
+
+---
+
+### 📁 Folder Structure Suggestion:
+
+```
+controllers/
+  competition.controller.ts
+services/
+  competition.service.ts
+  participant.service.ts
+utils/
+  time.utils.ts
+models/
+  Competition.ts
+  SavedCompetition.ts
+  Participant.ts
+routes/
+  competition.routes.ts
+```
+
+---
+
+### 🔧 `utils/time.utils.ts`
+
+```ts
+export const getTimeStatus = (start: Date, end: Date): string => {
+  const now = new Date();
+  if (now < start) return `Starts in ${getDuration(start, now)}`;
+  if (now >= start && now <= end) return `Ends in ${getDuration(end, now)}`;
+  return 'Completed';
+};
+
+const getDuration = (future: Date, now: Date): string => {
+  const ms = future.getTime() - now.getTime();
+  const d = Math.floor(ms / (1000 * 60 * 60 * 24));
+  const h = Math.floor((ms / (1000 * 60 * 60)) % 24);
+  const m = Math.floor((ms / (1000 * 60)) % 60);
+  return `${d}d ${h}h ${m}m`;
+};
+```
+
+---
+
+### ⚙️ `services/competition.service.ts`
+
+```ts
+import { CompetitionModel, SavedCompetitionModel } from '../models';
+import { Types } from 'mongoose';
+
+export const fetchCompetitions = async (filter: any) => {
+  return CompetitionModel.find(filter)
+    .populate('creator_company created_by competition_type')
+    .lean();
+};
+
+export const fetchSavedCompetitions = async (participantId: Types.ObjectId) => {
+  return SavedCompetitionModel.find({ participant_object_id: participantId }).lean();
+};
+```
+
+---
+
+### ⚙️ `services/participant.service.ts`
+
+```ts
+import { ParticipantModel } from '../models';
+
+export const fetchParticipantDetails = async (competitionId: string) => {
+  return ParticipantModel.find({ competition_object_id: competitionId }).lean();
+};
+```
+
+---
+
+### 🚀 Final Controller: `controllers/competition.controller.ts`
+
+```ts
+import { Request, Response } from 'express';
+import { StatusCodes } from 'http-status-codes';
+import { fetchCompetitions, fetchSavedCompetitions } from '../services/competition.service';
+import { getTimeStatus } from '../utils/time.utils';
+import { currentRound } from '../utils/currentRound';
+import { getDetailsByEmail } from '../utils/getUserDetails';
+import { fetchParticipantDetails } from '../services/participant.service';
+
+export const listCompetitions = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const currentDate = new Date();
+    const user = await getDetailsByEmail(req.user.email);
+    const participantId = user?._id;
+
+    const allCompetitions = await fetchCompetitions({ status: 'ACTIVE' });
+    const savedComps = await fetchSavedCompetitions(participantId);
+    const savedIds = new Set(savedComps.map(s => s.competition_object_id.toString()));
+
+    const categorized = {
+      upcoming: [],
+      ongoing: [],
+      completed: []
+    };
+
+    for (const comp of allCompetitions) {
+      const round = await currentRound(comp._id.toString(), res);
+      const start = new Date(round?.start_date_time);
+      const end = new Date(round?.end_date_time);
+
+      const status = currentDate < start ? 'upcoming'
+                  : currentDate > end ? 'completed'
+                  : 'ongoing';
+
+      const time_status = getTimeStatus(start, end);
+      const participants = await fetchParticipantDetails(comp._id.toString());
+
+      categorized[status].push({
+        ...comp,
+        round,
+        competition_saved_status: savedIds.has(comp._id.toString()),
+        status,
+        time_status,
+        participants
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: 'Competition list fetched',
+      result: categorized
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: 'Error fetching competitions',
+      error: err
+    });
+  }
+};
+```
+
+---
+
+### ✅ Sample Output JSON
+
+```json
+{
+  "message": "Competition list fetched",
+  "result": {
+    "upcoming": [
+      {
+        "_id": "688b5824de9c9b3067c07aa8",
+        "competition_name": "Singing",
+        "competition_saved_status": true,
+        "status": "upcoming",
+        "time_status": "Starts in 5d 18h 35m",
+        "round": {
+          "round_no": 1,
+          "price": 100,
+          "start_date_time": "2025-08-11T10:00:00.000Z",
+          "end_date_time": "2025-08-11T12:00:00.000Z",
+          ...
+        },
+        "participants": [
+          {
+            "participant_name": "Ben Lashley",
+            "status": "PARTICIPATED",
+            "participant_payment_status": "SUCCESS",
+            "participant_payment_intant_id": "pi_xxxxxx"
+          }
+        ]
+      }
+    ],
+    "ongoing": [],
+    "completed": []
+  }
+}
+```
+
+---
+
+### 🧠 Bonus Suggestions:
+
+* Add pagination to the competition list.
+* Cache the current round data using Redis.
+* Use DTOs or class-transformers for shaping output.
+
+---
+
+Let me know if you want me to implement this in your current codebase step-by-step.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export const upcommingCompetitionList = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const currentDate = new Date(); // Get the current date
@@ -83,3 +466,4 @@ export const upcommingCompetitionList = async (req: Request, res: Response): Pro
                 "updatedAt": "2025-08-01T13:20:20.040Z",
                 "__v": 0
             },
+
