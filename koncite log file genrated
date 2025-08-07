@@ -1,0 +1,39 @@
+<?php
+
+use Illuminate\Support\Facades\Log;
+use Monolog\Handler\StreamHandler;
+use Monolog\Logger;
+
+if (!function_exists('log_event')) {
+    function log_event($eventType, $data = null, $userId = null, $companyId = null)
+    {
+        $timestamp = now()->toDateTimeString();
+        $message = "[$timestamp] Event: $eventType";
+
+        // Append user ID if provided
+        if ($userId) {
+            $message .= " | User ID: $userId";
+        }
+
+        // Append company ID if provided
+        if ($companyId) {
+            $message .= " | Company ID: $companyId";
+        }
+
+        // Append additional data if provided
+        if ($data) {
+            $message .= " | Data: " . json_encode($data);
+        }
+
+        // Define the log path based on the event type and current date
+        $date = now()->format('Y-m-d');
+        $logFilePath = storage_path("logs/{$eventType}_{$date}.log");
+
+        // Create a new instance of Monolog
+        $logger = new Logger($eventType);
+        $logger->pushHandler(new StreamHandler($logFilePath, Logger::INFO));
+
+        // Log the message
+        $logger->info($message);
+    }
+}
