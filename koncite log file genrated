@@ -1,4 +1,33 @@
 
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+use Illuminate\Log\Logger as IlluminateLogger;
+use Illuminate\Support\Facades\Log;
+
+if (!function_exists('dynamic_channel_log')) {
+    function dynamic_channel_log(string $feature, string $message, string $functionName = '', string $level = 'info', array $context = [])
+    {
+        // Sanitize feature name
+        $feature = strtolower(trim($feature));
+
+        // Create dynamic log file name with date
+        $date = date('Y-m-d');
+        $fileName = storage_path("logs/{$feature}-{$date}.log");
+
+        // Create a new Monolog logger
+        $monolog = new Logger($feature);
+        $monolog->pushHandler(new StreamHandler($fileName, Logger::toMonologLevel($level)));
+
+        // Wrap Monolog inside Laravel Logger
+        $logger = new IlluminateLogger($monolog);
+
+        // Final message format
+        $fullMessage = $functionName ? "[{$functionName}] {$message}" : $message;
+
+        // Call appropriate log level method
+        $logger->{$level}($fullMessage, $context);
+    }
+}
 
 
 
