@@ -1,3 +1,66 @@
+
+
+
+
+
+<?php
+
+use Illuminate\Support\Facades\File;
+use Monolog\Logger;
+use Monolog\Handler\StreamHandler;
+
+if (!function_exists('log_daily')) {
+    function log_daily(string $message, string $level = 'info', array $context = null): void
+    {
+        static $loggers = [];
+
+        $date = now()->format('Y-m-d');
+        $logDirectory = storage_path('logs/custom');
+        $logFilePath = "{$logDirectory}/{$date}.log";
+
+        if (!File::exists($logDirectory)) {
+            File::makeDirectory($logDirectory, 0755, true);
+        }
+
+        if (!isset($loggers[$date])) {
+            $logger = new Logger("daily_{$date}");
+            $logger->pushHandler(new StreamHandler($logFilePath, Logger::DEBUG));
+            $loggers[$date] = $logger;
+        }
+
+        $logger = $loggers[$date];
+
+        $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 2);
+        $callerFunction = $backtrace[1]['function'] ?? 'global_scope';
+
+        $timestamp = now()->toDateTimeString();
+        $fullMessage = "[{$timestamp}] Function: {$callerFunction} | {$message}";
+
+        if ($context) {
+            $fullMessage .= ' | Context: ' . json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        if (method_exists($logger, $level)) {
+            $logger->$level($fullMessage);
+        } else {
+            $logger->info($fullMessage);
+        }
+    }
+}
+
+
+
+
+log_daily('User login request received', 'info', [
+            'user_id' => auth()->id(),
+            'ip' => $request->ip(),
+        ]);
+
+
+
+
+
+
 <?php
 
 use Illuminate\Support\Facades\Log;
