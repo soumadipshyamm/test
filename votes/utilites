@@ -1,3 +1,101 @@
+
+import mongoose from "mongoose";
+
+export const currentRound = async (competitionId: string, res: any): Promise<any> => {
+    try {
+        console.log("Fetching current round for competition ID:", competitionId);
+
+        // ✅ Validate competitionId format
+        if (!competitionId || !mongoose.Types.ObjectId.isValid(competitionId)) {
+            return res.status(400).json({ message: "Invalid competition ID" });
+        }
+
+        const competition = await CompetitionModel.findById(competitionId).lean();
+
+        // ✅ Ensure competition and rounds exist
+        if (!competition) {
+            return res.status(404).json({ message: "Competition not found" });
+        }
+        if (!Array.isArray(competition.rounds) || competition.rounds.length === 0) {
+            return res.status(404).json({ message: "No rounds found for this competition" });
+        }
+
+        const now = new Date();
+
+        // ✅ Filter only rounds with valid date fields
+        const validRounds = competition.rounds.filter(r => {
+            return r.start_date_time && r.end_date_time &&
+                   !isNaN(new Date(r.start_date_time).getTime()) &&
+                   !isNaN(new Date(r.end_date_time).getTime());
+        });
+
+        if (validRounds.length === 0) {
+            return res.status(404).json({ message: "No valid rounds with proper dates" });
+        }
+
+        // ✅ Find ongoing round
+        const ongoingRound = validRounds.find(r => {
+            const start = new Date(r.start_date_time);
+            const end = new Date(r.end_date_time);
+            return start <= now && now <= end;
+        });
+
+        if (ongoingRound) {
+            return res.json({
+                status: "ongoing",
+                time_status: "Ongoing now",
+                ...roundResponse(ongoingRound)
+            });
+        }
+
+        // ✅ Find nearest upcoming round
+        const upcomingRounds = validRounds
+            .filter(r => new Date(r.start_date_time) > now)
+            .sort((a, b) => new Date(a.start_date_time).getTime() - new Date(b.start_date_time).getTime());
+
+        if (upcomingRounds.length === 0) {
+            // ✅ Optional: return completed status instead of 404
+            return res.json({ status: "completed", message: "All rounds completed" });
+        }
+
+        const upcomingRound = upcomingRounds[0];
+        const timeStatus = typeof calculateDuration === "function"
+            ? calculateDuration(new Date(upcomingRound.start_date_time))
+            : "Starting soon";
+
+        return res.json({
+            status: "upcoming",
+            time_status: timeStatus,
+            ...roundResponse(upcomingRound)
+        });
+
+    } catch (error) {
+        console.error("Error determining current/upcoming round:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+// ✅ Helper to avoid code repetition
+const roundResponse = (round: any) => ({
+    round_no: round?.round_no || null,
+    price: round?.price || 0,
+    start_date_time: round?.start_date_time || null,
+    end_date_time: round?.end_date_time || null,
+    free_voting_duration: round?.free_voting_duration || 0,
+    no_of_participant_proceeding: round?.no_of_participant_proceeding || 0,
+    additional_vote_package: round?.additional_vote_package || [],
+    checkpoints: round?.checkpoints || [],
+    _id: round?._id || null
+});
+
+
+
+
+
+
+
+
+
 export const currentRound = async (competitionId: string, res: any): Promise<any> => {
     try {
         console.log("Fetching current round for competition ID*******:", competitionId);
