@@ -1,0 +1,66 @@
+export const currentRound = async (competitionId: string, res: any): Promise<any> => {
+    try {
+        console.log("Fetching current round for competition ID*******:", competitionId);
+
+        const competition = await CompetitionModel.findById(competitionId);
+
+        if (!competition || !competition.rounds || competition.rounds.length === 0) {
+            return res.status(404).json({ message: "No rounds found" });
+        }
+
+        const now = new Date();
+
+        // Try to find ongoing round
+        const ongoingRound = competition.rounds.find(r => {
+            const start = new Date(r.start_date_time);
+            const end = new Date(r.end_date_time);
+            return start <= now && now >= end;
+        });
+
+        if (ongoingRound) {
+            return {
+                status: "ongoing",
+                time_status: "Ongoing now",
+                round_no: ongoingRound.round_no,
+                price: ongoingRound.price, // Assuming price is a field in the round object
+                start_date_time: ongoingRound.start_date_time,
+                end_date_time: ongoingRound.end_date_time,
+                free_voting_duration: ongoingRound.free_voting_duration,
+                no_of_participant_proceeding: ongoingRound.no_of_participant_proceeding,
+                additional_vote_package: ongoingRound.additional_vote_package,
+                checkpoints: ongoingRound.checkpoints,
+                _id: ongoingRound._id
+
+            };
+        }
+
+        // If no ongoing, find nearest upcoming
+        const upcomingRounds = competition.rounds
+            .filter(r => new Date(r.start_date_time) > now)
+            .sort((a, b) => new Date(a.start_date_time).getTime() - new Date(b.start_date_time).getTime());
+
+        if (upcomingRounds.length === 0) {
+            return res.status(404).json({ message: "No upcoming rounds available" });
+        }
+
+        const upcomingRound = upcomingRounds[0];
+        const timeStatus = calculateDuration(new Date(upcomingRound.start_date_time)); // Convert to Date
+
+        return {
+            status: "upcoming",
+            time_status: timeStatus,
+            round_no: upcomingRound.round_no,
+            price: upcomingRound.price, // Assuming price is a field in the round object
+            start_date_time: upcomingRound.start_date_time,
+            end_date_time: upcomingRound.end_date_time,
+            free_voting_duration: upcomingRound.free_voting_duration,
+            no_of_participant_proceeding: upcomingRound.no_of_participant_proceeding,
+            additional_vote_package: upcomingRound.additional_vote_package,
+            checkpoints: upcomingRound.checkpoints,
+            _id: upcomingRound._id
+        };
+    } catch (error) {
+        console.error("Error determining current/upcoming round:", error);
+        return res.status(500).json({ message: "Internal server error" });
+    }
+};
