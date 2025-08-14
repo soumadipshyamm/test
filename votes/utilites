@@ -1,4 +1,5 @@
-
+– A scalable, web-based competition and voting platform developed with React and integrated with secure backend APIs. Enables users to register, join contests, submit entries, and participate in real-time voting with instant leaderboard updates.
+Features Stripe payment gateway for secure transactions, Amazon S3 for cloud-based media storage, and SMTP integration for automated email notifications. Built with a responsive UI for seamless access across devices, and equipped with admin dashboards for contest management, payment tracking, and analytics
 
 Contest Kingdom – A dynamic, web-based competition and voting platform built with React on the frontend and integrated with secure backend APIs. The system is designed to host and manage multiple contests, allowing participants to register, join competitions, and submit entries.
 It includes real-time voting functionality, enabling users to vote for their favorite contestants and view instant live result updates. The platform supports responsive design for seamless use on desktop and mobile devices, with features like authentication, user dashboards, and administrative controls for managing contests, tracking votes, and generating analytics.
