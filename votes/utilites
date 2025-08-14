@@ -1,4 +1,6 @@
 
+
+https://app.resumegiants.com/user/
 import mongoose from "mongoose";
 
 export const currentRound = async (competitionId: string, res: any): Promise<any> => {
