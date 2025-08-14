@@ -1,0 +1,188 @@
+Winners Are Grinners – Homepage Build Sheet
+
+1. Hero Section (Top of Page)
+
+Headline:
+ 
+Join the Game Where Everyone Wins
+ 
+Subheading:
+ 
+Your $999 membership is instantly activated with 1,000 points — tradeable, sellable, or spendable for up to two years.
+ 
+Rapid Ned Hero Video/Photo:
+ 
+Loop video or still of Rapid Ned from race footage (song optional for web auto-play rules).
+ 
+Tagline overlay: “From the track to the world — a mission in motion.”
+ 
+Key Hooks (bullet list with icons):
+ 
+🐾 Rapid Ned Leads the Way — Our champion face and fearless mascot.
+ 
+💳 1,000 Points Activated — Equal value, ready to use or sell — you’re never out of pocket.
+ 
+♻ Every Dollar in Play — 100% goes straight into the real-world impact economy.
+ 
+🏁 Win Together — If you’re winning, we’re winning — everyone’s winning.
+ 
+2. Membership Section (Mid Page)
+
+Headline:
+ 
+The Game That Gives Back
+ 
+Bullets:
+ 
+🍀 Join the Story — Step into a racing adventure where imagination meets reality, and you are part of the legend.
+ 
+💯 100% to the Cause — Every cent of available funds goes directly to helping people and animals in need — no middlemen, no skim.
+ 
+🎯 Play with Purpose — Your membership fuels the game’s journey and real-world projects through Rapid Ned’s Foundation.
+ 
+🏆 Live & Legendary — Follow the real dogs, real trainers, and real moments that shape our story.
+ 
+🤝 Be More Than a Player — You’re not just watching; you’re part of the team, part of the change.
+ 
+3. Call to Action (Bottom of Section)
+
+Button Text:
+ 
+Join the Race – Become a Member
+ 
+Note for Devs:
+ 
+Replace ALL existing homepage bullet points with the above.
+ 
+Keep Rapid Ned video/photo anchored at the top.
+ 
+Ensure icon bullets render clean on mobile + desktop.
+ 
+Membership CTA button links to signup/payment page.
+ 
+🍀 Join the Story — Step into a racing adventure where imagination meets reality, and you are part of the legend.
+ 
+💯 100% to the Cause — Every cent of available funds goes directly to helping people and animals in need — no middlemen, no skim.
+ 
+🎯 Play with Purpose — Your membership fuels the game’s journey and real-world projects through Rapid Ned’s Foundation.
+ 
+🏆 Live & Legendary — Follow the real dogs, real trainers, and real moments that shape our story.
+ 
+🤝 Be More Than a Player — You’re not just watching; you’re part of the team, part of the change.
+ 
+Final homepage copy
+ 
+Where each video/image goes
+ 
+Song usage instructions
+ 
+Square payment link integration
+ 
+Split Rim + Midnight Sprist Racing story flow
+ 
+Public vs. members-only iframe content
+ 
+Winners Are Grinners – Homepage Implementation Brief
+
+1. Hero Section (Top of Page)
+
+Headline:
+ 
+Join the Game Where Everyone Wins
+ 
+Subheading:
+ 
+Your $999 membership is instantly activated with 1,000 points — tradeable, sellable, or spendable for up to two years.
+ 
+Video:
+ 
+Public: Short 15–20 second cut from Split Rim’s race: walk-in (3 sec), break from boxes (5 sec), win moment (5 sec), Rapid Ned overlay/logo (3 sec).
+ 
+Audio: Hook/chorus from provided 4-min song file (fade in/out).
+ 
+Format: MP4, web-optimised, autoplay muted by default, looped.
+ 
+Bullets with icons:
+ 
+🐾 Rapid Ned Leads the Way — Our champion face and fearless mascot.
+ 
+💳 1,000 Points Activated — Equal value, ready to use or sell — you’re never out of pocket.
+ 
+♻ Every Dollar in Play — 100% goes straight into the real-world impact economy.
+ 
+🏁 Win Together — If you’re winning, we’re winning — everyone’s winning.
+ 
+CTA Button:
+ 
+Text: Join the Race – Become a Member
+ 
+Link: Square payment page (insert final link here).
+ 
+2. Split Rim – Our First Winner
+
+Headline:
+ 
+Split Rim – Our First Winner, Ned’s Best Mate
+ 
+Video (Public): Highlight clip embedded in iframe (see hero spec).
+
+Video (Members-only): Full 4-min cinematic — walking into boxes, full race, celebration — with your full song replacing commentary.
+ 
+Copy:
+ 
+When Split Rim took the track for the first time, he didn’t just run — he made history for our team.
+
+And he’s not running alone. With Rapid Ned by his side, we’re building something no one’s seen before.
+ 
+CTA Button:
+ 
+Celebrate the Win – Join the Race (links to Square signup).
+ 
+3. Midnight Sprist Racing – Silver Bracelet Legacy
+
+Headline:
+ 
+From Silver Bracelets to First Starts
+ 
+Layout:
+ 
+Left: Clip of Midnight Sprist Racing winning Silver Bracelet.
+ 
+Right: Text —
+ 
+Our story is built on champions. Midnight Sprist Racing brought home the Silver Bracelet. Now Split Rim takes the first step toward their own glory — with you on the team.
+ 
+4. Membership Benefits
+
+Headline:
+ 
+The Game That Gives Back
+ 
+Bullets:
+ 
+🍀 Join the Story — Step into a racing adventure where imagination meets reality, and you are part of the legend.
+ 
+💯 100% to the Cause — Every cent of available funds goes directly to helping people and animals in need — no middlemen, no skim.
+ 
+🎯 Play with Purpose — Your membership fuels the game’s journey and real-world projects through Rapid Ned’s Foundation.
+ 
+🏆 Live & Legendary — Follow the real dogs, real trainers, and real moments that shape our story.
+ 
+🤝 Be More Than a Player — You’re not just watching; you’re part of the team, part of the change.
+ 
+5. Technical Requirements for Dev Team
+
+Replace all existing homepage bullets with above copy.
+ 
+Keep hero Rapid Ned + Split Rim video at top.
+ 
+Ensure autoplay muted + click to enable sound.
+ 
+Mobile + desktop responsive.
+ 
+Square payment link live and tested.
+ 
+Public page: short hero cut.
+ 
+Members-only page: full 4-min cinematic with song.
+ 
