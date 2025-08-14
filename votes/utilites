@@ -1,5 +1,14 @@
 
 
+Contest Kingdom – A dynamic, web-based competition and voting platform built with React on the frontend and integrated with secure backend APIs. The system is designed to host and manage multiple contests, allowing participants to register, join competitions, and submit entries.
+It includes real-time voting functionality, enabling users to vote for their favorite contestants and view instant live result updates. The platform supports responsive design for seamless use on desktop and mobile devices, with features like authentication, user dashboards, and administrative controls for managing contests, tracking votes, and generating analytics.
+
+
+
+
+
+
+
 https://app.resumegiants.com/user/
 import mongoose from "mongoose";
 
