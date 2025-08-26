@@ -1,0 +1,417 @@
+export const getParticipantRoundStatuses = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const userDetails = await getDetailsByEmail(req.user.email);
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'User not authenticated.' });
+		}
+		const statusFilter = req.params.status as 'upcoming' | 'ongoing' | 'completed';
+		const now = dayjs();
+		const participants = await ParticipantModel.find({
+			participant_object_id: userDetails._id,
+			status: { $in: ['PARTICIPATING'] }
+		})
+			.populate('competition_object_id')
+			.populate('participant_object_id') // Limit participant fields
+			.populate('transaction_object_id')
+			.lean();
+
+		console.log("participants-----------------------", participants);
+
+		// const result = await Promise.all(participants.map(async (p: any, index: number) => {
+		// 	const comp = p.competition_object_id;
+		// 	if (!comp || !Array.isArray(comp.rounds)) return null;
+		// 	const round = comp.rounds.find((r: any) => r.round_no === p.round_no);
+		// 	if (!round) return null;
+		// 	const roundStatus = get_round_status(round, now);
+		// 	const time_status = getTimeStatus(round, now);
+
+		// 	console.log("roundStatus-----------------------", roundStatus);
+
+		// 	// Determine simplified round status
+		// 	let status: 'upcoming' | 'ongoing' | 'completed' = 'completed';
+		// 	if (dayjs(round.start_date_time).isAfter(now)) {
+		// 		status = 'upcoming';
+		// 	} else if (
+		// 		dayjs(round.start_date_time).isBefore(now) &&
+		// 		dayjs(round.end_date_time).isAfter(now)
+		// 	) {
+		// 		status = 'ongoing';
+		// 	}
+
+		// 	return {
+		// 		current_rounds: [
+		// 			{
+		// 				...round,
+		// 				roundStatus,
+		// 				time_status: time_status,
+		// 				status: status
+		// 			}
+		// 		],
+		// 		competition: comp,
+		// 		round_no: round.round_no,
+		// 		participant: {
+		// 			...p.participant_object_id,
+		// 			participantRoundStatus: participants.length > 0 ? participants[0].status : null,
+		// 			participantRoundPaymentStatus: participants.length > 0 ? participants[0].participant_payment_status : null
+		// 		},
+		// 	};
+		// }));
+		// console.log("result-----------------------", result);
+
+		// Filter out nulls (where no round or comp was matched)
+		// const filtered = result.filter(Boolean);
+		// // Apply status filter if provided
+		// let filteredResult = filtered;
+		// // console.log("filtered-----------------------", filtered, statusFilter);
+
+		// if (['upcoming', 'ongoing', 'completed'].includes(statusFilter)) {
+		// 	// console.log("statusFilter-----------------------", statusFilter);
+
+		// 	filteredResult = filtered.filter(r => r?.current_rounds[0]?.status == statusFilter);
+		// 	// console.log("filteredResult-----------------------", filteredResult);
+		// }
+
+		// if (filteredResult.length === 0) {
+		// 	return res.status(StatusCodes.NOT_FOUND).json({
+		// 		message: 'No participant rounds found for the specified status.'
+		// 	});
+		// }
+
+
+		if (!participants.length) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'No active participations found.',
+			});
+		}
+
+		const result = [];
+
+		// Process each participant and flatten rounds
+		for (const p of participants) {
+			const comp = p.competition_object_id as any;
+			if (!comp || !Array.isArray(comp?.rounds)) continue;
+
+			for (const round of comp?.rounds) {
+				// Determine round status
+				const start = dayjs(round.start_date_time);
+				const end = dayjs(round.end_date_time);
+
+				let roundStatus: 'upcoming' | 'ongoing' | 'completed';
+
+				switch (true) {
+					case start.isAfter(now):
+						roundStatus = 'upcoming';
+						break;
+					case start.isBefore(now) && end.isAfter(now):
+						roundStatus = 'ongoing';
+						break;
+					default:
+						roundStatus = 'completed';
+						break;
+				}
+
+				// Apply filter: only include if matches statusFilter
+				if (statusFilter && ['upcoming', 'ongoing', 'completed'].includes(statusFilter)) {
+					if (roundStatus !== statusFilter) {
+						continue; // Skip if doesn't match
+					}
+				}
+
+				// Push one entry per round
+				result.push({
+					current_rounds: [
+						{
+							...round,
+							status: roundStatus, // Add simplified status
+						},
+					],
+					competition: {
+						_id: comp._id,
+						name: comp.name,
+						challenge_start_date: comp.challenge_start_date,
+						challenge_end_date: comp.challenge_end_date,
+						competition_type: comp.competition_type,
+						no_of_rounds: comp.no_of_rounds,
+					},
+					round_no: round.round_no,
+					participant: {
+						...p.participant_object_id,
+						participantRoundStatus: p.status,
+						participantRoundPaymentStatus: p.participant_payment_status,
+					},
+				});
+			}
+		}
+
+		// Final result
+		if (result.length === 0) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: `No rounds found for status: ${statusFilter || 'all'}.`,
+			});
+		}
+
+		return res.status(StatusCodes.OK).json({
+			message: 'Participant round status fetched successfully',
+			result: participants
+		});
+
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: "An error occurred during the payment process.",
+			error: error
+		});
+	}
+};
+
+
+
+
+
+
+
+{
+    "message": "Participant round status fetched successfully",
+    "result": [
+        {
+            "_id": "68a5d162a8c4f8d0b0430153",
+            "competition_object_id": {
+                "_id": "689c2b975367f0ed84307c22",
+                "name": "Test Competition",
+                "challenge_start_date": "2025-08-25T00:00:00.000Z",
+                "challenge_end_date": "2025-08-28T00:00:00.000Z",
+                "competition_type": "685bf3baa025dd415af51cfe",
+                "no_of_rounds": 3,
+                "rounds": [
+                    {
+                        "round_no": 1,
+                        "price": 160,
+                        "start_date_time": "2025-08-13T14:56:00.000Z",
+                        "end_date_time": "2025-08-14T11:45:00.000Z",
+                        "additional_vote_package": "686564f9a3b58ebc3e9c18d9",
+                        "checkpoints": "RCD1",
+                        "free_voting_duration": 5,
+                        "no_of_participant_proceeding": 33,
+                        "status": "COMPLETED",
+                        "_id": "689c2b975367f0ed84307c23"
+                    },
+                    {
+                        "round_no": 2,
+                        "price": 170,
+                        "start_date_time": "2025-08-14T12:45:00.000Z",
+                        "end_date_time": "2025-08-15T11:45:00.000Z",
+                        "additional_vote_package": "6865651ba3b58ebc3e9c18e6",
+                        "checkpoints": "RCD2",
+                        "free_voting_duration": 8,
+                        "no_of_participant_proceeding": 22,
+                        "status": "COMPLETED",
+                        "_id": "689c2b975367f0ed84307c24"
+                    },
+                    {
+                        "round_no": 3,
+                        "price": 180,
+                        "start_date_time": "2025-08-27T11:00:00.000Z",
+                        "end_date_time": "2025-08-28T11:30:00.000Z",
+                        "additional_vote_package": "686564f9a3b58ebc3e9c18d9",
+                        "checkpoints": "RCD3",
+                        "free_voting_duration": 12,
+                        "no_of_participant_proceeding": 48,
+                        "status": "ONGOING",
+                        "_id": "689c2b975367f0ed84307c25"
+                    }
+                ],
+                "feature_image": "",
+                "description": "Comp Desc",
+                "round_checkpoint_start_visibility": true,
+                "no_of_winner": 2,
+                "prizes": [
+                    {
+                        "name": "P1",
+                        "type": "gift",
+                        "value": "Holiday Trip",
+                        "money": null,
+                        "gift": null,
+                        "_id": "689c2b975367f0ed84307c26"
+                    },
+                    {
+                        "name": "M1",
+                        "type": "money",
+                        "value": "20",
+                        "money": null,
+                        "gift": null,
+                        "_id": "689c2b975367f0ed84307c27"
+                    }
+                ],
+                "status": "ACTIVE",
+                "file_type": [
+                    "JPEG",
+                    "PNG",
+                    "MP4"
+                ],
+                "created_by": "689074cc19516f0a07d78252",
+                "creator_company": "684ab7769fac4ec341fee3d2",
+                "creator_description": "Competition Final Description",
+                "remarks": "null",
+                "createdAt": "2025-08-13T06:07:19.879Z",
+                "updatedAt": "2025-08-26T18:42:20.030Z",
+                "__v": 0
+            },
+            "participant_object_id": {
+                "_id": "68765419c6ff9e5cb7072a94",
+                "email": "participantss@test.com",
+                "role": "PARTICIPANT",
+                "__v": 0,
+                "address_line_1": "kolkata",
+                "address_line_2": "kolkata",
+                "city": "kolkata",
+                "contact_label": "HOME",
+                "country": "I",
+                "createdAt": "2025-07-15T13:14:01.560Z",
+                "date": "2025-07-15T13:14:01.562Z",
+                "date_of_birth": null,
+                "devices_token": null,
+                "expiresAt": "2025-07-15T13:19:01.554Z",
+                "first_name": "Ben",
+                "gender": "MALE",
+                "is_approved": "APPROVED",
+                "is_registered": true,
+                "is_subscribe": false,
+                "is_verified": true,
+                "last_login_date": "2025-08-26T15:46:54.846Z",
+                "last_name": "Lashley",
+                "member_id": "P000002",
+                "member_status": null,
+                "middle_name": "",
+                "otp": "7028",
+                "password": "$2a$10$f435/rxszCcj1Ylzno0JRuzyyZCDpfYu4M8U1sKa.58AYBIMHg95u",
+                "phone_extension": 91,
+                "phone_number": 9012010799,
+                "previous_role": null,
+                "state": "WB",
+                "updatedAt": "2025-08-26T15:46:54.851Z",
+                "upload_back_side": [],
+                "upload_front_side": [],
+                "user_name": "superadmin",
+                "zip": "700001",
+                "discription": "aaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "round_object_id": "689c2b975367f0ed84307c25",
+            "competition_name": "Test Competition",
+            "round_no": 1,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": "PENDING",
+            "participant_payment_intant_id": "pi_3RyCK5BuHqQNZg722fm4X0VJ",
+            "transaction_object_id": {
+                "_id": "68a5d162a8c4f8d0b043014f",
+                "payment_intent_id": "pi_3RyCK5BuHqQNZg722fm4X0VJ",
+                "member_objectId": "68765419c6ff9e5cb7072a94",
+                "competition_objectId": "689c2b975367f0ed84307c22",
+                "type": "card",
+                "payment_type": "card",
+                "payment_status": "PENDING",
+                "amount": 160,
+                "transaction_status": "DEBITED",
+                "transaction_date": "2025-08-20",
+                "message": "COMPETITION PARTICIPATION",
+                "payment_data": {
+                    "id": "pi_3RyCK5BuHqQNZg722fm4X0VJ",
+                    "object": "payment_intent",
+                    "amount": 16000,
+                    "amount_capturable": 0,
+                    "amount_received": 0,
+                    "application": null,
+                    "application_fee_amount": null,
+                    "automatic_payment_methods": {
+                        "allow_redirects": "always",
+                        "enabled": true
+                    },
+                    "canceled_at": null,
+                    "cancellation_reason": null,
+                    "capture_method": "automatic_async",
+                    "client_secret": "pi_3RyCK5BuHqQNZg722fm4X0VJ_secret_VX5F3yN7VovHetttsUSnqYoDa",
+                    "confirmation_method": "automatic",
+                    "created": 1755697505,
+                    "currency": "usd",
+                    "customer": null,
+                    "description": null,
+                    "excluded_payment_method_types": null,
+                    "invoice": null,
+                    "last_payment_error": null,
+                    "latest_charge": null,
+                    "livemode": false,
+                    "metadata": {
+                        "memberId": "68765419c6ff9e5cb7072a94",
+                        "type": "card"
+                    },
+                    "next_action": null,
+                    "on_behalf_of": null,
+                    "payment_method": null,
+                    "payment_method_configuration_details": {
+                        "id": "pmc_1OeI5vBuHqQNZg72lpqlJ4Vj",
+                        "parent": null
+                    },
+                    "payment_method_options": {
+                        "amazon_pay": {
+                            "express_checkout_element_session_id": null
+                        },
+                        "card": {
+                            "installments": null,
+                            "mandate_options": null,
+                            "network": null,
+                            "request_three_d_secure": "automatic"
+                        },
+                        "link": {
+                            "persistent_token": null
+                        }
+                    },
+                    "payment_method_types": [
+                        "card",
+                        "link",
+                        "cashapp",
+                        "amazon_pay"
+                    ],
+                    "processing": null,
+                    "receipt_email": null,
+                    "review": null,
+                    "setup_future_usage": null,
+                    "shipping": null,
+                    "source": null,
+                    "statement_descriptor": null,
+                    "statement_descriptor_suffix": null,
+                    "status": "requires_payment_method",
+                    "transfer_data": null,
+                    "transfer_group": null
+                },
+                "respons_data": null,
+                "createdAt": "2025-08-20T13:45:06.088Z",
+                "updatedAt": "2025-08-20T13:45:06.088Z",
+                "__v": 0
+            },
+            "content": {
+                "description": "edsfghmn",
+                "upload_date_time": "2025-08-21T14:54:07.470Z",
+                "files": [
+                    {
+                        "url": "https://soumadipagol.s3.eu-north-1.amazonaws.com/competition/6717a5e433b37.png",
+                        "name": "6717a5e433b37.png",
+                        "_id": "68a7330f1ed96220cebe6dcd"
+                    }
+                ]
+            },
+            "thumbnail_url": {
+                "files": [
+                    {
+                        "url": "https://soumadipagol.s3.eu-north-1.amazonaws.com/competition_thumbnail/6734a95103dde.png",
+                        "name": "6734a95103dde.png",
+                        "_id": "68a7330f1ed96220cebe6dce"
+                    }
+                ]
+            },
+            "status": "PARTICIPATING",
+            "createdAt": "2025-08-20T13:45:06.108Z",
+            "updatedAt": "2025-08-25T07:47:10.170Z",
+            "__v": 0
+        }
+    ]
+}
