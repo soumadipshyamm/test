@@ -1,3 +1,96 @@
+export const participantList = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userDetails = await getDetailsByEmail(req.user.email);
+
+    if (!userDetails) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        message: "User not authenticated.",
+      });
+    }
+
+    const { competitionId, roundId } = req.params;
+
+    // Build filter dynamically
+    const filter: any = {};
+    if (competitionId) filter.competition_object_id = competitionId;
+    if (roundId) filter.round_object_id = roundId;
+
+    console.log("========= Participant Filter =========", filter);
+
+    // Fetch multiple participants
+    let participants = await ParticipantModel.find(filter)
+      .populate({
+        path: "competition_object_id",
+        select: "name challenge_start_date challenge_end_date no_of_rounds",
+      })
+      .populate({
+        path: "round_object_id",
+        select: "round_number start_date end_date is_active",
+      })
+      .populate({
+        path: "user_object_id", 
+        select: "first_name last_name email profile_image",
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    if (!participants || participants.length === 0) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: "No participants found.",
+        data: [],
+      });
+    }
+
+    // Format all participants
+    const formattedList = participants.map((p: any) => ({
+      participantId: p._id,
+      name: p.user_object_id 
+        ? `${p.user_object_id.first_name} ${p.user_object_id.last_name}` 
+        : "N/A",
+      email: p.user_object_id?.email || null,
+      profileImage: p.user_object_id?.profile_image || null,
+      competition: {
+        id: p.competition_object_id?._id,
+        name: p.competition_object_id?.name,
+        startDate: p.competition_object_id?.challenge_start_date,
+        endDate: p.competition_object_id?.challenge_end_date,
+        noOfRounds: p.competition_object_id?.no_of_rounds,
+      },
+      round: {
+        id: p.round_object_id?._id,
+        roundNumber: p.round_object_id?.round_number,
+        startDate: p.round_object_id?.start_date,
+        endDate: p.round_object_id?.end_date,
+        isActive: p.round_object_id?.is_active,
+      },
+      createdAt: p.createdAt,
+    }));
+
+    return res.status(StatusCodes.OK).json({
+      message: MESSAGE.get.succ,
+      count: formattedList.length,
+      data: formattedList,
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      message: MESSAGE.get.fail,
+      error,
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
 
 
 export const voteHistoryRoundList = async (
