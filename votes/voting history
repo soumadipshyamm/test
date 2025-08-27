@@ -668,3 +668,16 @@ export const voteHistoryRoundList = async (
             "__v": 0
         }
     ]
+
+
+
+
+
+
+
+
+const competition = votes[0]?.competition_object_id;
+votes.forEach(vote => {
+  const round = competition?.rounds.id(vote.round_object_id);
+  vote.round_details = round;
+});
