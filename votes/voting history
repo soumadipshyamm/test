@@ -1,3 +1,104 @@
+export const voteHistoryRoundList = async (
+	req: Request,
+	res: Response
+): Promise<any> => {
+	try {
+		// 1. Authenticate user
+		const userDetails = await getDetailsByEmail(req.user.email);
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'User not authenticated.',
+			});
+		}
+
+		const { competitionId, participantId } = req.params;
+
+		// 2. Validate required params
+		if (!competitionId || !participantId) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: 'Competition ID and Participant ID are required.',
+			});
+		}
+
+		const voterId = userDetails._id;
+
+		// 3. Fetch vote history
+		const votes = await VoteModel.find({
+			competition_object_id: competitionId,
+			participant_object_id: participantId,
+			voter_object_id: voterId,
+		})
+			.populate('competition_object_id', 'name challenge_start_date challenge_end_date no_of_rounds rounds')
+			.populate('participant_object_id', 'name email') // fetch details
+			.lean()
+			.exec();
+
+		if (!votes || votes.length === 0) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'No vote history found.',
+			});
+		}
+
+		// 4. Fetch competition with rounds
+		const competition = await CompetitionModel.findById(competitionId)
+			.select('name challenge_start_date challenge_end_date no_of_rounds rounds')
+			.lean()
+			.exec();
+
+		if (!competition) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'Competition not found.',
+			});
+		}
+
+		// 5. Build round map for quick lookup
+		const roundMap = new Map(
+			competition.rounds.map((round: any) => [round._id.toString(), round])
+		);
+
+		// 6. Merge round details into each vote
+		const enrichedVotes = votes.map(vote => {
+			const roundDetails = roundMap.get(vote.round_object_id?.toString() || '');
+			return {
+				...vote,
+				round_details: roundDetails
+					? {
+							_id: roundDetails._id,
+							round_no: roundDetails.round_no,
+							start_date_time: roundDetails.start_date_time,
+							end_date_time: roundDetails.end_date_time,
+							price: roundDetails.price,
+							status: roundDetails.status,
+							checkpoints: roundDetails.checkpoints,
+					  }
+					: null,
+			};
+		});
+
+		// 7. Final Result
+		return res.status(StatusCodes.OK).json({
+			message: 'Vote history fetched successfully.',
+			Result: enrichedVotes,
+		});
+	} catch (error) {
+		console.error('Error in voteHistoryRoundList:', error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: 'Failed to fetch vote history.',
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+};
+
+
+
+
+
+
+
+
+
+
+
 export const voteHistoryList = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const userDetails = await getDetailsByEmail(req.user.email);
