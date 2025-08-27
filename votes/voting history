@@ -1,3 +1,5 @@
+***************************
+
 export const participantList = async (req: Request, res: Response): Promise<any> => {
   try {
     const userDetails = await getDetailsByEmail(req.user.email);
@@ -80,7 +82,7 @@ export const participantList = async (req: Request, res: Response): Promise<any>
     });
   }
 };
-
+***************************
 
 
 
