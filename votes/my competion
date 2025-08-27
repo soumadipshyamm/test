@@ -1,3 +1,65 @@
+import { Request, Response } from "express";
+import ParticipantModel from "../models/participant.model";
+import VoteModel from "../models/vote.model";
+
+export const getCompetitionParticipantsWithVotes = async (req: Request, res: Response) => {
+  try {
+    const { competitionId } = req.params;
+
+    if (!competitionId) {
+      return res.status(400).json({ message: "Competition ID is required" });
+    }
+
+    // Step 1: Find participants in this competition (status = participating)
+    const participants = await ParticipantModel.aggregate([
+      {
+        $match: {
+          competition_object_id: new mongoose.Types.ObjectId(competitionId),
+          status: "participating",
+        },
+      },
+      {
+        // Step 2: Lookup votes for each participant
+        $lookup: {
+          from: "votes", // collection name in MongoDB
+          localField: "_id", // participant _id
+          foreignField: "participant_object_id", // vote participant ref
+          as: "votes",
+        },
+      },
+      {
+        // Step 3: Count votes
+        $addFields: {
+          total_votes: { $size: "$votes" },
+        },
+      },
+      {
+        // Optional: project only necessary fields
+        $project: {
+          participant_name: 1,
+          round_no: 1,
+          competition_name: 1,
+          total_votes: 1,
+          "votes.voter_object_id": 1, // keep voter details if needed
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      competitionId,
+      participants,
+    });
+  } catch (error: any) {
+    console.error("Error fetching participants with votes:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+
+
+
+
 
 
 export const participantVotedList = async (req: Request, res: Response): Promise<any> => {
