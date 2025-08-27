@@ -1,5 +1,116 @@
 
 
+export const participantVotedList = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userDetails = await getDetailsByEmail(req.user.email);
+
+    if (!userDetails) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        message: "User not authenticated.",
+      });
+    }
+
+    const { competitionId, roundId } = req.params;
+    const voterId = userDetails._id;
+
+    // Step 1: Get votes by this voter
+    const voteFilter: any = { voter_object_id: voterId };
+    if (competitionId) voteFilter.competition_object_id = competitionId;
+    if (roundId) voteFilter.round_object_id = roundId;
+
+    const votes = await VoteModel.find(voteFilter).lean();
+
+    if (!votes || votes.length === 0) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        message: "No participants found (user has not voted).",
+        data: [],
+      });
+    }
+
+    // Step 2: Group participants by competition
+    const competitionMap: Record<string, any> = {};
+
+    for (const v of votes) {
+      const compId = v.competition_object_id.toString();
+      if (!competitionMap[compId]) {
+        competitionMap[compId] = {
+          competitionId: compId,
+          competitionName: null, // will fill later
+          participants: [],
+        };
+      }
+      // Push participant if not already in list
+      if (!competitionMap[compId].participants.some((p: any) => p.participantId === v.participant_object_id.toString())) {
+        competitionMap[compId].participants.push({
+          participantId: v.participant_object_id.toString(),
+          name: null,
+          email: null,
+          profileImage: null,
+          votesGiven: 0,
+        });
+      }
+      // Increase vote count
+      const p = competitionMap[compId].participants.find((p: any) => p.participantId === v.participant_object_id.toString());
+      if (p) p.votesGiven += 1;
+    }
+
+    // Step 3: Fetch participant + competition details
+    const participantIds = votes.map(v => v.participant_object_id.toString());
+    const participants = await ParticipantModel.find({ _id: { $in: participantIds } })
+      .populate({
+        path: "competition_object_id",
+        select: "name",
+      })
+      .populate({
+        path: "user_object_id",
+        select: "first_name last_name email profile_image",
+      })
+      .lean();
+
+    // Fill details
+    participants.forEach((p: any) => {
+      const compId = p.competition_object_id?._id.toString();
+      const compName = p.competition_object_id?.name;
+
+      if (competitionMap[compId]) {
+        competitionMap[compId].competitionName = compName;
+
+        const participantEntry = competitionMap[compId].participants.find(
+          (pp: any) => pp.participantId === p._id.toString()
+        );
+        if (participantEntry) {
+          participantEntry.name = p.user_object_id
+            ? `${p.user_object_id.first_name} ${p.user_object_id.last_name}`
+            : "N/A";
+          participantEntry.email = p.user_object_id?.email || null;
+          participantEntry.profileImage = p.user_object_id?.profile_image || null;
+        }
+      }
+    });
+
+    // Step 4: Convert map to array
+    const finalResult = Object.values(competitionMap);
+
+    return res.status(StatusCodes.OK).json({
+      message: MESSAGE.get.succ,
+      data: finalResult,
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      message: MESSAGE.get.fail,
+      error,
+    });
+  }
+};
+
+
+
+
+
+
+
 export const getParticipantRoundStatuses = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const userDetails = await getDetailsByEmail(req.user.email);
