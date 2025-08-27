@@ -1,0 +1,157 @@
+export const voteHistoryList = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const userDetails = await getDetailsByEmail(req.user.email);
+
+		const { competitionId, participantId, roundId } = req.params;
+
+		const voterId = userDetails?._id;
+		// Build filter dynamically
+		const filter: any = {
+			voter_object_id: voterId,
+		};
+
+		if (competitionId) {
+			filter.competition_object_id = competitionId;
+		}
+
+		if (participantId) {
+			filter.participant_object_id = participantId;
+		}
+		if (roundId) {
+			filter.round_object_id = roundId;
+		}
+
+
+		console.log("===================================================", filter);
+
+		// Note: `round_object_id` is likely NOT in Vote schema (see below)
+		// So we can't directly filter by `roundId` unless it exists
+
+		let fetchVotes = await VoteModel.find(filter)
+			.populate({
+				path: 'competition_object_id',
+				// populate: { path: 'round_object_id' }
+			})
+			.populate({
+				path: 'participant_object_id',
+			})
+			.sort({ createdAt: -1 })
+			.lean();
+
+		console.log("===================================================", fetchVotes);
+
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'User not authenticated.'
+			});
+		}
+
+		return res.status(StatusCodes.OK).json({
+			message: MESSAGE.get.succ,
+			data: fetchVotes
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error
+		});
+	}
+};
+
+export const voteHistoryRoundList = async (
+	req: Request,
+	res: Response
+): Promise<any> => {
+	try {
+		// 1. Authenticate user
+		const userDetails = await getDetailsByEmail(req.user.email);
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'User not authenticated.',
+			});
+		}
+
+		const { competitionId, participantId } = req.params;
+
+		// 2. Validate required params
+		if (!competitionId || !participantId) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: 'Competition ID and Participant ID are required.',
+			});
+		}
+
+		const voterId = userDetails._id;
+
+		// 3. Fetch vote history with populated data
+		const votes = await VoteModel.find({
+			competition_object_id: competitionId,
+			participant_object_id: participantId,
+			voter_object_id: voterId,
+		})
+			.populate('competition_object_id', 'name challenge_start_date challenge_end_date no_of_rounds rounds') // Optional: already fetched
+			.populate('participant_object_id', 'participant_object_id') // Reference to User
+			.lean()
+			.exec();
+
+		if (!votes || votes.length === 0) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'No vote history found.',
+			});
+		}
+
+		// 4. Fetch competition
+		const competition = await CompetitionModel.findById(competitionId)
+			.select('name challenge_start_date challenge_end_date no_of_rounds rounds')
+			.lean()
+			.exec();
+
+		if (!competition) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'Competition not found.',
+			});
+		}
+		// 6. Get set of round IDs the user has voted in
+		const votedRoundIds = new Set(
+			votes
+				.map(vote => vote.round_object_id?._id?.toString())
+				.filter(Boolean) // Remove undefined
+		);
+
+		// 7. Filter and map only rounds where user has voted
+		const roundList = competition.rounds
+			.filter((round: any) => {
+				return votedRoundIds.has(round._id.toString());
+			})
+			.map((round: any) => {
+				return {
+					_id: round._id,
+					round_no: round.round_no,
+					start_date_time: round.start_date_time,
+					end_date_time: round.end_date_time,
+					price: round.price,
+					status: round.status, // Prefer DB status
+					checkpoints: round.checkpoints,
+				};
+			});
+
+		// 8. Build result object
+		const result = {
+			competition_details_object: competition,
+			participant_details_object: votes[0].participant_object_id,
+			round_list: roundList,
+		};
+
+		// 9. Return success response
+		return res.status(StatusCodes.OK).json({
+			message: 'Vote history fetched successfully.',
+			Result: result, // Note: You used "Result" — keep consistent
+		});
+	} catch (error) {
+		console.error('Error in voteHistoryRoundList:', error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: 'Failed to fetch vote history.',
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+};
