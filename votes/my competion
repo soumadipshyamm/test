@@ -1,3 +1,111 @@
+
+
+export const getParticipantRoundStatuses = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const userDetails = await getDetailsByEmail(req.user.email);
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'User not authenticated.' });
+		}
+
+		const statusFilter = req.params.status as 'upcoming' | 'ongoing' | 'completed' | undefined;
+		const now = dayjs();
+
+		// Fetch active participations
+		const participants = await ParticipantModel.find({
+			participant_object_id: userDetails._id,
+			status: { $in: ['PARTICIPATING'] }
+		})
+			.populate('competition_object_id', 'name challenge_start_date challenge_end_date competition_type no_of_rounds rounds')
+			.populate('participant_object_id', 'name email avatar')
+			.populate('transaction_object_id', 'amount status')
+			.lean();
+
+		if (!participants.length) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'No active participations found.',
+			});
+		}
+
+		// Use map for grouping competitions
+		const competitionMap: Record<string, any> = {};
+
+		for (const p of participants) {
+			const comp = p.competition_object_id as any;
+			if (!comp || !Array.isArray(comp?.rounds)) continue;
+
+			for (const round of comp.rounds) {
+				const start = dayjs(round.start_date_time);
+				const end = dayjs(round.end_date_time);
+
+				let roundStatus: 'upcoming' | 'ongoing' | 'completed';
+				if (start.isAfter(now)) {
+					roundStatus = 'upcoming';
+				} else if (start.isBefore(now) && end.isAfter(now)) {
+					roundStatus = 'ongoing';
+				} else {
+					roundStatus = 'completed';
+				}
+
+				// Apply API param filter
+				if (statusFilter && roundStatus !== statusFilter) continue;
+
+				// If competition not yet added → initialize it
+				if (!competitionMap[comp._id]) {
+					competitionMap[comp._id] = {
+						competition: {
+							_id: comp._id,
+							name: comp.name,
+							challenge_start_date: comp.challenge_start_date,
+							challenge_end_date: comp.challenge_end_date,
+							competition_type: comp.competition_type,
+							no_of_rounds: comp.no_of_rounds,
+						},
+						participant: {
+							...p.participant_object_id,
+							participantRoundStatus: p.status,
+							participantRoundPaymentStatus: p.participant_payment_status,
+						},
+						rounds_list: [], // collect rounds here
+					};
+				}
+
+				// Push round into this competition’s rounds_list
+				competitionMap[comp._id].rounds_list.push({
+					...round,
+					status: roundStatus,
+				});
+			}
+		}
+
+		const result = Object.values(competitionMap);
+
+		if (result.length === 0) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: `No rounds found for status: ${statusFilter || 'all'}.`,
+			});
+		}
+
+		return res.status(StatusCodes.OK).json({
+			message: 'Participant round status fetched successfully',
+			result,
+		});
+
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: "An error occurred while fetching participant round statuses.",
+			error: error instanceof Error ? error.message : error,
+		});
+	}
+};
+
+
+
+
+
+
+
+
 export const getParticipantRoundStatuses = async (req: Request, res: Response): Promise<any> => {
 	try {
 		const userDetails = await getDetailsByEmail(req.user.email);
