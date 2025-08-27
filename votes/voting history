@@ -155,3 +155,20 @@ export const voteHistoryRoundList = async (
 		});
 	}
 };
+
+
+"Result": [
+        {
+            "_id": "68a5bba050c7a0be971b5805",
+            "competition_object_id": "689b25cf1368c12ffb0e7eef",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "689c2b975367f0ed84307c23",
+            "voter_object_id": "68765419c6ff9e5cb7072a94",
+            "vote_subscription_object_id": null,
+            "vote_earned": 2,
+            "voting_type": "PAID",
+            "createdAt": "2025-08-20T12:12:16.695Z",
+            "updatedAt": "2025-08-20T12:12:16.695Z",
+            "__v": 0
+        }
+    ]
