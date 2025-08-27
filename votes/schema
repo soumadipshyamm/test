@@ -1,0 +1,279 @@
+const roundSchema = new Schema<Round>({
+	round_no: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredNumber,
+	},
+	price: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredNumber,
+	},
+	start_date_time: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredDate,
+	},
+	end_date_time: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredDate,
+	},
+	additional_vote_package: {
+		type: Schema.Types.ObjectId,
+		ref: 'vote_packages',
+	},
+	checkpoints: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredString,
+	},
+	free_voting_duration: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredNumber,
+	},
+	no_of_participant_proceeding: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredNumber,
+	},
+	status: {
+		...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+		enum: [
+			COMPETITION_STATUS.pending,
+			COMPETITION_STATUS.approved,
+			COMPETITION_STATUS.active,
+			COMPETITION_STATUS.completed,
+			COMPETITION_STATUS.completed,
+			COMPETITION_STATUS.rejected,
+			COMPETITION_STATUS.ongoing,
+			COMPETITION_STATUS.upcoming,
+
+		],
+		default: COMPETITION_STATUS.pending,
+	},
+
+});
+
+const prizeSchema = new Schema<Prize>({
+	name: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredString,
+		trim: true,
+		maxlength: [100, "Prize Name cannot be more than 100 characters"]
+	},
+	type: {
+		type: String,
+		// enum: [PRIZE_TYPES.money, PRIZE_TYPES.gift, PRIZE_TYPES.both],
+		enum: ['money', 'gift', 'both'],
+		required: true,
+	},
+	value: {
+		...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+		default: null
+	},
+	description: {
+		...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+		default: null
+	},
+	money: {
+		...SCHEMA_DEFINITION_PROPERTY.optionalNullNumber,
+		min: 0
+	},
+	gift: {
+		...SCHEMA_DEFINITION_PROPERTY.optionalNullString
+	},
+
+});
+
+const competitionSchema: Schema<ICompetition> = new Schema<ICompetition>(
+	{
+		name: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredString,
+			trim: true,
+			maxlength: [200, "Competition Name cannot be more than 100 characters"]
+		},
+		challenge_start_date: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredDate,
+		},
+		challenge_end_date: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredDate,
+		},
+		competition_type: {
+			type: Schema.Types.ObjectId,
+			ref: 'competition_types',
+			required: true,
+		},
+		no_of_rounds: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredNumber,
+			min: 1,
+		},
+		rounds: [roundSchema],
+		feature_image: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+		},
+		description: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredString,
+		},
+		round_checkpoint_start_visibility: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredBoolean,
+		},
+		no_of_winner: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredNumber,
+			min: 1,
+		},
+		prizes: [prizeSchema],
+		status: {
+			type: String,
+			enum: [
+				COMPETITION_STATUS.pending,
+				COMPETITION_STATUS.approved,
+				COMPETITION_STATUS.active,
+				COMPETITION_STATUS.completed,
+				COMPETITION_STATUS.rejected
+			],
+			default: COMPETITION_STATUS.pending,
+		},
+		file_type: {
+			type: [String],
+			required: true,
+		},
+		created_by: {
+			type: Schema.Types.ObjectId,
+			ref: 'members',
+			required: true,
+		},
+		creator_company: {
+			type: Schema.Types.ObjectId,
+			ref: 'company_managements',
+			required: true,
+		},
+		creator_description: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+		},
+		remarks: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+		},
+	},
+	{
+		...GENERAL_SCHEMA_OPTIONS,
+		toJSON: { virtuals: true },
+		toObject: { virtuals: true }
+	}
+);
+
+export default competitionSchema;
+
+
+const participantSchema = new Schema<IParticipant>(
+	{
+		competition_object_id: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredObjectId,
+			ref: 'competitions'
+		},
+		participant_object_id: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredObjectId,
+			ref: 'members'
+		},
+		round_object_id: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredObjectId
+		},
+		competition_name: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredString,
+			trim: true,
+		},
+		round_no: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredNumber
+		},
+		participant_name: {
+			...SCHEMA_DEFINITION_PROPERTY.requiredString,
+			trim: true,
+		},
+		participant_payment_type: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullString
+		},
+		participant_payment_status: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+			enum: [TRANSACTION_STATUS.success, TRANSACTION_STATUS.cancel, TRANSACTION_STATUS.pending],
+			default: TRANSACTION_STATUS.pending,
+		},
+		participant_payment_intant_id: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullString
+		},
+		transaction_object_id: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullObjectId,
+			ref: 'transactions'
+		},
+		content: {
+			description: {
+				...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+				trim: true,
+			},
+			upload_date_time: {
+				...SCHEMA_DEFINITION_PROPERTY.optionalNullDate
+			},
+			files: [{
+				url: {
+					...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+					required: true,
+				},
+				name: {
+					...SCHEMA_DEFINITION_PROPERTY.requiredString,
+					required: true,
+				}
+			}],
+		},
+		thumbnail_url: {
+			files: [{
+				url: {
+					...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+				},
+				name: {
+					...SCHEMA_DEFINITION_PROPERTY.requiredString,
+				}
+			}],
+		},
+		status: {
+			...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+			enum: [PARTICIPATION_STATUS.participated, PARTICIPATION_STATUS.participating, PARTICIPATION_STATUS.eliminated, PARTICIPATION_STATUS.winner],
+			default: PARTICIPATION_STATUS.participating,
+		},
+	},
+	{
+		...GENERAL_SCHEMA_OPTIONS,
+		toJSON: { virtuals: true },
+		toObject: { virtuals: true }
+	}
+);
+
+export default participantSchema;
+
+
+
+
+
+const voteSchema = new Schema<IVote>({
+	competition_object_id: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredObjectId,
+		ref: 'competitions',
+		required: true,
+	},
+	participant_object_id: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredObjectId,
+		ref: 'members',
+		required: true,
+	},
+	round_object_id: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredObjectId,
+		ref: 'rounds',
+		required: true,
+	},
+	voter_object_id: {
+		...SCHEMA_DEFINITION_PROPERTY.requiredObjectId,
+		ref: 'members',
+		required: true,
+	},
+	vote_subscription_object_id: {
+		...SCHEMA_DEFINITION_PROPERTY.optionalNullObjectId,
+		ref: 'voting_subscriptions',
+	},
+	vote_earned: {
+		...SCHEMA_DEFINITION_PROPERTY.optionalNullNumber
+	},
+	voting_type: {
+		...SCHEMA_DEFINITION_PROPERTY.optionalNullString,
+		enum: [VOTINGTYPE.free, VOTINGTYPE.paid]
+	},
+}, {
+	timestamps: true,
+});
+
+export default voteSchema;
+
+
