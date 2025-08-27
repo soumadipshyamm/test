@@ -1,4 +1,78 @@
+
+export const voteHistoryList = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const userDetails = await getDetailsByEmail(req.user.email);
+
+		const { competitionId, participantId, roundId } = req.params;
+
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'User not authenticated.'
+			});
+		}
+
+		const voterId = userDetails?._id;
+
+		// Build filter dynamically
+		const filter: any = {
+			voter_object_id: voterId,
+		};
+
+		if (competitionId) {
+			filter.competition_object_id = competitionId;
+		}
+
+		if (participantId) {
+			filter.participant_object_id = participantId;
+		}
+		if (roundId) {
+			filter.round_object_id = roundId;
+		}
+
+		let fetchVotes = await VoteModel.find(filter)
+			.populate({
+				path: 'competition_object_id',
+			})
+			.populate({
+				path: 'participant_object_id',
+			})
+			.sort({ createdAt: -1 })
+			.lean();
+
+		// ✅ Group by competition but keep array response
+		const groupedVotes = Object.values(
+			fetchVotes.reduce((acc: any, vote: any) => {
+				const compId = vote.competition_object_id?._id?.toString();
+				if (!acc[compId]) {
+					acc[compId] = {
+						competition_object_id: vote.competition_object_id,
+						votes: [],
+					};
+				}
+				acc[compId].votes.push(vote);
+				return acc;
+			}, {})
+		);
+
+		return res.status(StatusCodes.OK).json({
+			message: MESSAGE.get.succ,
+			data: groupedVotes, // still an array ✅
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error,
+		});
+	}
+};
+
+
 ***************************
+
+
+
+
 
 export const participantList = async (req: Request, res: Response): Promise<any> => {
   try {
