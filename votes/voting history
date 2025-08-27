@@ -30,6 +30,139 @@ export const voteHistoryRoundList = async (
 			participant_object_id: participantId,
 			voter_object_id: voterId,
 		})
+			.populate('competition_object_id') // competition
+			.populate('participant_object_id') // participant
+			.lean()
+			.exec();
+
+		if (!votes || votes.length === 0) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'No vote history found.',
+			});
+		}
+
+		// 4. Fetch competition (for rounds)
+		const competition = await CompetitionModel.findById(competitionId)
+			.lean()
+			.exec();
+
+		if (!competition) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: 'Competition not found.',
+			});
+		}
+
+		// 5. Map rounds
+		const roundMap = new Map(
+			competition.rounds.map((round: any) => [round._id.toString(), round])
+		);
+
+		// 6. Aggregate votes per round
+		const roundVoteSummary: Record<
+			string,
+			{ freeVotes: number; paidVotes: number; totalVotes: number }
+		> = {};
+
+		votes.forEach(vote => {
+			const roundId = vote.round_object_id?.toString();
+			if (!roundId) return;
+
+			if (!roundVoteSummary[roundId]) {
+				roundVoteSummary[roundId] = {
+					freeVotes: 0,
+					paidVotes: 0,
+					totalVotes: 0,
+				};
+			}
+
+			roundVoteSummary[roundId].totalVotes += vote.vote_earned;
+
+			if (vote.voting_type === 'FREE') {
+				roundVoteSummary[roundId].freeVotes += vote.vote_earned;
+			} else if (vote.voting_type === 'PAID') {
+				roundVoteSummary[roundId].paidVotes += vote.vote_earned;
+			}
+		});
+
+		// 7. Build round_details with votes
+		const roundDetails = Object.keys(roundVoteSummary).map(roundId => {
+			const round = roundMap.get(roundId);
+			if (!round) return null;
+
+			const summary = roundVoteSummary[roundId];
+			return {
+				_id: round._id,
+				round_no: round.round_no,
+				start_date_time: round.start_date_time,
+				end_date_time: round.end_date_time,
+				price: round.price,
+				status: round.status,
+				checkpoints: round.checkpoints,
+				votes: {
+					total: summary.totalVotes,
+					free: summary.freeVotes,
+					paid: summary.paidVotes,
+				},
+			};
+		}).filter(Boolean);
+
+		// 8. Final grouped response
+		const result = {
+			competition_object: votes[0].competition_object_id,
+			participant_object: votes[0].participant_object_id,
+			round_details: roundDetails,
+		};
+
+		return res.status(StatusCodes.OK).json({
+			message: 'Vote history fetched successfully.',
+			Result: result,
+		});
+	} catch (error) {
+		console.error('Error in voteHistoryRoundList:', error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: 'Failed to fetch vote history.',
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+};
+
+
+
+
+
+
+
+
+export const voteHistoryRoundList = async (
+	req: Request,
+	res: Response
+): Promise<any> => {
+	try {
+		// 1. Authenticate user
+		const userDetails = await getDetailsByEmail(req.user.email);
+		if (!userDetails) {
+			return res.status(StatusCodes.UNAUTHORIZED).json({
+				message: 'User not authenticated.',
+			});
+		}
+
+		const { competitionId, participantId } = req.params;
+
+		// 2. Validate required params
+		if (!competitionId || !participantId) {
+			return res.status(StatusCodes.BAD_REQUEST).json({
+				message: 'Competition ID and Participant ID are required.',
+			});
+		}
+
+		const voterId = userDetails._id;
+
+		// 3. Fetch votes
+		const votes = await VoteModel.find({
+			competition_object_id: competitionId,
+			participant_object_id: participantId,
+			voter_object_id: voterId,
+		})
 			.populate('competition_object_id') // full competition
 			.populate('participant_object_id') // full participant
 			.lean()
