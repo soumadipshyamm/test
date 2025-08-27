@@ -415,3 +415,25 @@ export const getParticipantRoundStatuses = async (req: Request, res: Response): 
         }
     ]
 }
+
+
+
+ "result": [
+        {
+            "_id": "68a5d162a8c4f8d0b0430153",
+            "competition_object_id": "689c2b975367f0ed84307c22",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "689c2b975367f0ed84307c25",
+            "competition_name": "Test Competition",
+            "round_no": 1,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": "PENDING",
+            "participant_payment_intant_id": "pi_3RyCK5BuHqQNZg722fm4X0VJ",
+            "transaction_object_id": "68a5d162a8c4f8d0b043014f",         
+                        "status": "PARTICIPATING",
+            "createdAt": "2025-08-20T13:45:06.108Z",
+            "updatedAt": "2025-08-25T07:47:10.170Z",
+            "__v": 0
+        }
+    ]
