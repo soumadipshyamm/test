@@ -37,3 +37,50 @@
 			message: 'Participant round status fetched successfully',
 			result: result,
 		});
+
+
+
+"result": [
+        {
+            "_id": "68a5b35db430caaf17e90b0e",
+            "competition_object_id": "689c2b975367f0ed84307c22",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "689c2b975367f0ed84307c24",
+            "competition_name": "Test Competition",
+            "round_no": 1,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": "PENDING",
+            "participant_payment_intant_id": "pi_3RyCIsBuHqQNZg722C9MJQAC",
+            "transaction_object_id": "68a5d116a8c4f8d0b0430134",
+           
+        },
+        {
+            "_id": "68a5d162a8c4f8d0b0430153",
+            "competition_object_id": "689c2b975367f0ed84307c22",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "689c2b975367f0ed84307c25",
+            "competition_name": "Test Competition",
+            "round_no": 1,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": "PENDING",
+            "participant_payment_intant_id": "pi_3RyCK5BuHqQNZg722fm4X0VJ",
+            "transaction_object_id": "68a5d162a8c4f8d0b043014f",
+           
+        },
+        {
+            "_id": "68b001c5c5716fb3826324e1",
+            "competition_object_id": "68adbb4c9f11f65a957a635a",
+            "participant_object_id": "68765419c6ff9e5cb7072a94",
+            "round_object_id": "68adbb4c9f11f65a957a635c",
+            "competition_name": "Coding Contests",
+            "round_no": 1,
+            "participant_name": "Ben Lashley",
+            "participant_payment_type": null,
+            "participant_payment_status": "SUCCESS",
+            "participant_payment_intant_id": "pi_3S102CBuHqQNZg720mHx0n06",
+            "transaction_object_id": "68b001c5c5716fb3826324dd",
+           
+        }
+    ]
