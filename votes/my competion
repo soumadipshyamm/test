@@ -1,217 +1,329 @@
 
-
-export const competitionRoundDetails = async (req: Request, res: Response): Promise<any> => {
-  try {
-    const userDetails = await getDetailsByEmail(req.user.email);
-    if (!userDetails) {
-      return res
-        .status(StatusCodes.UNAUTHORIZED)
-        .json({ message: "User not authenticated." });
-    }
-
-    const now = new Date();
-
-    const participants = await ParticipantModel.aggregate([
-      {
-        $match: {
-          participant_object_id: userDetails._id,
-          status: { $in: ["PARTICIPATING", "PARTICIPATED"] }
-        }
-      },
-      {
-        $lookup: {
-          from: "competitions",
-          localField: "competition_object_id",
-          foreignField: "_id",
-          as: "competition"
-        }
-      },
-      { $unwind: "$competition" },
-      {
-        $lookup: {
-          from: "rounds",
-          localField: "round_object_id",
-          foreignField: "_id",
-          as: "round"
-        }
-      },
-      { $unwind: "$round" },
-
-      // Add computed round status based on start/end datetime
-      {
-        $addFields: {
-          "round.round_status": {
-            $switch: {
-              branches: [
-                {
-                  case: { $gt: ["$round.start_date", now] },
-                  then: "UPCOMING"
-                },
-                {
-                  case: {
-                    $and: [
-                      { $lte: ["$round.start_date", now] },
-                      { $gte: ["$round.end_date", now] }
-                    ]
-                  },
-                  then: "ONGOING"
-                },
-                {
-                  case: { $lt: ["$round.end_date", now] },
-                  then: "COMPLETED"
-                }
-              ],
-              default: "UNKNOWN"
-            }
-          }
-        }
-      },
-
-      // Group by round
-      {
-        $group: {
-          _id: "$round._id",
-          round_details: { $first: "$round" },
-          competition_details: { $first: "$competition" },
-          participants: {
-            $push: {
-              _id: "$_id",
-              participant_name: "$participant_name",
-              participant_payment_status: "$participant_payment_status",
-              participant_payment_type: "$participant_payment_type",
-              participant_payment_intant_id: "$participant_payment_intant_id",
-              transaction_object_id: "$transaction_object_id"
-            }
-          }
-        }
-      },
-
-      {
-        $project: {
-          _id: 0,
-          round_object_id: "$_id",
-          round_details: {
-            _id: "$round_details._id",
-            round_no: "$round_details.round_no",
-            start_date: "$round_details.start_date",
-            end_date: "$round_details.end_date",
-            round_status: "$round_details.round_status"
-          },
-          competition_details: {
-            _id: "$competition_details._id",
-            name: "$competition_details.name",
-            competition_type: "$competition_details.competition_type",
-            challenge_start_date: "$competition_details.challenge_start_date",
-            challenge_end_date: "$competition_details.challenge_end_date"
-          },
-          participants: 1
-        }
-      }
-    ]);
-
-    return res.status(StatusCodes.OK).json({
-      message: "Competition round details fetched successfully",
-      result: participants
-    });
-  } catch (error) {
-    console.error("Error fetching competition round details:", error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ message: "Server error", error });
-  }
-};
-
-
-
-
-
-
-
-
-
-const userDetails = await getDetailsByEmail(req.user.email);
-		if (!userDetails) {
-			return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'User not authenticated.' });
-		}
-		const participants = await ParticipantModel.find({
-			participant_object_id: userDetails._id,
-			status: { $in: ['PARTICIPATING', 'PARTICIPATED'] }
-		}).lean();
-
-		// Group participants by competition_object_id
-		const groupedParticipants = participants.reduce((acc: any, participant: any) => {
-			const competitionId = participant.competition_object_id.toString();
-			if (!acc[competitionId]) {
-				acc[competitionId] = [];
-			}
-			acc[competitionId].push(participant);
-			return acc;
-		}, {});
-
-		// Convert the grouped object to an array format
-		const result = Object.keys(groupedParticipants).map(competitionId => ({
-			competition_id: competitionId,
-			participants: groupedParticipants[competitionId]
-		}));
-		// Populate competition details efficiently using Promise.all
-		await Promise.all(result.map(async (competition: any) => {
-			const competitionDetails = await CompetitionModel.findById(competition.competition_id);
-
-			competition = {
-				...competition,
-				competition_type: competitionDetails?.competition_type?.toString() || '',
-				competition_name: competitionDetails?.name || ''
-			};
-		}));
+export const completedCompetitionList = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const userDetails = await getDetailsByEmail(req.user.email);
+		const participant_object_id = userDetails?._id;
+		const completedCompetitions = await CompetitionModel.find({
+			status: "COMPLETED"
+		}).populate("creator_company").populate("created_by").populate("competition_type").lean();
 
 		return res.status(StatusCodes.OK).json({
-			message: 'Participant round status fetched successfully',
-			result: result,
+			message: "Fetched upcoming competitions with metadata",
+			Result: completedCompetitions,
 		});
+	} catch (error) {
+		console.error('Error in ongoingCompetitionList:', error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: MESSAGE.get.fail,
+			error: error instanceof Error ? error.message : 'Unknown error',
+		});
+	}
+}
+export const completedCompetitionRoundList = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const { competitionId } = req.params;
+		const roundList = await CompetitionModel.find({
+			_id: competitionId
+		}).lean();
 
 
 
-"result": [
-        {
-            "_id": "68a5b35db430caaf17e90b0e",
-            "competition_object_id": "689c2b975367f0ed84307c22",
-            "participant_object_id": "68765419c6ff9e5cb7072a94",
-            "round_object_id": "689c2b975367f0ed84307c24",
-            "competition_name": "Test Competition",
-            "round_no": 1,
-            "participant_name": "Ben Lashley",
-            "participant_payment_type": null,
-            "participant_payment_status": "PENDING",
-            "participant_payment_intant_id": "pi_3RyCIsBuHqQNZg722C9MJQAC",
-            "transaction_object_id": "68a5d116a8c4f8d0b0430134",
-           
-        },
-        {
-            "_id": "68a5d162a8c4f8d0b0430153",
-            "competition_object_id": "689c2b975367f0ed84307c22",
-            "participant_object_id": "68765419c6ff9e5cb7072a94",
-            "round_object_id": "689c2b975367f0ed84307c25",
-            "competition_name": "Test Competition",
-            "round_no": 1,
-            "participant_name": "Ben Lashley",
-            "participant_payment_type": null,
-            "participant_payment_status": "PENDING",
-            "participant_payment_intant_id": "pi_3RyCK5BuHqQNZg722fm4X0VJ",
-            "transaction_object_id": "68a5d162a8c4f8d0b043014f",
-           
-        },
-        {
-            "_id": "68b001c5c5716fb3826324e1",
-            "competition_object_id": "68adbb4c9f11f65a957a635a",
-            "participant_object_id": "68765419c6ff9e5cb7072a94",
-            "round_object_id": "68adbb4c9f11f65a957a635c",
-            "competition_name": "Coding Contests",
-            "round_no": 1,
-            "participant_name": "Ben Lashley",
-            "participant_payment_type": null,
-            "participant_payment_status": "SUCCESS",
-            "participant_payment_intant_id": "pi_3S102CBuHqQNZg720mHx0n06",
-            "transaction_object_id": "68b001c5c5716fb3826324dd",
-           
-        }
-    ]
+		return res.status(StatusCodes.OK).json({
+			message: "Fetched upcoming competitions with metadata",
+			Result: roundList
+		});
+	} catch (error) {
+		console.error('Error in ongoingCompetitionList:', error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: MESSAGE.get.fail,
+			error: error instanceof Error ? error.message : 'Unknown error',
+		});
+	}
+}
+export const completedCompetitionRoundDetailsList = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const { competitionId, roundId } = req.params;
+		const roundParticipantList = await ParticipantModel.find({
+			competition_object_id: competitionId,
+			round_object_id: roundId
+		}).populate('competition_object_id').populate('round_object_id').populate('participant_object_id').lean();
+		return res.status(StatusCodes.OK).json({
+			message: "Fetched upcoming competitions with metadata",
+			Result: roundParticipantList
+		});
+	} catch (error) {
+		console.error('Error in ongoingCompetitionList:', error);
+		return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+			message: MESSAGE.get.fail,
+			error: error instanceof Error ? error.message : 'Unknown error',
+		});
+	}
+}
+
+export const myUpcomingCompetitionList = async (req: Request, res: Response): Promise<any> => {
+	try {
+		const currentDate = new Date();
+		const userDetails = await getDetailsByEmail(req.user.email);
+		//  Fetch upcoming competitions
+		const fetchUpcomingCompetitions = await CompetitionModel.find({
+			status: "ACTIVE",
+			// challenge_start_date: { $gte: currentDate }
+		})
+			.populate("creator_company")
+			.populate("created_by")
+			.populate("competition_type")
+			.lean();
+
+		if (!fetchUpcomingCompetitions.length) {
+			return res.status(StatusCodes.OK).json({
+				message: "No upcoming competitions found.",
+				Result: []
+			});
+		}
+		//  Fetch participant details
+
+		const participant_object_id = userDetails?._id;
+		const competitionsWithMetadata = await Promise.all(
+			fetchUpcomingCompetitions.map(async (competition) => {
+				const current_round = await currentRoundss(competition._id.toString());
+				if (!current_round || current_round.status !== 'upcoming') {
+					console.warn(`No valid ongoing round for competition: ${competition._id} `);
+					return null; // Skip if no valid ongoing round
+				}
+
+				// Get participant details for current round and user
+				const participantDetails = await ParticipantModel.find({
+					round_object_id: current_round?._id,
+					participant_object_id,
+					competition_object_id: competition?._id.toString()
+				}).lean();
+
+				// Check if participant has successfully enrolled
+				const enrolled_competition = participantDetails.some(participant =>
+					participant.participant_payment_status == "SUCCESS"
+				);
+
+				// Only return competition data if participant exists
+				if (participantDetails.length > 0) {
+					return {
+						...competition,
+						current_round,
+						participantDetails,
+						enrolled_competition
+					};
+				}
+				return null;
+			})
+		);
+		const validCompetitions = competitionsWithMetadata.filter(
+			(comp): comp is NonNullable<typeof comp> => comp !== null
+		);
+		//  Final Response
+		return res.status(StatusCodes.OK).json({
+			message: "Fetched upcoming competitions with data",
+			Result: validCompetitions,
+		});
+	} catch (error) {
+		console.error(error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error: error,
+		});
+	}
+}
+
+export const myOngoingCompetitionList = async (
+	req: Request,
+	res: Response
+): Promise<any> => {
+	try {
+		const currentDate = new Date();
+		const userDetails = await getDetailsByEmail(req.user.email);
+
+		if (!userDetails) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: "User details not found.",
+				Result: [],
+			});
+		}
+
+		// 🔹 Fetch ongoing competitions: currently active (start <= now <= end)
+		const fetchOngoingCompetitions = await CompetitionModel.find({
+			status: "ACTIVE",
+			// challenge_start_date: { $lte: currentDate },
+			// challenge_end_date: { $gte: currentDate },
+		})
+			.populate("creator_company")
+			.populate("created_by")
+			.populate("competition_type")
+			.lean();
+
+		if (!fetchOngoingCompetitions.length) {
+			return res.status(StatusCodes.OK).json({
+				message: "No ongoing competitions found.",
+				Result: [],
+			});
+		}
+
+		const participantObjectId = userDetails._id;
+		const competitionsWithMetadata = await Promise.all(
+			fetchOngoingCompetitions.map(async (competition) => {
+				try {
+					// Get current round (should be 'ongoing', not 'upcoming')
+					const currentRound = await currentRoundss(competition._id.toString());
+
+					// Only proceed if round exists AND is actually ongoing
+					if (!currentRound || currentRound.status !== "ongoing") {
+						console.debug(
+							`Skipping competition ${competition._id}: no ongoing round (status: ${currentRound?.status})`
+						);
+						return null;
+					}
+
+					// Fetch participant details for this round and competition
+					const participantDetails = await ParticipantModel.find({
+						round_object_id: currentRound._id,
+						participant_object_id: participantObjectId,
+						competition_object_id: competition._id.toString(),
+					}).lean();
+
+					// Check if user has successfully paid/enrolled
+					const enrolledCompetition = participantDetails.some(
+						(p) => p.participant_payment_status === "SUCCESS"
+					);
+
+					// Only return data if the user is a participant
+					if (participantDetails.length === 0) {
+						return null;
+					}
+
+					return {
+						...competition,
+						current_round: currentRound,
+						participantDetails,
+						enrolled_competition: enrolledCompetition,
+					};
+				} catch (roundError) {
+					console.error(
+						`Error processing round for competition ${competition._id}:`,
+						roundError
+					);
+					return null;
+				}
+			})
+		);
+
+		// Filter out nulls (non-ongoing or not enrolled)
+		const validCompetitions = competitionsWithMetadata.filter(
+			(comp): comp is NonNullable<typeof comp> => comp !== null
+		);
+
+		return res.status(StatusCodes.OK).json({
+			message: "Fetched ongoing competitions with participant data.",
+			Result: validCompetitions,
+		});
+	} catch (error) {
+		console.error("Error in myOngoingCompetitionList:", error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+};
+
+export const myCompletedCompetitionList = async (
+	req: Request,
+	res: Response
+): Promise<any> => {
+	try {
+		const currentDate = new Date();
+		const userDetails = await getDetailsByEmail(req.user.email);
+
+		if (!userDetails) {
+			return res.status(StatusCodes.NOT_FOUND).json({
+				message: "User details not found.",
+				Result: [],
+			});
+		}
+
+		const participantObjectId = userDetails._id;
+
+		// 🔹 Fetch completed competitions: ended in the past
+		const fetchCompletedCompetitions = await CompetitionModel.find({
+			status: { $in: ["ACTIVE", "COMPLETED"] }, // could be marked completed or still active but ended
+			// challenge_end_date: { $lt: currentDate }, // ended before now
+		})
+			.populate("creator_company")
+			.populate("created_by")
+			.populate("competition_type")
+			.lean();
+
+		if (!fetchCompletedCompetitions.length) {
+			return res.status(StatusCodes.OK).json({
+				message: "No completed competitions found.",
+				Result: [],
+			});
+		}
+
+		const competitionsWithMetadata = await Promise.all(
+			fetchCompletedCompetitions.map(async (competition) => {
+				try {
+					// 🔄 Optionally: get the last/final round (could be useful)
+					const finalRound = await currentRoundss(competition._id.toString());
+					// Note: currentRoundss might return latest round regardless of status
+					// If it doesn't support "last completed round", consider writing `getLastCompletedRound(competitionId)`
+
+					// 🔍 Fetch all participant records for this user in this competition
+					const participantDetails = await ParticipantModel.find({
+						competition_object_id: competition._id.toString(),
+						participant_object_id: participantObjectId,
+					}).lean();
+
+					// Filter to only successful enrollments
+					const successfulEnrollments = participantDetails.filter(
+						(p) => p.participant_payment_status === "SUCCESS"
+					);
+
+					// Skip if no successful enrollment
+					if (successfulEnrollments.length === 0) {
+						return null;
+					}
+
+					// ✅ Enrich with additional info
+					return {
+						...competition,
+						final_round: finalRound || null, // may be null if no rounds exist
+						participantDetails: successfulEnrollments,
+						enrolled_competition: true,
+						completion_status: "COMPLETED",
+						// Optional: add ranking if available
+						user_rank: (successfulEnrollments[0] as any).rank || null,
+						final_score: (successfulEnrollments[0] as any)?.final_score || null,
+					};
+				} catch (err) {
+					console.error(
+						`Error processing completed competition ${competition._id}:`,
+						err
+					);
+					return null; // skip on error
+				}
+			})
+		);
+
+		// Filter out nulls
+		const validCompetitions = competitionsWithMetadata.filter(
+			(comp): comp is NonNullable<typeof comp> => comp !== null
+		);
+
+		return res.status(StatusCodes.OK).json({
+			message: "Fetched completed competitions with participant data.",
+			Result: validCompetitions,
+		});
+	} catch (error) {
+		console.error("Error in myCompletedCompetitionList:", error);
+		return res.status(StatusCodes.BAD_REQUEST).json({
+			message: MESSAGE.get.fail,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+};
