@@ -1,4 +1,135 @@
-	const userDetails = await getDetailsByEmail(req.user.email);
+
+
+export const competitionRoundDetails = async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userDetails = await getDetailsByEmail(req.user.email);
+    if (!userDetails) {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ message: "User not authenticated." });
+    }
+
+    const now = new Date();
+
+    const participants = await ParticipantModel.aggregate([
+      {
+        $match: {
+          participant_object_id: userDetails._id,
+          status: { $in: ["PARTICIPATING", "PARTICIPATED"] }
+        }
+      },
+      {
+        $lookup: {
+          from: "competitions",
+          localField: "competition_object_id",
+          foreignField: "_id",
+          as: "competition"
+        }
+      },
+      { $unwind: "$competition" },
+      {
+        $lookup: {
+          from: "rounds",
+          localField: "round_object_id",
+          foreignField: "_id",
+          as: "round"
+        }
+      },
+      { $unwind: "$round" },
+
+      // Add computed round status based on start/end datetime
+      {
+        $addFields: {
+          "round.round_status": {
+            $switch: {
+              branches: [
+                {
+                  case: { $gt: ["$round.start_date", now] },
+                  then: "UPCOMING"
+                },
+                {
+                  case: {
+                    $and: [
+                      { $lte: ["$round.start_date", now] },
+                      { $gte: ["$round.end_date", now] }
+                    ]
+                  },
+                  then: "ONGOING"
+                },
+                {
+                  case: { $lt: ["$round.end_date", now] },
+                  then: "COMPLETED"
+                }
+              ],
+              default: "UNKNOWN"
+            }
+          }
+        }
+      },
+
+      // Group by round
+      {
+        $group: {
+          _id: "$round._id",
+          round_details: { $first: "$round" },
+          competition_details: { $first: "$competition" },
+          participants: {
+            $push: {
+              _id: "$_id",
+              participant_name: "$participant_name",
+              participant_payment_status: "$participant_payment_status",
+              participant_payment_type: "$participant_payment_type",
+              participant_payment_intant_id: "$participant_payment_intant_id",
+              transaction_object_id: "$transaction_object_id"
+            }
+          }
+        }
+      },
+
+      {
+        $project: {
+          _id: 0,
+          round_object_id: "$_id",
+          round_details: {
+            _id: "$round_details._id",
+            round_no: "$round_details.round_no",
+            start_date: "$round_details.start_date",
+            end_date: "$round_details.end_date",
+            round_status: "$round_details.round_status"
+          },
+          competition_details: {
+            _id: "$competition_details._id",
+            name: "$competition_details.name",
+            competition_type: "$competition_details.competition_type",
+            challenge_start_date: "$competition_details.challenge_start_date",
+            challenge_end_date: "$competition_details.challenge_end_date"
+          },
+          participants: 1
+        }
+      }
+    ]);
+
+    return res.status(StatusCodes.OK).json({
+      message: "Competition round details fetched successfully",
+      result: participants
+    });
+  } catch (error) {
+    console.error("Error fetching competition round details:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Server error", error });
+  }
+};
+
+
+
+
+
+
+
+
+
+const userDetails = await getDetailsByEmail(req.user.email);
 		if (!userDetails) {
 			return res.status(StatusCodes.UNAUTHORIZED).json({ message: 'User not authenticated.' });
 		}
