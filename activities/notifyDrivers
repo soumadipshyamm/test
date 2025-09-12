@@ -1,0 +1,87 @@
+   private function notifyDrivers($booking)
+    {
+        $pickup = json_decode($booking->from_address);
+        $latitude = $pickup->lat;
+        $longitude = $pickup->long;
+        $radius = getSiteSetting("search_radius") ?? 2000;
+        $categoryId = $booking->category_id;
+        $currentTime = now()->format('H:i:s');
+
+        $ongoingStatuses = [1, 2, 3, 8, 4];
+
+        // Fetch unique driver IDs with ongoing bookings
+        $driversWithOngoingBookings = Booking::whereIn('status', $ongoingStatuses)
+            ->pluck('driver_id')
+            ->where('is_accepted', 2)
+            ->filter(fn($driverId) => $driverId !== 0 && $driverId !== null)
+            ->unique()
+            ->values();
+        // Build the fares subquery
+
+        $faresSubquery = DB::table('km_fares as kf_primary')
+            ->select('kf_primary.category_id', 'kf_primary.base_fare')
+            ->where('kf_primary.category_id', $categoryId)
+            ->whereRaw('? BETWEEN kf_primary.start AND kf_primary.end', [$currentTime])
+            ->union(
+                DB::table('km_fares as kf_fallback')
+                    ->select('kf_fallback.category_id', 'kf_fallback.base_fare')
+                    ->where('kf_fallback.category_id', $categoryId)
+                    ->where('kf_fallback.end', '<', $currentTime)
+                    ->orderBy('kf_fallback.end', 'desc')
+                    ->limit(1)
+            );
+        // Join the fares subquery in the main drivers query
+        $driversQuery = User::select('users.*')
+            ->whereRaw(
+                "(
+                6371000 * acos(
+                    cos(radians(?)) * cos(radians(users.latitude)) *
+                    cos(radians(users.longitude) - radians(?)) +
+                    sin(radians(?)) * sin(radians(users.latitude))
+                )
+            ) <= ?",
+                [$latitude, $longitude, $latitude, $radius]
+            )
+            ->where('users.is_online', 1)
+            ->whereHas('vehicle', function ($q) use ($categoryId) {
+                $q->where('category_id', $categoryId);
+            });
+
+        // Exclude drivers with ongoing bookings
+        if ($driversWithOngoingBookings->isNotEmpty()) {
+            $driversQuery->whereNotIn('id', $driversWithOngoingBookings);
+        }
+
+        // Execute the query to get the drivers
+        $drivers = $driversQuery->latest()->limit(50)->get();
+
+        // Prepare notification data
+        $notificationData = (object)[
+            'body' => 'New Booking Have Arrived',
+            'title' => __('Booking Created'),
+            'data' => new BookingResource($booking),
+            'image' => 'https://example.com/path/to/image.jpg',
+        ];
+
+        // Collect FCM tokens of eligible drivers
+        $fcmTokens = [];
+        foreach ($drivers as $driver) {
+            if ($driver->ongoingBookings()->count() === 0 && !empty($driver->device_token)) {
+                $insertData[] = [
+                    'booking_id' => $booking->id,
+                    'driver_id' => $driver->id,
+                    'booking_fare' => $booking->fare,
+                    'status' => 0
+                ];
+
+                $fcmTokens[] = $driver->device_token; // Collect tokens for notification
+            }
+        }
+
+        // Send notifications in batch
+        if (!empty($fcmTokens)) {
+            foreach ($fcmTokens as $fcmToken) {
+                $this->sendNotification($notificationData, $fcmToken);
+            }
+        }
+    }
