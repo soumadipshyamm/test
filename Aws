@@ -1,4 +1,17 @@
- sudo mkdir -p /var/www/html/phpmyadmin
+
+[9/24, 4:56 PM] Joy Da (Boss): abashikdurgotsab.com
+Username: abashikd
+Pswd: b3808)VFr@RwYr
+[9/24, 5:00 PM] Joy Da (Boss): https://abashikdurgotsab.com:2083
+[9/25, 11:10 AM] Joy Da (Boss): https://abashikdurgotsab.com/marksheet/admin
+
+
+
+
+
+
+
+sudo mkdir -p /var/www/html/phpmyadmin
 
 wget https://files.phpmyadmin.net/phpMyAdmin/5.1.1/phpMyAdmin-5.1.1-all-languages.tar.gz
 
