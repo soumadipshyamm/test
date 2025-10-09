@@ -1,4 +1,503 @@
-  <fieldset class="border border-dark rounded mb-2">
+
+Nice — I reviewed your Blade, JS, controller and repository code and fixed the logical bugs + made the flow consistent and robust. Below you get:
+
+1. a short list of the problems I found (so you know why I changed things), and
+2. corrected full code for the Blade + JS, Controller, and Repository method (ready to drop in).
+
+I kept behavior the same (AJAX upload, immediate preview, JSON response) but made the code safe when a `document` doesn't exist yet, fixed naming mismatches, and made the server return the uploaded file URL so the preview image updates after upload.
+
+---
+
+# Problems I found
+
+* `documentUpdate()` calls `updateAnduploadUserDocuments()` but your repository method was named `updateAnduploadDocuments()` (name mismatch).
+* Form actions used `$document->uuid` even when `$document` might not exist (when there are no existing documents) → will break.
+* Controller expected `$duuid` always present, but upload UI sometimes creates a new document — controller should accept nullable `$duuid` and create the document if needed.
+* Repository method updated a single `$document` record repeatedly inside a loop that covered many types; it returned the last document — the intention seemed to be update/insert appropriate document rows per upload.
+* JS `FormData` console logging is noisy (FormData prints as object) and `imgId` resolution assumed the form contains `.file-upload` as single — okay but robustify.
+* The client was not updating the preview with the server-stored filename/URL after successful upload.
+* The Blade had duplicate ids/names possible; validated input names must match repository expectations.
+
+---
+
+# Corrected code
+
+> Notes:
+>
+> * I assume you have `uploadOne($file, $path, $fileName, $disk)` and `uuidtoid()` helper functions already (you used them).
+> * I used `route('admin.users.document.update', ['usertype' => 'driver','uuid' => $user->uuid])` (no duuid param). The controller accepts optional `$duuid`.
+> * The controller returns a JSON response including `file_url` so client updates preview.
+
+---
+
+## 1) Blade (view) — improved & safe
+
+```blade
+<fieldset class="border border-dark rounded mb-2">
+    <legend class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+        RC Image Details
+    </legend>
+
+    @php
+        $filtered = collect($user->documents)->filter(function ($item) {
+            return str_contains($item->document_type, 'rc_');
+        });
+    @endphp
+
+    <div class="d-flex flex-wrap">
+        @forelse ($filtered as $document)
+            <div class="card col-md-6 mb-3">
+                @if (str_contains($document->file ?? '', 'pdf'))
+                    <a href="{{ asset('storage/images/documents/' . $document->file) }}" target="_blank">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
+                            alt="PDF Icon" width="30" height="30"> Download PDF
+                    </a>
+                @else
+                    <div class="user-avatar-section">
+                        <div class="d-flex align-items-center flex-column">
+                            <a href="{{ asset('storage/images/documents/' . $document->file) }}" data-fancybox
+                                data-caption="{{ $document->title }}">
+                                <img src="{{ asset('storage/images/documents/' . $document->file) }}" class="img-fluid doc-img" alt="">
+                            </a>
+                            <div class="user-info text-center">
+                                <span class="badge bg-label-danger rounded-pill">RC Image</span>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                <div class="card-body">
+                    <h4 class="{{ 'card-title ' . ($document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-muted')) }}">
+                        {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
+                        @if ($document->status == 2)
+                            - {{ $document->reject_reason }}
+                        @endif
+                    </h4>
+
+                    <p class="card-text">{{ $document->title }}</p>
+
+                    <div class="row approveRejectSection">
+                        @if (!$document->status)
+                            <div class="col-6">
+                                <a href="javascript:void(0)"
+                                    class="btn btn-success stretched-link changeDocumentStatus"
+                                    data-uuid="{{ $document->uuid }}"
+                                    data-user-uuid="{{ $user->uuid }}"
+                                    data-table="documents" data-status="1"><i class="fas fa-check mr-2"></i>Accept</a>
+                            </div>
+                            <div class="col-6">
+                                <a href="javascript:void(0)"
+                                    class="btn btn-danger stretched-link changeDocumentStatus"
+                                    data-user-uuid="{{ $user->uuid }}"
+                                    data-uuid="{{ $document->uuid }}"
+                                    data-table="documents" data-status="2"><i class="fas fa-times mr-2"></i>Reject</a>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        @empty
+            <p class="text-muted">No RC Images available.</p>
+        @endforelse
+
+        {{-- ------------------ Upload Front ------------------ --}}
+        <div class="card col-md-6 mb-3">
+            <form id="rc-front-form"
+                  action="{{ route('admin.users.document.update', ['usertype' => 'driver', 'uuid' => $user->uuid]) }}"
+                  enctype="multipart/form-data" method="POST" data-document-type="rc_front">
+                @csrf
+                {{-- send the document uuid if updating existing front (optional) --}}
+                {{-- find existing rc_front document uuid if present --}}
+                @php
+                    $rcFrontDoc = $filtered->firstWhere('document_type', 'rc_front');
+                @endphp
+                @if($rcFrontDoc)
+                    <input type="hidden" name="document_uuid" value="{{ $rcFrontDoc->uuid }}">
+                @endif
+
+                <input type="hidden" name="document_type" value="rc_front">
+
+                <div class="single_login form_group">
+                    <div class="imgupload_box">
+                        <div class="imgupload_btn">
+                            <label class="form-label">RC Image</label><br>
+                            <label class="form-label">Front Side<span class="text-rose-500">*</span></label>
+                            <div class="upload-photo">
+                                <input class="file-upload showOnUpload"
+                                       required id="rc-front" name="rc[front]"
+                                       type="file" data-location="showrFrontSide"
+                                       accept="image/*">
+                                <label for="rc-front">
+                                    <span><i class="fas fa-upload" aria-hidden="true"></i></span>
+                                    Upload Photo
+                                </label>
+                            </div>
+                        </div>
+                        <div class="img-uploadbox">
+                            <img id="showrFrontSide"
+                                 src="{{ $user->rc_front ? asset('storage/images/documents/'.$user->rc_front) : 'https://via.placeholder.com/150' }}"
+                                 class="img-fluid doc-img" alt="">
+                        </div>
+                    </div>
+
+                    @error('rc.front')
+                        <span class="invalid-feedback d-block" role="alert"><strong>{{ $message }}</strong></span>
+                    @enderror
+                    <button type="submit" class="btn btn-primary mt-2">Upload</button>
+                </div>
+            </form>
+        </div>
+
+        {{-- ------------------ Upload Back ------------------ --}}
+        <div class="card col-md-6 mb-3">
+            <form id="rc-back-form"
+                  action="{{ route('admin.users.document.update', ['usertype' => 'driver', 'uuid' => $user->uuid]) }}"
+                  enctype="multipart/form-data" method="POST" data-document-type="rc_back">
+                @csrf
+
+                @php
+                    $rcBackDoc = $filtered->firstWhere('document_type', 'rc_back');
+                @endphp
+                @if($rcBackDoc)
+                    <input type="hidden" name="document_uuid" value="{{ $rcBackDoc->uuid }}">
+                @endif
+
+                <input type="hidden" name="document_type" value="rc_back">
+
+                <div class="single_login form_group">
+                    <div class="imgupload_box">
+                        <div class="imgupload_btn">
+                            <label class="form-label">RC Image</label><br>
+                            <label class="form-label">Back Side<span class="text-rose-500">*</span></label>
+                            <div class="upload-photo">
+                                <input class="file-upload showOnUpload"
+                                       required id="rc-back" name="rc[back]"
+                                       type="file" data-location="showrBackSide"
+                                       accept="image/*">
+                                <label for="rc-back">
+                                    <span><i class="fas fa-upload" aria-hidden="true"></i></span>
+                                    Upload Photo
+                                </label>
+                            </div>
+                        </div>
+                        <div class="img-uploadbox">
+                            <img id="showrBackSide"
+                                 src="{{ $user->rc_back ? asset('storage/images/documents/'.$user->rc_back) : 'https://via.placeholder.com/150' }}"
+                                 class="img-fluid viewOnUpload doc-img" alt="">
+                        </div>
+                    </div>
+
+                    @error('rc.back')
+                        <span class="invalid-feedback d-block" role="alert"><strong>{{ $message }}</strong></span>
+                    @enderror
+                    <button type="submit" class="btn btn-primary mt-2">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</fieldset>
+```
+
+---
+
+## 2) Client JS — tidy, updating preview with server response
+
+```html
+<script>
+$(function () {
+    // Preview local file immediately on file select
+    $('.file-upload').on('change', function() {
+        var input = this;
+        var imgId = $(this).data('location');
+        var imgElement = $('#' + imgId);
+        if (input.files && input.files[0]) {
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                imgElement.attr('src', e.target.result);
+            };
+            reader.readAsDataURL(input.files[0]);
+        } else {
+            imgElement.attr('src', 'https://via.placeholder.com/150');
+        }
+    });
+
+    // Attach submit handler for all upload forms (use attribute selector to avoid missing any)
+    $('form[id$="-form"]').on('submit', function(e) {
+        e.preventDefault();
+        var form = $(this);
+        var action = form.attr('action');
+        var formData = new FormData(this);
+
+        // include document_type if present in form data as simple field (already added in the form)
+        var imgInput = form.find('.file-upload')[0];
+        var imgId = $(imgInput).data('location');
+        var imgElement = $('#' + imgId);
+
+        // Visual feedback
+        var submitBtn = form.find('button[type="submit"]');
+        submitBtn.prop('disabled', true).text('Uploading...');
+
+        $.ajax({
+            url: action,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function(response) {
+                if (response.success) {
+                    // If server returned final file url, update preview src
+                    if (response.file_url) {
+                        imgElement.attr('src', response.file_url);
+                    }
+                    // Optionally show a success toast
+                    alert(response.message || 'Uploaded successfully');
+                } else {
+                    alert(response.message || 'Upload failed');
+                }
+            },
+            error: function(xhr) {
+                var errorMessage = xhr.responseJSON?.message || 'An error occurred. Please try again.';
+                alert('Upload failed: ' + errorMessage);
+            },
+            complete: function() {
+                submitBtn.prop('disabled', false).text('Upload');
+            }
+        });
+    });
+});
+</script>
+```
+
+---
+
+## 3) Controller — robust, accepts optional `$duuid` and creates document when needed
+
+```php
+public function documentUpdate(Request $request, $userType, $uuid, $duuid = null)
+{
+    $this->setPageTitle('Documents');
+
+    $userId = uuidtoid($uuid, 'users');
+    $user = $this->userService->findById($userId);
+
+    // If GET, return the view (existing behavior)
+    if (!$request->isMethod('post')) {
+        return view('admin.user.index', compact('userType', 'user'));
+    }
+
+    DB::beginTransaction();
+    try {
+        // Normalize incoming request files/fields before passing to repository
+        // If form included document_uuid, we will attempt to update that specific document
+        $documentUuid = $request->input('document_uuid');
+        $documentId = null;
+        if ($documentUuid) {
+            $documentId = uuidtoid($documentUuid, 'documents');
+        }
+
+        // server-side validation (optional but recommended)
+        // Example: require either rc.front or rc.back based on document_type
+        $documentType = $request->input('document_type'); // e.g., 'rc_front' or 'rc_back'
+        // Put your validation rules as needed
+
+        // Call repository to handle upload/update. Method name is updateAnduploadUserDocuments()
+        $result = $this->userService->updateAnduploadUserDocuments(
+            $request->all(),
+            $userId,
+            $documentId
+        );
+
+        if (!$result) {
+            throw new \Exception('Failed to update documents or upload files');
+        }
+
+        DB::commit();
+
+        // return JSON with file url if repository provided it
+        return response()->json([
+            'success' => true,
+            'message' => 'Documents uploaded successfully',
+            'file_url' => $result['file_url'] ?? null,
+            'document' => $result['document'] ?? null,
+        ]);
+    } catch (\Throwable $e) {
+        DB::rollBack();
+        logger($e->getMessage() . ' -- ' . $e->getLine() . ' -- ' . $e->getFile());
+        return response()->json([
+            'success' => false,
+            'message' => 'Something went wrong. Please try again.',
+        ], 500);
+    }
+}
+```
+
+> Notes:
+>
+> * I return an array from the repository with `file_url` and `document` so the controller can pass final preview URL back to client.
+> * `uuidtoid()` should return `null` if uuid not found — controller handles that.
+
+---
+
+## 4) Repository (or UserService) — `updateAnduploadUserDocuments()` — consistent & returns file URL
+
+Replace your existing repository function with the following (rename to match controller call). This implementation will:
+
+* create or update a single `Document` row for the uploaded file type,
+* store the file using your `uploadOne()` helper,
+* return final file url and document info for the client.
+
+```php
+// In your repository or service class (rename to match call)
+public function updateAnduploadUserDocuments(array $input, int $userId, ?int $documentId = null)
+{
+    // Determine which uploaded file is present.
+    // The form sends e.g. rc[front] or rc[back] etc.
+    // We'll scan common keys from your forms.
+
+    $fileUrl = null;
+    $updatedDocument = null;
+
+    // Map of expected document_type values that the UI sends in hidden input
+    $allowedDocumentTypes = [
+        'rc_front'  => ['input_key' => 'rc', 'index' => 'front', 'title' => 'RC Front Image', 'db_type' => 'rc_front'],
+        'rc_back'   => ['input_key' => 'rc', 'index' => 'back',  'title' => 'RC Back Image', 'db_type' => 'rc_back'],
+        'licence_front' => ['input_key' => 'licence', 'index' => 'front', 'title' => 'Licence Front Image', 'db_type' => 'licence_front'],
+        'licence_back'  => ['input_key' => 'licence', 'index' => 'back',  'title' => 'Licence Back Image', 'db_type' => 'licence_back'],
+        // add others if you have similar forms (aadhar, pan, noc)...
+    ];
+
+    $documentType = $input['document_type'] ?? null;
+
+    // Find the specific uploaded file in the PHP $_FILES like structure
+    $file = null;
+    if ($documentType && isset($allowedDocumentTypes[$documentType])) {
+        $cfg = $allowedDocumentTypes[$documentType];
+        // access using Laravel's request-like structure: $input contains uploaded files only if you pass $request->all()?
+        // To be safe, you can expect caller to pass $request->files too — but here we'll use request() helper to access files.
+        $fileFromRequest = request()->file($cfg['input_key']);
+        if ($fileFromRequest) {
+            // If file input was named like rc[front], Laravel returns an array: file('rc')['front']
+            if (is_array($fileFromRequest) && isset($fileFromRequest[$cfg['index']])) {
+                $file = $fileFromRequest[$cfg['index']];
+            } elseif (!is_array($fileFromRequest)) {
+                // file input not array (edge case)
+                $file = $fileFromRequest;
+            }
+        }
+    } else {
+        // fallback: check for rc[front], rc[back] directly
+        if (request()->hasFile('rc')) {
+            $rcFiles = request()->file('rc');
+            if (isset($rcFiles['front'])) $file = $rcFiles['front'];
+            elseif (isset($rcFiles['back'])) $file = $rcFiles['back'];
+        }
+        // other fallbacks can be added similarly
+    }
+
+    if (!$file || !$file->isValid()) {
+        // nothing to do
+        return false;
+    }
+
+    // Generate unique filename & upload
+    $ext = $file->getClientOriginalExtension();
+    $fileName = uniqid('doc_') . '.' . $ext;
+
+    $uploadPath = config('constants.SITE_CV_DOCUMENT_UPLOAD_PATH'); // ensure defined
+    $isFileUploaded = $this->uploadOne($file, $uploadPath, $fileName, 'public');
+
+    if (!$isFileUploaded) {
+        return false;
+    }
+
+    // If $documentId provided, update that document; otherwise try to find existing by user & document_type
+    $documentModel = null;
+    if ($documentId) {
+        $documentModel = \App\Models\Document::find($documentId);
+    }
+
+    // If not found, try to find by user + document_type
+    if (!$documentModel && $documentType) {
+        $documentModel = \App\Models\Document::where('user_id', $userId)
+            ->where('document_type', $documentType)
+            ->first();
+    }
+
+    // Else create a new document row
+    if (!$documentModel) {
+        $documentModel = new \App\Models\Document();
+        $documentModel->user_id = $userId;
+        $documentModel->uuid = \Str::uuid()->toString();
+        $documentModel->document_type = $documentType ?? 'unknown';
+        $documentModel->title = $allowedDocumentTypes[$documentType]['title'] ?? 'Document';
+        $documentModel->status = 0;
+    }
+
+    $documentModel->file = $fileName;
+    $documentModel->save();
+
+    // Build public URL for preview (adjust if you use storage disk differently)
+    $fileUrl = asset('storage/images/documents/' . $fileName);
+
+    return [
+        'file_url' => $fileUrl,
+        'document' => $documentModel,
+    ];
+}
+```
+
+> Important: adjust `uploadOne()` and `config('constants.SITE_CV_DOCUMENT_UPLOAD_PATH')` to match where you actually store files. `asset('storage/images/documents/...')` expects files saved under `storage/app/public/images/documents` and `php artisan storage:link` in place.
+
+---
+
+## 5) Summary of flow after fixes
+
+* User chooses file → local preview updates immediately via FileReader.
+* User submits upload form → AJAX FormData POST to `documentUpdate` route.
+* Controller calls repository `updateAnduploadUserDocuments()` which uploads file, creates/updates corresponding `documents` row and returns file URL and document object.
+* Controller responds JSON with `file_url`.
+* Client receives JSON and updates preview image `src` with the returned `file_url`.
+
+---
+
+## Final notes & suggestions
+
+* Add server-side validation for file types and maximum size.
+* Make sure `SITE_CV_DOCUMENT_UPLOAD_PATH` and `uploadOne()` are consistent with the public-accessible path returned to client.
+* If you want to allow multiple document types uploads in one request (bulk), expand repository accordingly. Right now the repository handles 1 uploaded file per call (matching your per-card upload UI).
+* Consider returning the `document.uuid` in the JSON so the client can update hidden inputs for future updates without reloading the page.
+* If you want me to convert this to support bulk upload or to support progress bars (XHR progress), say the word and I’ll add them.
+
+---
+
+If you want, I can:
+
+* adapt the repository to update multiple document-types at once (bulk), or
+* return both relative and absolute URLs for different environments, or
+* prepare the migration for `documents.document_type` enum values and consistent constants.
+
+Which of those would you like next?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<fieldset class="border border-dark rounded mb-2">
                                                 <legend
                                                     class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
                                                     RC Image Details
