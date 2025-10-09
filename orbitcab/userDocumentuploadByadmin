@@ -1,3 +1,1147 @@
+   <div class="tab-pane fade" id="ex1-tabs-7" role="tabpanel" aria-labelledby="ex1-tab-7">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="mb-4">
+                                    <div class="car">
+                                        <div class="p-2">
+                                            <!-- ******************************************************************************** -->
+
+                                            <!-- Vehicle Details -->
+                                            <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    Vehicle Details
+                                                </legend>
+                                                <form id="vehicle-details-form"
+                                                    action="{{ route('admin.users.vehicle.details', ['usertype' => 'driver', 'uuid' => $user->uuid, 'tabtype' => 'vehicle-details']) }}"
+                                                    enctype="multipart/form-data" method="POST">
+                                                    @csrf
+                                                    <div class="row">
+                                                        <div class="col-md-10 p-2 bg-transparent">
+                                                            <div class="card col-12">
+                                                                <input type="hidden" name="user_id"
+                                                                    value="{{ $user->id }}">
+                                                                <input type="hidden" name="vehicle_id"
+                                                                    value="{{ $user?->vehicle?->id }}">
+                                                                <input type="hidden" id="current_vehicle_type_id"
+                                                                    value="{{ $user?->vehicle?->category?->parent?->id ?? '' }}">
+                                                                <input type="hidden" id="current_vehicle_sub_type_id"
+                                                                    value="{{ $user?->vehicle?->car?->category?->id ?? '' }}">
+                                                                <input type="hidden" id="current_brand_id"
+                                                                    value="{{ $user?->vehicle?->brand?->id ?? '' }}">
+                                                                <input type="hidden" id="current_vehicle_model_id"
+                                                                    value="{{ $user?->vehicle?->car?->id ?? '' }}">
+
+                                                                <div class="form-group col-md-6 d-flex align-items-center">
+                                                                    <label for="vehicle_type"
+                                                                        class="font-weight-bold me-2"
+                                                                        style="white-space: nowrap">Vehicle Type :</label>
+                                                                    <p class="text-muted editedinput-vehicle-value">
+                                                                        {{ $user?->vehicle?->category?->parent?->name ?? 'N/A' }}
+                                                                    </p>
+                                                                    <div class="editedinput-vehicle"
+                                                                        style="display:none;">
+                                                                        <select name="vehicle_type" id="vehicle_type"
+                                                                            class="form-control" style="border: none;">
+                                                                            <option value="">---Select Vehicle
+                                                                                Type---</option>
+                                                                            {{ getCategory($user?->vehicle?->category?->parent?->name ?? '') }}
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="form-group col-md-6 d-flex align-items-center">
+                                                                    <label for="vehicle_sub_type"
+                                                                        class="font-weight-bold me-2"
+                                                                        style="white-space: nowrap">Vehicle Sub-Type
+                                                                        :</label>
+                                                                    <p
+                                                                        class="text-muted editedinput-vehicle-value vehicle_sub_type_id">
+                                                                        {{ $user?->vehicle?->car?->category?->name ?? 'N/A' }}
+                                                                    </p>
+                                                                    <select name="vehicle_sub_type"
+                                                                        id="vehicle_sub_type_select"
+                                                                        class="form-control editedinput-vehicle"
+                                                                        style="display:none; border: none;">
+                                                                        <option value="">---Select Sub-Type---
+                                                                        </option>
+                                                                        <option
+                                                                            value="{{ $user?->vehicle?->car?->category?->id }}">
+                                                                            {{ $user?->vehicle?->car?->category?->name ?? 'N/A' }}
+                                                                        </option>
+                                                                    </select>
+                                                                </div>
+                                                                <div class="form-group col-md-6 d-flex align-items-center">
+                                                                    <label for="bank_name" class="font-weight-bold me-2"
+                                                                        style="white-space: nowrap">Vehicle Brand :</label>
+                                                                    <p
+                                                                        class="text-muted editedinput-vehicle-value brand_value_id">
+                                                                        {{ $user?->vehicle?->brand->name ?? 'N/A' }}
+                                                                    </p>
+                                                                    <div class="editedinput-vehicle"
+                                                                        style="display:none;">
+                                                                        <select name="brand_id" id="brand_id"
+                                                                            class="form-control" style="border: none;">
+                                                                            <option value="">---Select Brands---
+                                                                            </option>
+                                                                            <option
+                                                                                value="{{ $user?->vehicle?->brand?->id }}">
+                                                                                {{ $user?->vehicle?->brand?->name ?? 'N/A' }}
+                                                                            </option>
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="col-md-12">
+                                                                    <div class="row">
+                                                                        <div
+                                                                            class="form-group col-md-6 d-flex align-items-center">
+                                                                            <label for="bank_name"
+                                                                                class="font-weight-bold me-2"
+                                                                                style="white-space: nowrap">Vehicle Model
+                                                                                :</label>
+                                                                            <p
+                                                                                class="text-muted editedinput-vehicle-value vehicle_model_id">
+                                                                                {{ $user?->vehicle?->car->model ?? 'N/A' }}
+                                                                            </p>
+                                                                            <select name="vehicle_model"
+                                                                                id="vehicle_model"
+                                                                                class="form-control editedinput-vehicle"
+                                                                                style="border: none; display:none;">
+                                                                                <option value="">---Select Model---
+                                                                                </option>
+                                                                                <option
+                                                                                    value="{{ $user?->vehicle?->car?->id }}">
+                                                                                    {{ $user?->vehicle?->car?->model ?? 'N/A' }}
+                                                                                </option>
+                                                                            </select>
+                                                                        </div>
+                                                                        <div
+                                                                            class="form-group col-md-3 d-flex align-items-center">
+                                                                            <label for="bank_name"
+                                                                                class="font-weight-bold me-2"
+                                                                                style="white-space: nowrap">Color :</label>
+                                                                            <p
+                                                                                class="text-muted editedinput-vehicle-value">
+                                                                                {{ $user?->vehicle?->color ?? 'N/A' }}
+                                                                            </p>
+                                                                            <input type="text" name="vehicle_color"
+                                                                                class="form-control editedinput-vehicle"
+                                                                                style="border: none; border-bottom: 1px solid; display:none;"
+                                                                                placeholder="Vehicle color"
+                                                                                id="vehicle_color"
+                                                                                value="{{ $user?->vehicle?->color ?? '' }}">
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div class="form-group col-md-6 d-flex align-items-center">
+                                                                    <label for="branch_name" class="font-weight-bold me-2"
+                                                                        style="white-space: nowrap">Vehicle No :</label>
+                                                                    <p class="text-muted editedinput-vehicle-value">
+                                                                        {{ $user?->vehicle?->plate_no ?? 'N/A' }}
+                                                                    </p>
+                                                                    <input type="text" name="vehicle_no"
+                                                                        class="form-control editedinput-vehicle"
+                                                                        style="border: none; border-bottom: 1px solid; display:none;"
+                                                                        placeholder="Vehicle No" id="vehicle_no"
+                                                                        value="{{ $user?->vehicle?->plate_no ?? '' }}">
+                                                                </div>
+                                                                <div class="form-group col-md-5 d-flex align-items-center">
+                                                                    <label for="ifsc_code" class="font-weight-bold me-2"
+                                                                        style="white-space: nowrap">Seating Capacity
+                                                                        :</label>
+                                                                    <p class="text-muted editedinput-vehicle-value">
+                                                                        {{ $user?->vehicle?->seating_capacity ?? 'N/A' }}
+                                                                    </p>
+                                                                    <input type="text" name="seating_capacity"
+                                                                        class="form-control editedinput-vehicle"
+                                                                        style="border: none; border-bottom: 1px solid; display:none;"
+                                                                        placeholder="Seating Capacity"
+                                                                        id="seating_capacity" readonly
+                                                                        value="{{ $user?->vehicle?->seating_capacity ?? '' }}">
+                                                                </div>
+                                                                <div class="form-group col-md-5 d-flex align-items-center">
+                                                                    <label for="account_no" class="font-weight-bold me-2"
+                                                                        style="white-space: nowrap">Mileage :</label>
+                                                                    <p class="text-muted editedinput-vehicle-value">
+                                                                        {{ $user?->vehicle?->milage ?? 'N/A' }}
+                                                                    </p>
+                                                                    <input type="text" name="milage"
+                                                                        class="form-control editedinput-vehicle"
+                                                                        style="border: none; border-bottom: 1px solid; display:none;"
+                                                                        placeholder="Milage" id="milage" readonly
+                                                                        value="{{ $user?->vehicle?->milage ?? '' }}">
+                                                                </div>
+                                                                <div class="col-12 editedinput-vehicle"
+                                                                    style="display:none;">
+                                                                    <button type="submit" style="width:50%;"
+                                                                        class="btn btn-primary">Submit</button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-md-2">
+                                                            <div class="d-flex flex-row-reverse flex-wrap gap-3 mr-2">
+                                                                <a href="javascript:void(0)" id="vehicle_details_edit"
+                                                                    class="btn btn-primary">Edit</a>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </form>
+                                            </fieldset>
+                                            <!-- ******************************************************************************** -->
+                                            <!-- Vehicle Image Details -->
+                                            <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    Vehicle Image Details
+                                                </legend>
+                                                @php
+                                                    $filtered = collect($user->documents)->filter(function ($item) {
+                                                        return str_contains($item->document_type, 'vehicle_');
+                                                    });
+                                                @endphp
+                                                <div class="d-flex flex-wrap">
+                                                    @forelse ($filtered as $document)
+                                                        <div class="card col-md-6 mb-3">
+                                                            @if (str_contains($document->file, 'pdf'))
+                                                                <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                    target="_blank">
+                                                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
+                                                                        alt="PDF Icon" class="text-decoration-none"
+                                                                        width="30" height="30">
+                                                                    Download PDF
+                                                                </a>
+                                                            @else
+                                                                <div class="user-avatar-section">
+                                                                    <div class="d-flex align-items-center flex-column">
+                                                                        <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                            data-fancybox
+                                                                            data-caption="{{ $document->title }}">
+                                                                            <img src="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </a>
+                                                                        <div class="user-info text-center">
+                                                                            <span
+                                                                                class="badge bg-label-danger rounded-pill">RC
+                                                                                Image</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                            <div class="card-body">
+                                                                <h4
+                                                                    class="{{ 'card-title ' . ($document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-muted')) }}">
+                                                                    {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
+                                                                    @if ($document->status == 2)
+                                                                        - {{ $document->reject_reason }}
+                                                                    @endif
+                                                                </h4>
+                                                                <p class="card-text">{{ $document->title }}</p>
+                                                                <div class="row approveRejectSection">
+                                                                    @if (!$document->status)
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-success stretched-link changeDocumentStatus"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-table="documents" data-status="1"><i
+                                                                                    class="fas fa-check mr-2"></i>Accept</a>
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-danger stretched-link changeDocumentStatus"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-table="documents" data-status="2"><i
+                                                                                    class="fas fa-times mr-2"></i>Reject</a>
+                                                                        </div>
+                                                                    @endif
+
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted">No Vehicle Images available.</p>
+                                                    @endforelse
+                                                    <div class="card col-md-6 mb-3">
+
+                                                        <form id="rc-front-form"
+                                                            action="{{ route('admin.users.document.update', ['usertype' => 'driver', 'uuid' => $user->uuid, 'duuid' => $document->uuid]) }}"
+                                                            enctype="multipart/form-data" method="POST">
+                                                            @csrf
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">Vehicle Image</label><br>
+                                                                        <label class="form-label">Front Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="vehicle-front"
+                                                                                name="vehicle[front]" type="file"
+                                                                                data-location="showrFrontSide"
+                                                                                accept="image/*">
+                                                                            <label for="vehicle-front">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showrFrontSide"
+                                                                            src="{{ $user->rc_front ?? 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid doc-img" alt="">
+                                                                    </div>
+                                                                </div>
+                                                                @error('vehicle.front')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                    <div class="card col-md-6 mb-3">
+                                                        <form id="vehicle-back-form"
+                                                            action="{{ route('admin.users.documents.upload', ['user_uuid' => $user->uuid, 'type' => 'rc_back']) }}"
+                                                            enctype="multipart/form-data" method="POST">
+                                                            @csrf
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">Vehicle Image</label><br>
+                                                                        <label class="form-label">Back Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="vehicle-back"
+                                                                                name="vehicle[back]" type="file"
+                                                                                data-location="showrBackSide"
+                                                                                accept="image/*">
+                                                                            <label for="vehicle-back">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showrBackSide"
+                                                                            src="{{ $user->rc_back ?? 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid viewOnUpload doc-img"
+                                                                            alt="">
+                                                                    </div>
+                                                                </div>
+                                                                @error('vehicle.back')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </fieldset>
+                                            <!-- ******************************************************************************** -->
+                                            <!-- RC Image Details -->
+                                            <!-- ******************************************************************************** -->
+                                            <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    RC Image Details
+                                                </legend>
+
+                                                @php
+                                                    $filtered = collect($user->documents)->filter(function ($item) {
+                                                        return str_contains($item->document_type, 'rc_');
+                                                    });
+                                                @endphp
+
+                                                <div class="d-flex flex-wrap">
+                                                    @forelse ($filtered as $document)
+                                                        <div class="card col-md-6 mb-3">
+                                                            @if (str_contains($document->file ?? '', 'pdf'))
+                                                                <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                    target="_blank">
+                                                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
+                                                                        alt="PDF Icon" width="30" height="30">
+                                                                    Download PDF
+                                                                </a>
+                                                            @else
+                                                                <div class="user-avatar-section">
+                                                                    <div class="d-flex align-items-center flex-column">
+                                                                        <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                            data-fancybox
+                                                                            data-caption="{{ $document->title }}">
+                                                                            <img src="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </a>
+                                                                        <div class="user-info text-center">
+                                                                            <span
+                                                                                class="badge bg-label-danger rounded-pill">RC
+                                                                                Image</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+
+                                                            <div class="card-body">
+                                                                <h4
+                                                                    class="{{ 'card-title ' . ($document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-muted')) }}">
+                                                                    {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
+                                                                    @if ($document->status == 2)
+                                                                        - {{ $document->reject_reason }}
+                                                                    @endif
+                                                                </h4>
+
+                                                                <p class="card-text">{{ $document->title }}</p>
+
+                                                                <div class="row approveRejectSection">
+                                                                    @if (!$document->status)
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-success stretched-link changeDocumentStatus"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-table="documents" data-status="1"><i
+                                                                                    class="fas fa-check mr-2"></i>Accept</a>
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-danger stretched-link changeDocumentStatus"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-table="documents" data-status="2"><i
+                                                                                    class="fas fa-times mr-2"></i>Reject</a>
+                                                                        </div>
+                                                                    @endif
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted">No RC Images available.</p>
+                                                    @endforelse
+
+                                                    {{-- ------------------ Upload Front ------------------ --}}
+                                                    <div class="card col-md-6 mb-3">
+                                                        <form id="rc-front-form"
+                                                            action="{{ route('admin.users.document.update', ['usertype' => 'driver', 'uuid' => $user->uuid]) }}"
+                                                            enctype="multipart/form-data" method="POST"
+                                                            data-document-type="rc_front">
+                                                            @csrf
+                                                            {{-- send the document uuid if updating existing front (optional) --}}
+                                                            {{-- find existing rc_front document uuid if present --}}
+                                                            @php
+                                                                $rcFrontDoc = $filtered->firstWhere(
+                                                                    'document_type',
+                                                                    'rc_front',
+                                                                );
+                                                            @endphp
+                                                            @if ($rcFrontDoc)
+                                                                <input type="hidden" name="document_uuid"
+                                                                    value="{{ $rcFrontDoc->uuid }}">
+                                                            @endif
+
+                                                            <input type="hidden" name="document_type" value="rc_front">
+
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">RC Image</label><br>
+                                                                        <label class="form-label">Front Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="rc-front" name="rc[front]"
+                                                                                type="file"
+                                                                                data-location="showrFrontSide"
+                                                                                accept="image/*">
+                                                                            <label for="rc-front">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showrFrontSide"
+                                                                            src="{{ $user->rc_front ? asset('storage/images/documents/' . $user->rc_front) : 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid doc-img" alt="">
+                                                                    </div>
+                                                                </div>
+
+                                                                @error('rc.front')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+
+                                                    {{-- ------------------ Upload Back ------------------ --}}
+                                                    <div class="card col-md-6 mb-3">
+                                                        <form id="rc-back-form"
+                                                            action="{{ route('admin.users.document.update', ['usertype' => 'driver', 'uuid' => $user->uuid]) }}"
+                                                            enctype="multipart/form-data" method="POST"
+                                                            data-document-type="rc_back">
+                                                            @csrf
+
+                                                            @php
+                                                                $rcBackDoc = $filtered->firstWhere(
+                                                                    'document_type',
+                                                                    'rc_back',
+                                                                );
+                                                            @endphp
+                                                            @if ($rcBackDoc)
+                                                                <input type="hidden" name="document_uuid"
+                                                                    value="{{ $rcBackDoc->uuid }}">
+                                                            @endif
+
+                                                            <input type="hidden" name="document_type" value="rc_back">
+
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">RC Image</label><br>
+                                                                        <label class="form-label">Back Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="rc-back" name="rc[back]"
+                                                                                type="file"
+                                                                                data-location="showrBackSide"
+                                                                                accept="image/*">
+                                                                            <label for="rc-back">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showrBackSide"
+                                                                            src="{{ $user->rc_back ? asset('storage/images/documents/' . $user->rc_back) : 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid viewOnUpload doc-img"
+                                                                            alt="">
+                                                                    </div>
+                                                                </div>
+
+                                                                @error('rc.back')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </fieldset>
+                                            <!-- ******************************************************************************** -->
+                                            <!-- ******************************************************************************** -->
+
+                                            <!-- Driving Licence Details -->
+                                            <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    Driving Licence Details
+                                                </legend>
+                                                @php
+                                                    $lFiltered = collect($user->documents)->filter(function ($item) {
+                                                        return false !== stristr($item->document_type, 'licence_');
+                                                    });
+                                                @endphp
+                                                <div class="d-flex flex-wrap">
+                                                    @forelse ($lFiltered as $document)
+                                                        <div class="card col-6">
+                                                            @if (str_contains($document->file, 'pdf'))
+                                                                <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                    target="_blank">
+                                                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
+                                                                        alt="PDF Icon" width="30" height="30"
+                                                                        class="text-decoration-none">
+                                                                    Download PDF
+                                                                </a>
+                                                            @else
+                                                                <div class="user-avatar-section">
+                                                                    <div class="d-flex align-items-center flex-column">
+                                                                        <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                            data-fancybox
+                                                                            data-caption="{{ $document->title }}">
+                                                                            <img src="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </a>
+                                                                        <div class="user-info text-center">
+                                                                            <span
+                                                                                class="badge bg-label-danger rounded-pill">Licence
+                                                                                Image</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                            <div class="card-body">
+                                                                <h4
+                                                                    class="{{ 'card-title ' . ($document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-muted')) }}">
+                                                                    {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
+                                                                    @if ($document->status == 2)
+                                                                        - {{ $document->reject_reason }}
+                                                                    @endif
+                                                                </h4>
+                                                                <p class="card-text">{{ $document->title }}</p>
+                                                                <div class="row approveRejectSection">
+                                                                    @if (!$document->status)
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-success stretched-link changeDocumentStatus"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-table="documents" data-status="1"><i
+                                                                                    class="fas fa-check mr-2"></i>Accept</a>
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-danger stretched-link changeDocumentStatus"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-table="documents" data-status="2"><i
+                                                                                    class="fas fa-times mr-2"></i>Reject</a>
+                                                                        </div>
+                                                                    @endif
+
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted">No Licence Images available.</p>
+                                                    @endforelse
+                                                    <div class="card col-6">
+                                                        <form id="licence-front-form" enctype="multipart/form-data"
+                                                            method="POST">
+                                                            @csrf
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">Licence Image</label><br>
+                                                                        <label class="form-label">Front Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="licence-front"
+                                                                                name="licence[front]" type="file"
+                                                                                data-location="showlFrontSide"
+                                                                                accept="image/*">
+                                                                            <label for="licence-front">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showlFrontSide"
+                                                                            src="{{ $user->licence_front ?? 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid doc-img" alt="">
+                                                                    </div>
+                                                                </div>
+                                                                @error('licence.front')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                    <div class="card col-6">
+                                                        <form id="licence-back-form" enctype="multipart/form-data"
+                                                            method="POST">
+                                                            @csrf
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">Licence Image</label><br>
+                                                                        <label class="form-label">Back Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="licence-back"
+                                                                                name="licence[back]" type="file"
+                                                                                data-location="showlBackSide"
+                                                                                accept="image/*">
+                                                                            <label for="licence-back">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showlBackSide"
+                                                                            src="{{ $user->licence_back ?? 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid viewOnUpload doc-img"
+                                                                            alt="">
+                                                                    </div>
+                                                                </div>
+                                                                @error('licence.back')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </fieldset>
+
+                                            <!-- Aadhaar Image Details -->
+                                            <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    Aadhaar Image Details
+                                                </legend>
+                                                @php
+                                                    $aFiltered = collect($user->documents)->filter(function ($item) {
+                                                        return false !== stristr($item->document_type, 'aadhar_');
+                                                    });
+                                                @endphp
+                                                <div class="d-flex flex-wrap">
+                                                    @forelse ($aFiltered as $document)
+                                                        <div class="card col-6">
+                                                            @if (str_contains($document->file, 'pdf'))
+                                                                <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                    target="_blank">
+                                                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
+                                                                        alt="PDF Icon" width="30" height="30"
+                                                                        class="text-decoration-none">
+                                                                    Download PDF
+                                                                </a>
+                                                            @else
+                                                                <div class="user-avatar-section">
+                                                                    <div class="d-flex align-items-center flex-column">
+                                                                        <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                            data-fancybox
+                                                                            data-caption="{{ $document->title }}">
+                                                                            <img src="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </a>
+                                                                        <div class="user-info text-center">
+                                                                            <span
+                                                                                class="badge bg-label-danger rounded-pill">Aadhaar
+                                                                                Image</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                            <div class="card-body">
+                                                                <h4
+                                                                    class="{{ 'card-title ' . ($document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-muted')) }}">
+                                                                    {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
+                                                                    @if ($document->status == 2)
+                                                                        - {{ $document->reject_reason }}
+                                                                    @endif
+                                                                </h4>
+                                                                <p class="card-text">{{ $document->title }}</p>
+                                                                <div class="row approveRejectSection">
+                                                                    @if (!$document->status)
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-success stretched-link changeDocumentStatus"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-table="documents" data-status="1"><i
+                                                                                    class="fas fa-check mr-2"></i>Accept</a>
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-danger stretched-link changeDocumentStatus"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-table="documents" data-status="2"><i
+                                                                                    class="fas fa-times mr-2"></i>Reject</a>
+                                                                        </div>
+                                                                    @endif
+
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted">No Aadhaar Images available.</p>
+                                                    @endforelse
+                                                    <div class="card col-md-6 mb-3">
+                                                        <form id="aadhaar-front-form" {{-- action="{{ route('admin.users.documents.upload', ['user_uuid' => $user->uuid, 'type' => 'aadhar_front']) }}" --}}
+                                                            enctype="multipart/form-data" method="POST">
+                                                            @csrf
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">Aadhaar Image
+                                                                            Details</label><br>
+                                                                        <label class="form-label">Front Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="aadhaar-front"
+                                                                                name="aadhar[front]" type="file"
+                                                                                data-location="showaFrontSide"
+                                                                                accept="image/*">
+                                                                            <label for="aadhaar-front">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showaFrontSide"
+                                                                            src="{{ $user->aadhaar_front ?? 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid doc-img" alt="">
+                                                                    </div>
+                                                                </div>
+                                                                @error('aadhar.front')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                    <div class="card col-md-6 mb-3">
+                                                        <form id="aadhaar-back-form" {{-- action="{{ route('admin.users.documents.upload', ['user_uuid' => $user->uuid, 'type' => 'aadhar_back']) }}" --}}
+                                                            enctype="multipart/form-data" method="POST">
+                                                            @csrf
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">Aadhaar Image</label><br>
+                                                                        <label class="form-label">Back Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="aadhaar-back"
+                                                                                name="aadhar[back]" type="file"
+                                                                                data-location="showlaBackSide"
+                                                                                accept="image/*">
+                                                                            <label for="aadhaar-back">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showlaBackSide"
+                                                                            src="{{ $user->aadhaar_back ?? 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid viewOnUpload doc-img"
+                                                                            alt="">
+                                                                    </div>
+                                                                </div>
+                                                                @error('aadhar.back')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </fieldset>
+
+                                            <!-- PAN Card Details -->
+                                            <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    PAN Card Details
+                                                </legend>
+                                                @php
+                                                    $pan = $user->documents->where('document_type', 'pan_card');
+                                                @endphp
+                                                <div class="p-2 bg-transparent">
+                                                    @forelse ($pan as $document)
+                                                        <div class="card col-12">
+                                                            @if (str_contains($document->file, 'pdf'))
+                                                                <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                    target="_blank">
+                                                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
+                                                                        width="30" height="30" alt="PDF Icon"
+                                                                        class="text-decoration-none">
+                                                                    Download PDF
+                                                                </a>
+                                                            @else
+                                                                <div class="user-avatar-section">
+                                                                    <div class="d-flex align-items-center flex-column">
+                                                                        <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                            data-fancybox
+                                                                            data-caption="{{ $document->title }}">
+                                                                            <img src="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </a>
+                                                                        <div class="user-info text-center">
+                                                                            <span
+                                                                                class="badge bg-label-danger rounded-pill">Pan
+                                                                                Card</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                            <div class="card-body">
+                                                                <h4
+                                                                    class="{{ 'card-title ' . ($document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-muted')) }}">
+                                                                    {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
+                                                                    @if ($document->status == 2)
+                                                                        - {{ $document->reject_reason }}
+                                                                    @endif
+                                                                </h4>
+                                                                <p class="card-text">{{ $document->title }}</p>
+                                                                <div class="row approveRejectSection">
+                                                                    @if (!$document->status)
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-success stretched-link changeDocumentStatus"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-table="documents" data-status="1"><i
+                                                                                    class="fas fa-check mr-2"></i>Accept</a>
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-danger stretched-link changeDocumentStatus"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-table="documents" data-status="2"><i
+                                                                                    class="fas fa-times mr-2"></i>Reject</a>
+                                                                        </div>
+                                                                    @endif
+
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted">No Pan Images available.</p>
+                                                    @endforelse
+                                                    <div class="d-flex">
+                                                        <div class="card col-12">
+                                                            <form id="pancard-form" {{-- action="{{ route('admin.users.documents.upload', ['user_uuid' => $user->uuid, 'type' => 'pan_card']) }}" --}}
+                                                                enctype="multipart/form-data" method="POST">
+                                                                @csrf
+                                                                <div class="single_login form_group">
+                                                                    <div class="imgupload_box">
+                                                                        <div class="imgupload_btn">
+                                                                            <label class="form-label">Pan Image <span
+                                                                                    class="text-rose-500">*</span></label><br>
+                                                                            <div class="upload-photo">
+                                                                                <input class="file-upload showOnUpload"
+                                                                                    required id="pancard" name="pan"
+                                                                                    type="file" data-location="showpan"
+                                                                                    accept="image/*">
+                                                                                <label for="pancard">
+                                                                                    <span><i class="fas fa-upload"
+                                                                                            aria-hidden="true"></i></span>
+                                                                                    Upload Photo
+                                                                                </label>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="img-uploadbox">
+                                                                            <img id="showpan"
+                                                                                src="{{ $user->pan ?? 'https://via.placeholder.com/150' }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </div>
+                                                                    </div>
+                                                                    @error('pan')
+                                                                        <span class="invalid-feedback d-block"
+                                                                            role="alert"><strong>{{ $message }}</strong></span>
+                                                                    @enderror
+                                                                    <button type="submit"
+                                                                        class="btn btn-primary mt-2">Upload</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </fieldset>
+
+                                            <!-- NOC Document Details -->
+                                            <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    NOC Document Details
+                                                </legend>
+                                                @php
+                                                    $noc = $user->documents->where('document_type', 'noc');
+                                                @endphp
+                                                <div class="p-2 bg-transparent">
+                                                    @forelse ($noc as $document)
+                                                        <div class="card col-12">
+                                                            @if (str_contains($document->file, 'pdf'))
+                                                                <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                    target="_blank">
+                                                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
+                                                                        width="30" height="30" alt="PDF Icon"
+                                                                        class="text-decoration-none">
+                                                                    Download PDF
+                                                                </a>
+                                                            @else
+                                                                <div class="user-avatar-section">
+                                                                    <div class="d-flex align-items-center flex-column">
+                                                                        <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                            data-fancybox
+                                                                            data-caption="{{ $document->title }}">
+                                                                            <img src="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </a>
+                                                                        <div class="user-info text-center">
+                                                                            <span
+                                                                                class="badge bg-label-danger rounded-pill">NOC</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                            <div class="card-body">
+                                                                <h4
+                                                                    class="{{ 'card-title ' . ($document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-muted')) }}">
+                                                                    {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
+                                                                    @if ($document->status == 2)
+                                                                        - {{ $document->reject_reason }}
+                                                                    @endif
+                                                                </h4>
+                                                                <p class="card-text">{{ $document->title }}</p>
+                                                                <div class="row approveRejectSection">
+                                                                    @if (!$document->status)
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-success stretched-link changeDocumentStatus"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-table="documents" data-status="1"><i
+                                                                                    class="fas fa-check mr-2"></i>Accept</a>
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-danger stretched-link changeDocumentStatus"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-table="documents" data-status="2"><i
+                                                                                    class="fas fa-times mr-2"></i>Reject</a>
+                                                                        </div>
+                                                                    @endif
+
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted">No NOC Images available.</p>
+                                                    @endforelse
+                                                    <div class="d-flex">
+                                                        <div class="card col-12">
+                                                            <form id="noc-form" {{-- action="{{ route('admin.users.documents.upload', ['user_uuid' => $user->uuid, 'type' => 'noc']) }}" --}}
+                                                                enctype="multipart/form-data" method="POST">
+                                                                @csrf
+                                                                <div class="single_login form_group">
+                                                                    <div class="imgupload_box">
+                                                                        <div class="imgupload_btn">
+                                                                            <label class="form-label">NOC Document (only
+                                                                                PDF) <span
+                                                                                    class="text-rose-500">*</span></label><br>
+                                                                            <div class="upload-photo">
+                                                                                <input class="file-upload showOnUpload"
+                                                                                    id="noc" name="noc"
+                                                                                    type="file" data-location="shownoc"
+                                                                                    accept="application/pdf">
+                                                                                <label for="noc">
+                                                                                    <span><i class="fas fa-upload"
+                                                                                            aria-hidden="true"></i></span>
+                                                                                    Upload Photo
+                                                                                </label>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div class="img-uploadbox">
+                                                                            <img id="shownoc"
+                                                                                src="{{ $user->noc ?? 'https://via.placeholder.com/150' }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </div>
+                                                                    </div>
+                                                                    @error('noc')
+                                                                        <span class="invalid-feedback d-block"
+                                                                            role="alert"><strong>{{ $message }}</strong></span>
+                                                                    @enderror
+                                                                    <button type="submit"
+                                                                        class="btn btn-primary mt-2">Upload</button>
+                                                                </div>
+                                                            </form>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </fieldset>
+
+                                            <!-- Bank Details -->
+                                            <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    Bank Details
+                                                </legend>
+                                                <div class="p-2 bg-transparent">
+                                                    <div class="card col-12">
+                                                        <div class="form-group col-md-6 d-flex align-items-center">
+                                                            <label for="bank_name" class="font-weight-bold me-2">Bank
+                                                                Name:</label>
+                                                            <p class="text-muted">
+                                                                {{ $user?->account?->bank_name ?? 'N/A' }}</p>
+                                                        </div>
+                                                        <div class="form-group col-md-6 d-flex align-items-center">
+                                                            <label for="branch_name" class="font-weight-bold me-2">Branch
+                                                                Name:</label>
+                                                            <p class="text-muted">
+                                                                {{ $user?->account?->branch_name ?? 'N/A' }}</p>
+                                                        </div>
+                                                        <div class="form-group col-md-5 d-flex align-items-center">
+                                                            <label for="ifsc_code" class="font-weight-bold me-2">IFSC
+                                                                Code:</label>
+                                                            <p class="text-muted">
+                                                                {{ $user?->account?->ifsc_code ?? 'N/A' }}</p>
+                                                        </div>
+                                                        <div class="form-group col-md-5 d-flex align-items-center">
+                                                            <label for="account_no" class="font-weight-bold me-2">Account
+                                                                Number :</label>
+                                                            <p class="text-muted">
+                                                                {{ $user?->account?->account_no ?? 'N/A' }}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </fieldset>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card text-right p-2">
+
+                        </div>
+                    </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Nice — I reviewed your Blade, JS, controller and repository code and fixed the logical bugs + made the flow consistent and robust. Below you get:
 
