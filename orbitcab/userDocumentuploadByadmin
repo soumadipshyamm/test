@@ -1,0 +1,344 @@
+  <fieldset class="border border-dark rounded mb-2">
+                                                <legend
+                                                    class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
+                                                    RC Image Details
+                                                </legend>
+                                                @php
+                                                    $filtered = collect($user->documents)->filter(function ($item) {
+                                                        return str_contains($item->document_type, 'rc_');
+                                                    });
+                                                @endphp
+                                                <div class="d-flex flex-wrap">
+                                                    @forelse ($filtered as $document)
+                                                        <div class="card col-md-6 mb-3">
+                                                            @if (str_contains($document->file, 'pdf'))
+                                                                <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                    target="_blank">
+                                                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
+                                                                        alt="PDF Icon" class="text-decoration-none"
+                                                                        width="30" height="30">
+                                                                    Download PDF
+                                                                </a>
+                                                            @else
+                                                                <div class="user-avatar-section">
+                                                                    <div class="d-flex align-items-center flex-column">
+                                                                        <a href="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                            data-fancybox
+                                                                            data-caption="{{ $document->title }}">
+                                                                            <img src="{{ asset('storage/images/documents/' . $document->file) }}"
+                                                                                class="img-fluid doc-img" alt="">
+                                                                        </a>
+                                                                        <div class="user-info text-center">
+                                                                            <span
+                                                                                class="badge bg-label-danger rounded-pill">RC
+                                                                                Image</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            @endif
+                                                            <div class="card-body">
+                                                                <h4
+                                                                    class="{{ 'card-title ' . ($document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-muted')) }}">
+                                                                    {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
+                                                                    @if ($document->status == 2)
+                                                                        - {{ $document->reject_reason }}
+                                                                    @endif
+                                                                </h4>
+                                                                <p class="card-text">{{ $document->title }}</p>
+                                                                <div class="row approveRejectSection">
+                                                                    @if (!$document->status)
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-success stretched-link changeDocumentStatus"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-table="documents" data-status="1"><i
+                                                                                    class="fas fa-check mr-2"></i>Accept</a>
+                                                                        </div>
+                                                                        <div class="col-6">
+                                                                            <a href="javascript:void(0)"
+                                                                                class="btn btn-danger stretched-link changeDocumentStatus"
+                                                                                data-user-uuid="{{ $user->uuid }}"
+                                                                                data-uuid="{{ $document->uuid }}"
+                                                                                data-table="documents" data-status="2"><i
+                                                                                    class="fas fa-times mr-2"></i>Reject</a>
+                                                                        </div>
+                                                                    @endif
+
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @empty
+                                                        <p class="text-muted">No RC Images available.</p>
+                                                    @endforelse
+                                                    <div class="card col-md-6 mb-3">
+                                                        <form id="rc-front-form"
+                                                            action="{{ route('admin.users.document.update', ['usertype' => 'driver', 'uuid' => $user->uuid, 'duuid' => $document->uuid]) }}"
+                                                            enctype="multipart/form-data" method="POST">
+                                                            @csrf
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">RC Image</label><br>
+                                                                        <label class="form-label">Front Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="rc-front" name="rc[front]"
+                                                                                type="file"
+                                                                                data-location="showrFrontSide"
+                                                                                accept="image/*">
+                                                                            <label for="rc-front">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showrFrontSide"
+                                                                            src="{{ $user->rc_front ?? 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid doc-img" alt="">
+                                                                    </div>
+                                                                </div>
+                                                                @error('rc.front')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                    <div class="card col-md-6 mb-3">
+                                                        <form id="rc-back-form" {{-- action="{{ route('admin.users.documents.upload', ['user_uuid' => $user->uuid, 'type' => 'rc_back']) }}" --}}
+                                                            enctype="multipart/form-data" method="POST">
+                                                            @csrf
+                                                            <div class="single_login form_group">
+                                                                <div class="imgupload_box">
+                                                                    <div class="imgupload_btn">
+                                                                        <label class="form-label">RC Image</label><br>
+                                                                        <label class="form-label">Back Side<span
+                                                                                class="text-rose-500">*</span></label>
+                                                                        <div class="upload-photo">
+                                                                            <input class="file-upload showOnUpload"
+                                                                                required id="rc-back" name="rc[back]"
+                                                                                type="file"
+                                                                                data-location="showrBackSide"
+                                                                                accept="image/*">
+                                                                            <label for="rc-back">
+                                                                                <span><i class="fas fa-upload"
+                                                                                        aria-hidden="true"></i></span>
+                                                                                Upload Photo
+                                                                            </label>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="img-uploadbox">
+                                                                        <img id="showrBackSide"
+                                                                            src="{{ $user->rc_back ?? 'https://via.placeholder.com/150' }}"
+                                                                            class="img-fluid viewOnUpload doc-img"
+                                                                            alt="">
+                                                                    </div>
+                                                                </div>
+                                                                @error('rc.back')
+                                                                    <span class="invalid-feedback d-block"
+                                                                        role="alert"><strong>{{ $message }}</strong></span>
+                                                                @enderror
+                                                                <button type="submit"
+                                                                    class="btn btn-primary mt-2">Upload</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </fieldset>
+
+                                            <script>
+ $('.file-upload').on('change', function() {
+                var input = this;
+                var imgId = $(this).data('location');
+                var imgElement = $('#' + imgId);
+                if (input.files && input.files[0]) {
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        imgElement.attr('src', e.target.result);
+                    };
+                    reader.readAsDataURL(input.files[0]);
+                } else {
+                    imgElement.attr('src', 'https://via.placeholder.com/150');
+                }
+            });
+
+            // AJAX form submission for uploads
+            // Attach a submit handler to all forms for file uploads
+            $('#rc-front-form, #rc-back-form, #licence-front-form, #licence-back-form, #aadhaar-front-form, #aadhaar-back-form, #pancard-form, #noc-form')
+                .on('submit', function(e) {
+                    e.preventDefault();
+
+                    var form = $(this);
+                    var formData = new FormData(this);
+                    var imgId = form.find('.file-upload').data('location');
+                    var imgElement = $('#' + imgId);
+                    console.log("---------------------------------------------------");
+                    console.log(formData);
+                    console.log(imgId);
+                    console.log(imgElement);
+                    console.log(form);
+                    console.log(form.attr('action'));
+                    console.log("---------------------------------------------------");
+                    alert('Uploading...');
+
+                    $.ajax({
+                        url: form.attr('action'),
+                        type: 'POST', // Change to POST
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        headers: {
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        beforeSend: function() {
+                            form.find('button[type="submit"]').prop('disabled', true).text(
+                                'Uploading...');
+                        },
+                        success: function(response) {
+                            // Handle success response
+                        },
+                        error: function(xhr) {
+                            var errorMessage = xhr.responseJSON?.message ||
+                                'An error occurred. Please try again.';
+                            alert('Upload failed: ' + errorMessage);
+                        },
+                        complete: function() {
+                            form.find('button[type="submit"]').prop('disabled', false).text(
+                                'Upload');
+                        }
+                    });
+                });
+
+        });
+ </script>
+
+
+# Controller
+
+
+                                               public function documentUpdate(Request $request, $userType, $uuid, $duuid)
+    {
+        // dd($request->all(), $userType, $uuid, $duuid);
+        $this->setPageTitle('Documents');
+        $userId = uuidtoid($uuid, 'users');
+        $documentId = uuidtoid($duuid, 'documents');
+        $user = $this->userService->findById($userId);
+
+        if ($request->isMethod('post')) {
+
+            DB::beginTransaction();
+            try {
+                $msg = "Data saved successfully";
+
+                // if ($tabtype == 'vehicle-Document') {
+                // Update and upload user documents
+                if ($this->userService->updateAnduploadUserDocuments(
+                    $request->except('_token'),
+                    $userId,
+                    $documentId
+                )) {
+                    $msg = 'Documents uploaded successfully';
+                    DB::commit();
+                } else {
+                    throw new \Exception('Failed to update documents or upload files');
+                }
+
+
+                return response()->json([
+                    'success' => true,
+                    'message' => $msg,
+                ]);
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                logger($e->getMessage() . ' -- ' . $e->getLine() . ' -- ' . $e->getFile());
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Something went wrong. Please try again.',
+                ], 500);
+            }
+        }
+
+        return view('admin.user.index', compact('userType', 'user'));
+    }
+
+    # Repository.php
+        public function updateAnduploadDocuments(array $files, int $userId, int $documentId)
+    {
+        // Find the user and document
+        $user = $this->find($userId);
+        $document = Document::find($documentId);
+        // dd($user, $document);
+        if (!$user || !$document) {
+            return false; // Return false if user or document is not found
+        }
+
+        // Define the mappings for document types and their respective files
+        $documentMappings = [
+            'licence_front' => [
+                'file' => $files['licence']['front'] ?? null,
+                'title' => 'Licence Front Image',
+            ],
+            'licence_back' => [
+                'file' => $files['licence']['back'] ?? null,
+                'title' => 'Licence Back Image',
+            ],
+            'rc_front' => [
+                'file' => $files['rc']['front'] ?? null,
+                'title' => 'RC Front Image',
+            ],
+            'rc_back' => [
+                'file' => $files['rc']['back'] ?? null,
+                'title' => 'RC Back Image',
+            ],
+            'aadhar_front_image' => [
+                'file' => $files['aadhar']['front'] ?? null,
+                'title' => 'Aadhar Front Image',
+            ],
+            'aadhar_back_image' => [
+                'file' => $files['aadhar']['back'] ?? null,
+                'title' => 'Aadhar Back Image',
+            ],
+            'pan_card' => [
+                'file' => $files['pan'] ?? null,
+                'title' => 'Pan Card Image',
+            ],
+            'noc' => [
+                'file' => $files['noc'] ?? null,
+                'title' => 'NOC Document',
+            ],
+        ];
+
+        foreach ($documentMappings as $documentType => $details) {
+            if (isset($details['file']) && $details['file']) {
+                // Generate a unique filename
+                $fileName = uniqid() . '.' . $details['file']->getClientOriginalExtension();
+
+                // Upload the file
+                $isFileUploaded = $this->uploadOne(
+                    $details['file'],
+                    config('constants.SITE_CV_DOCUMENT_UPLOAD_PATH'),
+                    $fileName,
+                    'public'
+                );
+                // Update the document record if the file is uploaded successfully
+                if ($isFileUploaded) {
+                    // dd($fileName, $isFileUploaded);
+                    // dd($fileName);
+                    $document->update([
+                        // 'document_type' => $documentType,
+                        'file' => $fileName,
+                    ]);
+                    // dd($document);
+                }
+            }
+        }
+
+        return $document;
+    }
