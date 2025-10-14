@@ -1,0 +1,21 @@
+when a newly created account logs in first time, there is a question mark for their profile image— should be a placeholder image.
+
+voter account cannot upgrade role to, the form for “address, city, state, and zip,” is disabled.
+
+upon logout, needs to be a link to the homepage on the log-in page.
+
+Super Admin needs ability to create competition. 
+super admin must have ability to adjust votes on all competitions, for cases of fraud, or disputed payments, etc.
+
+Date of user register should be recorded and shown in admin and user profiles
+date of user upgraded accounts should be recorded and shown in admin and user profiles.
+
+when I updated a user profile image from the admin panel, it did not reflect that change when i logged in as that user.
+
+when creating a competition, the time stamp should be in 12 hour format and allow am/pm choice.
+number of participants proceeding to next round should allow a number OR a percentage to choose. right now it only allows a percentage.
+
+I tried to create a new competition but when i got to participant details, it would not let me proceed.
+not sure why there is a company name drop down list in the “about competition creator” section. that don’t make sense to me.
+
+main image for competition does not update dynamically yet.
