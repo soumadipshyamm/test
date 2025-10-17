@@ -1,22 +1,185 @@
-when a newly created account logs in first time, there is a question mark for their profile image— should be a placeholder image.
+User Account Management
+Placeholder Image for New Accounts:
+Issue: Newly created accounts show a question mark for the profile image.
+Solution: Implement a default placeholder image in the user profile settings. Update the logic to check for an existing image and use the placeholder if none is found.
 
-voter account cannot upgrade role to, the form for “address, city, state, and zip,” is disabled.
+Voter Account Role Upgrade:
+Issue: Voter accounts cannot upgrade roles; the form for address, city, state, and zip is disabled.
+Solution: Ensure that the form fields are enabled for voter accounts if they meet the criteria for role upgrades. Review the role permissions and adjust accordingly.
 
-upon logout, needs to be a link to the homepage on the log-in page.
+Logout Link to Homepage:
+Issue: No link to the homepage on the login page after logout.
+Solution: Add a "Return to Homepage" link on the login page after a user logs out.
 
-Super Admin needs ability to create competition. 
-super admin must have ability to adjust votes on all competitions, for cases of fraud, or disputed payments, etc.
+User Registration Date:
+Issue: Registration date not recorded or displayed in profiles.
+Solution: Add a field to the user model to store the registration date. Display this date in both admin and user profiles.
 
-Date of user register should be recorded and shown in admin and user profiles
-date of user upgraded accounts should be recorded and shown in admin and user profiles.
+Account Upgrade Date:
+Issue: Date of account upgrades not recorded or displayed.
+Solution: Implement a similar approach as above to track and display the upgrade date in profiles.
 
-when I updated a user profile image from the admin panel, it did not reflect that change when i logged in as that user.
+Profile Image Update Not Reflecting:
+Issue: Updated profile images from the admin panel do not reflect in user accounts.
+Solution: Ensure that the image update logic is correctly implemented and that the user session is refreshed after an update.
+Competition Management
 
-when creating a competition, the time stamp should be in 12 hour format and allow am/pm choice.
-number of participants proceeding to next round should allow a number OR a percentage to choose. right now it only allows a percentage.
+Participants Proceeding to Next Round:
+Issue: Only allows percentage input for participants.
+Solution: Modify the input field to accept both number and percentage inputs. Consider adding radio buttons or a toggle for user selection.
 
-I tried to create a new competition but when i got to participant details, it would not let me proceed.
-not sure why there is a company name drop down list in the “about competition creator” section. that don’t make sense to me.
+Company Name Dropdown in Competition Creator Section:
+Issue: Unclear purpose of the company name dropdown.
+Solution: Review the necessity of this dropdown. If it serves no purpose, consider removing it or providing a clearer context for its use.
 
-main image for competition does not update dynamically yet.
-User management link and competition management link is not working on mobile
+Main Image for Competition Not Updating:
+Issue: The main image does not update dynamically.
+Solution: Check the image upload and rendering logic to ensure that the new image is fetched and displayed correctly.
+
+Mobile Functionality for Management Links:
+Issue: User and competition management links not working on mobile.
+Solution: Test and debug the responsive design for these links. Ensure they are accessible and functional on mobile devices.
+
+Search Field for User Listings:
+Issue: No search field for user listings in the super admin panel.
+Solution: Implement a search functionality that allows super admins to search for users based on various criteria.
+
+Dynamic Competition Revenue Details:
+Issue: Competition revenue details are not dynamic.
+Solution: Ensure that the revenue details update in real-time based on user interactions and competition results.
+
+Competition Creator Revenue Details Update:
+Issue: Revenue details amount type needs an update.
+Solution: Review the revenue calculation logic and update the display format as needed.
+Error Handling
+
+Invalid Payload on Profile Change:
+Issue: Invalid payload error when changing the profile.
+Solution: Validate the data being sent during profile updates and ensure that all required fields are correctly populated.
+
+Competition Details Accessibility:
+Issue: Difficulty checking competition details across all logins.
+Solution: Ensure that competition details are accessible and correctly displayed for all user roles.
+
+Search Bar for User Management:
+Issue: No search bar for user management in the super admin panel.
+Solution: Add a search bar to filter users by roles and other criteria.
+
+Competition Type Naming:
+Issue: Field name in competition creation should be updated from "competition name" to "type."
+Solution: Update the field label in the competition creation form accordingly.
+
+Placeholder Text in Competition Management:
+Issue: Inadequate placeholder text.
+Solution: Update the placeholder text to be clear and readable.
+
+Default Image Correction in Competition Creator:
+Issue: Default image needs correction.
+Solution: Review and update the default image to ensure it displays the competition name clearly.
+
+Ongoing Issues
+Participant Details in New Competition:
+Issue: Unable to proceed to participant details when creating a new competition.
+Solution: Review the logic for participant detail progression and ensure all required fields are properly validated.
+
+Super Admin Competition Creation:
+Issue: Super admins need the ability to create competitions.
+Solution: Implement functionality that allows super admins to create and manage competitions.
+
+Adjusting Votes for Fraud Cases:
+Issue: Super admin should have the ability to adjust votes on competitions.
+Solution: Add functionality for super admins to modify votes for fairness and integrity.
+
+Timestamp Format for Competition Creation:
+Issue: Timestamp should be in 12-hour format with AM/PM choice.
+Solution: Although currently using a 24-hour format, consider allowing an option for users to select their preferred format.
+
+
+
+
+
+
+
+
+************************************************************************************************
+
+when a newly created account logs in first time, there is a question mark for their profile image— should be a placeholder image. 
+
+  voter account cannot upgrade role to, the form for “address, city, state, and zip,” is disabled. 
+
+ 
+
+upon logout, needs to be a link to the homepage on the log-in page. 
+
+  
+
+Date of user register should be recorded and shown in admin and user profiles 
+
+date of user upgraded accounts should be recorded and shown in admin and user profiles. 
+
+  
+
+when I updated a user profile image from the admin panel, it did not reflect that change when i logged in as that user. 
+
+  
+
+number of participants proceeding to next round should allow a number OR a percentage to choose. right now it only allows a percentage. 
+
+  
+
+not sure why there is a company name drop down list in the “about competition creator” section. that don’t make sense to me. 
+
+  
+
+main image for competition does not update dynamically yet. 
+
+User management link and competition management link is not working on mobile 
+
+  
+
+Add search field for all user listing in super admin panel. 
+
+Super Admin Panel -> Competition Revenue Details Dynamic. 
+
+Competition Creator Panel -> Competition Revenue Details Amount type update. 
+
+  
+
+when user changes the profile page showing invalid payload 
+
+  
+
+check the competition details for all the competition in all login 
+
+  
+
+put the search bar for the User Management in SA for all the roles 
+
+  
+
+Admin > creating competetion type > update the field from competetion name to "type" -- 
+
+  
+
+Competetion management > correct placeholder which is completely readable should be given -- 
+
+  
+
+CC > The default image needs correction and show competetion name completely . 
+
+  
+
+  
+
+On-Progress 
+
+I tried to create a new competition but when i got to participant details, it would not let me proceed. 
+
+Super Admin needs ability to create competition.  
+
+super admin must have ability to adjust votes on all competitions, for cases of fraud, or disputed payments, etc.  --- 
+
+  
+when creating a competition, the time stamp should be in 12 hour format and allow am/pm choice. -----not possible we are working  on 24hours time formate 
+
+ 
