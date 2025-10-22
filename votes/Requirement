@@ -1,3 +1,18 @@
+
+Couple things need fixed. When logged in, users should be able to go back to the landing page to browse competitions there. Currently, can only reach the page if logged out. 
+
+Please explain how do I update “winner of the month on homepage?
+
+Old competitions that have ended, are still allowing voting. All voting must be disabled when competition is over. 
+
+Please explain, when someone wants to purchase ads, how do I place their ad on homepage?
+
+
+
+
+
+
+
 User Account Management
 Placeholder Image for New Accounts:
 Issue: Newly created accounts show a question mark for the profile image.
