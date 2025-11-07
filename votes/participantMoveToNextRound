@@ -1,0 +1,209 @@
+const participantMoveToNextRound = async (): Promise<any> => {
+	try {
+		console.log("1. Fetching active competitions...");
+		const competitions = await CompetitionModel.find({
+			status: COMPETITION_STATUS.active
+		});
+
+		for (const competition of competitions) {
+			console.log("2. Sorting rounds for competition:", competition._id);
+			// Sort rounds by end_date_time to ensure order
+			const sortedRounds = [...competition.rounds].sort(
+				(a, b) => new Date(a.end_date_time).getTime() - new Date(b.end_date_time).getTime()
+			);
+
+			for (const round of sortedRounds) {
+				const currentDate = new Date();
+				const roundEndDate = new Date(round.end_date_time);
+				console.log("3. Current round end date:", roundEndDate);
+				console.log("4. Current date:", currentDate);
+				if (roundEndDate > currentDate) {
+					console.log("5. Round not ended, skipping...");
+					continue; // Skip if not ended or already processed
+				}
+
+				console.log("6. Fetching all participants for round:", round._id);
+				// Get all participants in this round (even with 0 votes)
+				const allParticipants = await ParticipantModel.find({
+					competition_object_id: competition._id,
+					round_object_id: round._id,
+					participant_payment_status: "SUCCESS",
+					status: PARTICIPATION_STATUS.participating
+				});
+				console.log("6.1. Fetching all participants :", allParticipants);
+
+				if (allParticipants.length === 0) {
+					console.log("7. No participants found, continuing to next round...");
+					continue;
+				}
+
+				console.log("8. Counting votes for participants...");
+				// Count votes per participant
+				const voteAgg = await ParticipantModel.aggregate([
+					{
+						$match: {
+							competition_object_id: competition._id,
+							round_object_id: round._id
+						}
+					},
+					{
+						$lookup: {
+							from: "votes",
+							localField: "participant_object_id",
+							foreignField: "participant_object_id",
+							as: "votes"
+						}
+					},
+					{
+						$project: {
+							participant_object_id: 1,
+							participant_name: 1,
+							voteCount: { $size: "$votes" }
+						}
+					}
+				]);
+				console.log("8.1.Count votes per participant...", voteAgg);
+
+				const voteMap = new Map<string, { name: string; count: number }>();
+				console.log("8.2.vote Map votes per participant...", voteMap);
+
+				for (const p of voteAgg) {
+					voteMap.set(p.participant_object_id.toString(), {
+						name: p.participant_name,
+						count: p.voteCount
+					});
+				}
+
+				// Ensure all participants are in voteMap (0 votes if missing)
+				for (const p of allParticipants) {
+					const id = p.participant_object_id.toString();
+					if (!voteMap.has(id)) {
+						voteMap.set(id, { name: p.participant_name, count: 0 });
+					}
+				}
+
+				console.log("9. Sorting participants by vote count...");
+				// Sort by vote count descending
+				const sortedParticipants = Array.from(voteMap.entries())
+					.sort((a, b) => b[1].count - a[1].count)
+					.map(([id]) => id);
+
+				console.log("9.1. Sort by vote count descending..", sortedParticipants);
+
+				const totalParticipants = allParticipants.length;
+				const numberToProceed = Math.max(
+					1,
+					Math.floor((totalParticipants * round.no_of_participant_proceeding) / 100)
+				);
+
+				console.log("10. Total participants:", totalParticipants);
+				console.log("11. Number of participants to proceed:", numberToProceed);
+
+				const nextRoundIndex = sortedRounds.indexOf(round) + 1;
+				const nextRound = sortedRounds[nextRoundIndex];
+
+				console.log("11.1. Proceeding to next round:", nextRound, nextRoundIndex);
+				if (nextRound) {
+					console.log("12. Proceeding to next round:", nextRound._id);
+					// Proceed top N to next round
+					const proceedIds = sortedParticipants.slice(0, numberToProceed);
+
+					console.log("13. Proceeding participant IDs:", proceedIds);
+
+					// Bulk upsert participants in next round
+					const bulkOps = proceedIds.map((id) => ({
+						updateOne: {
+							filter: {
+								competition_object_id: competition._id,
+								participant_object_id: id,
+								round_object_id: nextRound._id
+							},
+							update: {
+								$setOnInsert: {
+									competition_object_id: competition._id,
+									participant_object_id: id,
+									round_no: nextRound.round_no,
+									competition_name: competition.name,
+									round_object_id: nextRound._id,
+									participant_name: voteMap.get(id)?.name,
+									participant_payment_status: TRANSACTION_STATUS.pending
+								},
+								$set: {
+									status: PARTICIPATION_STATUS.participating
+								}
+							},
+							upsert: true
+						}
+					}));
+
+					console.log("13.1. Executing bulk upsert for next round...", bulkOps);
+					if (bulkOps.length > 0) {
+						console.log("14. Executing bulk upsert for next round...", bulkOps.length);
+						await ParticipantModel.bulkWrite(bulkOps);
+					}
+
+					// Mark current round participants as 'participated'
+					console.log("15. Marking current round participants as 'participated'...");
+					const ParticipantModelupdateMany = await ParticipantModel.updateMany(
+						{
+							competition_object_id: competition._id,
+							round_object_id: round._id,
+							participant_object_id: { $in: proceedIds.map(id => new mongoose.Types.ObjectId(id)) }
+						},
+						{ $set: { status: PARTICIPATION_STATUS.participated } }
+					);
+					console.log("15.1. Marking current round participants as 'participated'...", ParticipantModelupdateMany);
+
+					// Mark others as eliminated
+					const eliminatedIds = sortedParticipants.slice(numberToProceed);
+					console.log("15.2. Marking eliminatedIds.......................", eliminatedIds);
+
+					if (eliminatedIds.length > 0) {
+						console.log("16. Marking eliminated participants:", eliminatedIds);
+						const ParticipantModeleliminated = await ParticipantModel.updateMany(
+							{
+								competition_object_id: competition._id,
+								round_object_id: round._id,
+								participant_object_id: { $in: eliminatedIds.map(id => new mongoose.Types.ObjectId(id)) }
+							},
+							{ $set: { status: PARTICIPATION_STATUS.eliminated } }
+						);
+						console.log("16.1. Marking eliminated participants:....", ParticipantModeleliminated);
+					}
+				} else {
+					// Final round: declare winners
+					console.log("17. Final round, declaring winners...", sortedParticipants);
+					const winnerIds = sortedParticipants.slice(0, competition.no_of_winner);
+					console.log("17.1. Final round: declare winners sortedParticipants.slice(0...", winnerIds);
+					console.log("17.2. Update all participants in final round...", voteMap);
+
+					// Update all participants in final round
+					for (const [id, data] of voteMap.entries()) {
+						const status = winnerIds.includes(id)
+							? PARTICIPATION_STATUS.winner
+							: PARTICIPATION_STATUS.eliminated;
+
+						console.log(`18. Updating participant ${id} status to: ${status}`);
+						await ParticipantModel.updateOne(
+							{
+								competition_object_id: competition._id,
+								round_object_id: round._id,
+								participant_object_id: new mongoose.Types.ObjectId(id)
+							},
+							{ $set: { status } }
+						);
+					}
+				}
+				// Optional: mark round as processed to avoid reprocessing
+				// (requires adding `processed` field to round schema)
+				console.log("19. Marking round as processed...");
+				await CompetitionModel.updateOne(
+					{ _id: competition._id, "rounds._id": round._id },
+					{ $set: { "rounds.$.processed": true } }
+				);
+			}
+		}
+	} catch (error) {
+		console.error("Error processing rounds:", error);
+	}
+};
