@@ -237,8 +237,1938 @@ class ActivitesImport implements ToModel, WithHeadingRow
 
 
 **************************************************************************************************
+******************************Import********************************************************************
+
+
+
+Awesome—here’s the updated importer that builds a **two-level hierarchy** exactly like your example:
+**header → activities (no grandchildren)**, **no `sl_no`**, and activities always attach to the **last seen header**.
+
+I’ve kept your cache + logging style and made the upsert idempotent.
+
+---
+
+# 🔧 Controller (no major change)
+
+Your controller already works. Just keep it as is (only note: we still use the cache key to collect invalid rows). If you want the latest minor safety checks, here’s a tidy version:
+
+```php
+public function import(Request $request)
+{
+    $authCompany = Auth::guard('company')->user()->id;
+    $companyId   = searchCompanyId($authCompany);
+
+    // Optional checks you already had
+    $additionalFeatures = fetchDataActivities($companyId, $request->project);
+    $subscription       = checkSubscriptionPermission($companyId, 'activities');
+
+    try {
+        $file       = $request->file('file');
+        $project    = $request->project;
+        $subproject = $request->subproject;
+
+        if (!$file || !$project) {
+            return back()->with('error', 'Missing file or project.');
+        }
+
+        $cacheKey = 'activities_import_' . \Illuminate\Support\Str::uuid()->toString();
+        Cache::put($cacheKey, []); // holds invalid rows with reasons
+
+        Excel::import(new \App\Imports\Activites\ActivitesImport(
+            project:     $project,
+            subproject:  $subproject,
+            companyId:   $companyId,
+            tmpcachekey: $cacheKey
+        ), $file);
+
+        $invalid = Cache::get($cacheKey, []);
+        if (empty($invalid)) {
+            return redirect()->route('company.activities.list')
+                ->with('success', 'Import completed successfully.');
+        }
+
+        session(['activities_import_invalid_rows' => $invalid]);
+
+        return redirect()->route('company.activities.nonImportData')
+            ->with('warning', 'Some rows could not be imported. Review them on the next page.');
+    } catch (\Throwable $e) {
+        \Log::error('Error importing Excel file: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+        return back()->with('error', 'Error importing Excel file.');
+    }
+}
+```
+
+---
+
+# 🧠 Importer (two-level, no `sl_no`)
+
+**Key points**
+
+* Only two levels: `header` and `activities`.
+* Track `$lastHeaderId` across rows in the same import run.
+* If a row is `activities` but no header has appeared yet → cached as invalid.
+* Upsert uniqueness:
+
+  * For **header**: (`company_id`, `project_id`, `subproject_id`, `type=header`, `activities`).
+  * For **activities**: add `parent_id` to the key so activities with same name under different headers don’t collide.
+
+```php
+<?php
+
+namespace App\Imports\Activites;
+
+use App\Models\Company\Activities;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+
+class ActivitesImport implements ToModel, WithHeadingRow
+{
+    protected $project;
+    protected $subproject;
+    protected $companyId;
+    protected $tmpcachekey;
+
+    /** @var int|null */
+    protected $lastHeaderId = null;
+
+    public function __construct($project, $subproject, $companyId, $tmpcachekey)
+    {
+        $this->project     = $project;
+        $this->subproject  = $subproject;
+        $this->companyId   = $companyId;
+        $this->tmpcachekey = $tmpcachekey;
+    }
+
+    /**
+     * Two-level hierarchy import:
+     * - type=header       -> parent_id = null, becomes current $lastHeaderId
+     * - type=activities   -> parent_id = $lastHeaderId (must exist)
+     */
+    public function model(array $row)
+    {
+        // 1.) Raw row log
+        Log::info('1.) Incoming row', $row);
+
+        $row = array_change_key_case($row, CASE_LOWER);
+
+        // Basic validations (no sl_no logic here)
+        if ($this->isNullRow($row)) {
+            return $this->cacheInvalidRow($row, 'Missing required fields (type, activities).');
+        }
+
+        $type = strtolower(trim($row['type'] ?? ''));
+        if (!in_array($type, ['header', 'activities'], true)) {
+            return $this->cacheInvalidRow($row, 'Invalid type. Allowed: header, activities');
+        }
+
+        $activitiesName = trim((string)($row['activities'] ?? ''));
+        if ($activitiesName === '') {
+            return $this->cacheInvalidRow($row, 'Missing activities name.');
+        }
+
+        // Resolve numbers
+        $qty   = $this->toNumber($row['qty']  ?? null);
+        $rate  = $this->toNumber($row['rate'] ?? null);
+        $amount = ($qty !== null && $rate !== null) ? $qty * $rate : null;
+
+        // Dates (use your helper if available)
+        $startDate = !empty($row['start_datedd_mm_yyyy']) ? excelDateToDate($row['start_datedd_mm_yyyy']) : null;
+        $endDate   = !empty($row['end_datedd_mm_yyyy'])   ? excelDateToDate($row['end_datedd_mm_yyyy'])   : null;
+
+        // Units
+        $unitId = null;
+        if (!empty($row['units'])) {
+            $unitId = $this->getUnitId($row['units']);
+        }
+
+        // Build base payload
+        $payload = [
+            'project_id'    => $this->project,
+            'subproject_id' => $this->subproject,
+            'company_id'    => $this->companyId,
+            'type'          => $type, // 'header' | 'activities'
+            'parent_id'     => null,
+            'activities'    => $activitiesName,
+            'unit_id'       => $unitId,
+            'qty'           => $qty,
+            'rate'          => $rate,
+            'amount'        => $amount,
+            'start_date'    => $startDate,
+            'end_date'      => $endDate,
+        ];
+
+        // 2.) Prepared payload (before parent attach)
+        Log::info('2.) Prepared payload (pre-parent)', $payload);
+
+        // Two-level hierarchy rule
+        if ($type === 'header') {
+            // Upsert header by (company, project, subproject, type=header, activities)
+            $activity = Activities::updateOrCreate(
+                [
+                    'company_id'    => $this->companyId,
+                    'project_id'    => $this->project,
+                    'subproject_id' => $this->subproject,
+                    'type'          => 'header',
+                    'activities'    => $activitiesName,
+                ],
+                $payload
+            );
+
+            $this->lastHeaderId = $activity->id;
+            Log::info('3.) Saved HEADER row', ['id' => $activity->id, 'activities' => $activitiesName]);
+            return $activity;
+        }
+
+        // type === 'activities'
+        if ($this->lastHeaderId === null) {
+            return $this->cacheInvalidRow($row, 'Encountered activities before any header. Place a header first.');
+        }
+
+        $payload['parent_id'] = $this->lastHeaderId;
+
+        // Upsert activity by (company, project, subproject, type=activities, parent_id, activities)
+        $activity = Activities::updateOrCreate(
+            [
+                'company_id'    => $this->companyId,
+                'project_id'    => $this->project,
+                'subproject_id' => $this->subproject,
+                'type'          => 'activities',
+                'parent_id'     => $this->lastHeaderId,
+                'activities'    => $activitiesName,
+            ],
+            $payload
+        );
+
+        Log::info('3.) Saved ACTIVITIES row', [
+            'id' => $activity->id,
+            'parent_id' => $this->lastHeaderId,
+            'activities' => $activitiesName
+        ]);
+
+        return $activity;
+    }
+
+    /* ----------------------- Helpers ----------------------- */
+
+    protected function isNullRow(array $row): bool
+    {
+        $type = trim((string)($row['type'] ?? ''));
+        $act  = trim((string)($row['activities'] ?? ''));
+        return ($type === '' || $act === '');
+    }
+
+    protected function toNumber($value): ?float
+    {
+        if ($value === null || $value === '') return null;
+        if (is_numeric($value)) return (float)$value;
+        $clean = str_replace([',', ' '], '', (string)$value);
+        return is_numeric($clean) ? (float)$clean : null;
+    }
+
+    protected function getUnitId($unitName)
+    {
+        $unitId = nametoid($unitName, 'units');
+        if ($unitId === false || $unitId === null) {
+            $unitId = createunit($unitName, $this->companyId);
+        }
+        return $unitId;
+    }
+
+    protected function cacheInvalidRow(array $row, string $reason)
+    {
+        Log::warning('Invalid import row', ['reason' => $reason, 'row' => $row]);
+
+        $invalidRows   = Cache::get($this->tmpcachekey, []);
+        $invalidRows[] = ['reason' => $reason, 'row' => $row];
+        Cache::put($this->tmpcachekey, $invalidRows);
+
+        return null;
+    }
+}
+```
+
+---
+
+## ✅ What this gives you (aligned to your example)
+
+**Input rows (order matters):**
+
+```
+type=header,     activities=Foundation Work
+type=activities, activities=Excavation
+type=activities, activities=Manual Digging
+```
+
+**Resulting hierarchy (no sl_no):**
+
+```
+Foundation Work (header)
+ ├─ Excavation         (activities)
+ └─ Manual Digging     (activities)
+```
+
+**DB snapshot**
+
+| id  | type       | parent_id | activities      |
+| --- | ---------- | --------- | --------------- |
+| 241 | header     | NULL      | Foundation Work |
+| 242 | activities | 241       | Excavation      |
+| 243 | activities | 241       | Manual Digging  |
+
+---
+
+## 🔒 (Optional) DB unique indexes for clean upserts
+
+To guarantee idempotency:
+
+```sql
+-- headers: unique by name within company+project+subproject
+CREATE UNIQUE INDEX uniq_head
+ON activities (company_id, project_id, subproject_id, type, activities)
+WHERE type = 'header';
+
+-- activities: unique by header parent + name
+CREATE UNIQUE INDEX uniq_child
+ON activities (company_id, project_id, subproject_id, type, parent_id, activities)
+WHERE type = 'activities';
+```
+
+---
+
+If you want, I can also add:
+
+* automatic **trimming/title-casing** of names,
+* **row counters** and a **final JSON summary** you can save or log,
+* a **“dry run”** mode to only validate and preview before inserting.
+
+************************with slno**************************************************************************
+<?php
+
+namespace App\Imports\Activites;
+
+use App\Models\Company\Activities;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\ToCollection;
+
+class ActivitesImport implements ToCollection, WithHeadingRow
+{
+    protected int $project;
+    protected ?int $subproject;
+    protected int $companyId;
+    protected string $tmpcachekey;
+
+    /** Keep a map of sl_no => id created/updated during this run */
+    protected array $idBySlNo = [];
+
+    public function __construct($project, $subproject, $companyId, $tmpcachekey)
+    {
+        $this->project     = (int) $project;
+        $this->subproject  = $subproject !== null && $subproject !== '' ? (int) $subproject : null;
+        $this->companyId   = (int) $companyId;
+        $this->tmpcachekey = (string) $tmpcachekey;
+    }
+
+    /**
+     * Two-pass import:
+     *  - Pass 1: upsert headers (level 1)
+     *  - Pass 2: upsert activities (level 2) with parent_id
+     */
+    public function collection(Collection $rows)
+    {
+        Log::info('1.) Activities import started', [
+            'company_id' => $this->companyId,
+            'project_id' => $this->project,
+            'subproject_id' => $this->subproject,
+            'rows' => $rows->count()
+        ]);
+
+        // Normalize headings to lowercase
+        $rows = $rows->map(function ($row) {
+            $norm = [];
+            foreach ($row as $k => $v) {
+                $norm[strtolower(trim((string)$k))] = is_string($v) ? trim($v) : $v;
+            }
+            return $norm;
+        });
+
+        // Filter out completely empty lines
+        $rows = $rows->filter(function ($row) {
+            return $this->hasAnyValue($row);
+        })->values();
+
+        // Split rows by level (sl_no)
+        $headers   = [];
+        $activities = [];
+
+        foreach ($rows as $row) {
+            if ($this->isNullRow($row)) {
+                $this->cacheInvalidRow($row, 'Missing required fields (sl_no, activities)');
+                continue;
+            }
+
+            $sl = (string) $row['sl_no'];
+            $level = $this->levelOf($sl);
+
+            if ($level === 0) {
+                $this->cacheInvalidRow($row, 'Invalid sl_no format. Use 1, 2, 1.1, 2.3 etc.');
+                continue;
+            }
+
+            if ($level === 1) {
+                $headers[] = $row;
+            } elseif ($level === 2) {
+                $activities[] = $row;
+            } else {
+                // We only support header->activity (two levels) per your requirement
+                $this->cacheInvalidRow($row, 'Only two levels supported (e.g., 1 and 1.1)');
+            }
+        }
+
+        Log::info('2.) Rows categorized', [
+            'headers' => count($headers),
+            'activities' => count($activities)
+        ]);
+
+        // Pass 1: Upsert headers
+        foreach ($this->orderBySlNo2($headers) as $row) {
+            $this->upsertHeaderRow($row);
+        }
+
+        // Pass 2: Upsert activities
+        foreach ($this->orderBySlNo2($activities) as $row) {
+            $this->upsertActivityRow($row);
+        }
+
+        Log::info('3.) Activities import finished', [
+            'mapped_ids' => $this->idBySlNo,
+            'invalid_rows_count' => count(Cache::get($this->tmpcachekey, []))
+        ]);
+    }
+
+    /* ---------------------- UPSERT HELPERS ---------------------- */
+
+    protected function upsertHeaderRow(array $row): void
+    {
+        $slNo = (string) $row['sl_no'];
+
+        $payload = $this->buildPayload($row, 'header', null);
+
+        Log::info('2.1) Upserting header', ['sl_no' => $slNo, 'payload' => $payload]);
+
+        $model = Activities::updateOrCreate(
+            [
+                'company_id'    => $this->companyId,
+                'project_id'    => $this->project,
+                'subproject_id' => $this->subproject,
+                'sl_no'         => $slNo,
+            ],
+            $payload
+        );
+
+        $this->idBySlNo[$slNo] = $model->id;
+
+        Log::info('2.1.a) Header saved', ['id' => $model->id, 'sl_no' => $slNo]);
+    }
+
+    protected function upsertActivityRow(array $row): void
+    {
+        $slNo = (string) $row['sl_no'];
+        $parentSl = $this->parentSlNo($slNo);
+
+        if (!$parentSl) {
+            $this->cacheInvalidRow($row, "Cannot determine parent for {$slNo}");
+            return;
+        }
+
+        $parentId = $this->findIdBySlNo($parentSl);
+        if (!$parentId) {
+            // Try DB lookup if not already mapped in this run
+            $parentId = Activities::where('company_id', $this->companyId)
+                ->where('project_id', $this->project)
+                ->when($this->subproject, fn($q) => $q->where('subproject_id', $this->subproject))
+                ->where('sl_no', $parentSl)
+                ->value('id');
+
+            if ($parentId) {
+                $this->idBySlNo[$parentSl] = $parentId;
+            }
+        }
+
+        if (!$parentId) {
+            $this->cacheInvalidRow($row, "Parent not found for {$slNo} (expected header {$parentSl})");
+            return;
+        }
+
+        $payload = $this->buildPayload($row, 'activity', $parentId);
+
+        Log::info('2.2) Upserting activity', ['sl_no' => $slNo, 'parent_sl_no' => $parentSl, 'payload' => $payload]);
+
+        $model = Activities::updateOrCreate(
+            [
+                'company_id'    => $this->companyId,
+                'project_id'    => $this->project,
+                'subproject_id' => $this->subproject,
+                'sl_no'         => $slNo,
+            ],
+            $payload
+        );
+
+        $this->idBySlNo[$slNo] = $model->id;
+
+        Log::info('2.2.a) Activity saved', ['id' => $model->id, 'sl_no' => $slNo, 'parent_id' => $parentId]);
+    }
+
+    protected function buildPayload(array $row, string $type, ?int $parentId): array
+    {
+        $qty   = $this->toNumber($row['qty'] ?? null);
+        $rate  = $this->toNumber($row['rate'] ?? null);
+        $amount = ($qty !== null && $rate !== null) ? $qty * $rate : null;
+
+        $unitId = null;
+        if (!empty($row['units'])) {
+            $unitId = $this->getUnitId($row['units']);
+        }
+
+        $startDate = !empty($row['start_datedd_mm_yyyy'])
+            ? excelDateToDate($row['start_datedd_mm_yyyy'])
+            : null;
+
+        $endDate = !empty($row['end_datedd_mm_yyyy'])
+            ? excelDateToDate($row['end_datedd_mm_yyyy'])
+            : null;
+
+        return [
+            'project_id'    => $this->project,
+            'subproject_id' => $this->subproject,
+            'company_id'    => $this->companyId,
+            'type'          => $type,            // 'header' | 'activity'
+            'sl_no'         => (string) $row['sl_no'],
+            'parent_id'     => $parentId,        // null for header
+            'activities'    => $row['activities'] ?? null,
+            'unit_id'       => $unitId,
+            'qty'           => $qty,
+            'rate'          => $rate,
+            'amount'        => $amount,
+            'start_date'    => $startDate,
+            'end_date'      => $endDate,
+        ];
+    }
+
+    /* ---------------------- UTILITIES ---------------------- */
+
+    protected function isNullRow(array $row): bool
+    {
+        $sl = trim((string)($row['sl_no'] ?? ''));
+        $ac = trim((string)($row['activities'] ?? ''));
+        return $sl === '' || $ac === '';
+    }
+
+    protected function levelOf(string $slNo): int
+    {
+        if (!preg_match('/^\d+(\.\d+)?$/', $slNo)) {
+            return 0;
+        }
+        return substr_count($slNo, '.') + 1; // "1" => 1, "1.2" => 2
+    }
+
+    protected function parentSlNo(string $slNo): ?string
+    {
+        $parts = explode('.', $slNo);
+        if (count($parts) <= 1) return null;
+        array_pop($parts);
+        return implode('.', $parts);
+    }
+
+    protected function findIdBySlNo(string $slNo): ?int
+    {
+        return $this->idBySlNo[$slNo] ?? null;
+    }
+
+    protected function toNumber($value): ?float
+    {
+        if ($value === null || $value === '') return null;
+        if (is_numeric($value)) return (float) $value;
+        $clean = str_replace([',', ' '], '', (string) $value);
+        return is_numeric($clean) ? (float) $clean : null;
+    }
+
+    protected function getUnitId($unitName)
+    {
+        // Your existing helpers
+        // nametoid($name, 'units') returns id or false
+        // createunit($name, $companyId) creates and returns id
+        $unitId = nametoid($unitName, 'units');
+        if ($unitId === false || $unitId === null) {
+            $unitId = createunit($unitName, $this->companyId);
+        }
+        return $unitId;
+    }
+
+    protected function hasAnyValue(array $row): bool
+    {
+        foreach ($row as $v) {
+            if ($v !== null && $v !== '' && $v !== []) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Sort rows numerically by sl_no up to two levels (1, 1.2)
+     * Example order: 1, 1.1, 1.2, 2, 2.1, 2.2
+     */
+    protected function orderBySlNo2(array $rows): array
+    {
+        usort($rows, function ($a, $b) {
+            $a1 = (int) explode('.', (string) $a['sl_no'])[0];
+            $b1 = (int) explode('.', (string) $b['sl_no'])[0];
+
+            if ($a1 !== $b1) return $a1 <=> $b1;
+
+            $a2 = strpos((string) $a['sl_no'], '.') !== false ? (int) explode('.', (string) $a['sl_no'])[1] : 0;
+            $b2 = strpos((string) $b['sl_no'], '.') !== false ? (int) explode('.', (string) $b['sl_no'])[1] : 0;
+
+            return $a2 <=> $b2;
+        });
+
+        return $rows;
+    }
+
+    /* ---------------------- INVALID ROWS CACHE ---------------------- */
+
+    protected function cacheInvalidRow(array $row, string $reason): void
+    {
+        Log::warning('Invalid import row', ['reason' => $reason, 'row' => $row]);
+
+        $invalid = Cache::get($this->tmpcachekey, []);
+        $invalid[] = ['reason' => $reason, 'row' => $row];
+        Cache::put($this->tmpcachekey, $invalid);
+    }
+}
+
+
 **************************************************************************************************
+RND 1 
+
+Awesome — here’s the **drop-in code** that generates exactly this structure:
+
+```
+Header "1" → Activities: 1.1, 1.2, ...
+Header "2" → Activities: 2.1, 2.2, ...
+```
+
+I’m giving you:
+
+1. a **Model scope** to sort `sl_no` numerically (e.g., 1.9 < 1.10),
+2. a **Service-style method** that builds the structure,
+3. a **Controller action** that returns the JSON,
+4. optional: **“full details”** mode.
+
+---
+
+## 1) Activities model: numeric ordering by `sl_no` (1 / 1.2)
+
+> Works correctly for 1-level and 2-level numbers (`1`, `2`, `1.1`, `2.3`).
+
+```php
+// app/Models/Company/Activities.php
+
+namespace App\Models\Company;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Activities extends Model
+{
+    // ... your existing code ...
+
+    /**
+     * Scope: only rows for a given context.
+     */
+    public function scopeForContext($q, int $companyId, int $projectId, ?int $subprojectId = null)
+    {
+        return $q->where('company_id', $companyId)
+            ->where('project_id', $projectId)
+            ->when($subprojectId, fn($qq) => $qq->where('subproject_id', $subprojectId));
+    }
+
+    /**
+     * Scope: numeric order by sl_no up to 2 levels (1 or 1.2).
+     * Example ordering: 1, 1.1, 1.2, 2, 2.1, 2.2
+     */
+    public function scopeOrderBySlNo2($q)
+    {
+        return $q->orderByRaw("
+            CAST(SUBSTRING_INDEX(sl_no, '.', 1) AS UNSIGNED) ASC,
+            CASE
+                WHEN sl_no LIKE '%.%' THEN CAST(SUBSTRING_INDEX(sl_no, '.', -1) AS UNSIGNED)
+                ELSE 0
+            END ASC
+        ");
+    }
+}
+```
+
+> If you ever need **3 levels** (`1.1.1`), tell me — I’ll give you a 3-level sorter.
+
+---
+
+## 2) Service-style function: build the structure
+
+> Returns **headers with their activities** (by `sl_no`), matching your example.
+
+```php
+// app/Support/ActivitiesStructure.php
+
+namespace App\Support;
+
+use App\Models\Company\Activities;
+
+class ActivitiesStructure
+{
+    /**
+     * Build structure:
+     * [
+     *   { header: "1", activities: ["1.1", "1.2"] },
+     *   { header: "2", activities: ["2.1", "2.2"] },
+     * ]
+     *
+     * @param int $companyId
+     * @param int $projectId
+     * @param int|null $subprojectId
+     * @param bool $withDetails  If true, include names/amount/ids too
+     * @return array
+     */
+    public static function build(int $companyId, int $projectId, ?int $subprojectId = null, bool $withDetails = false): array
+    {
+        // Fetch only level-1 and level-2 rows, ordered numerically
+        $rows = Activities::forContext($companyId, $projectId, $subprojectId)
+            ->orderBySlNo2()
+            ->get(['id','sl_no','type','activities','qty','rate','amount','parent_id']);
+
+        $result = [];
+        $index  = [];
+
+        foreach ($rows as $row) {
+            $level = substr_count($row->sl_no, '.') + 1;
+
+            // Header (level 1)
+            if ($level === 1) {
+                $headerKey = $row->sl_no; // e.g., "1", "2"
+
+                $result[] = $withDetails
+                    ? [
+                        'header'     => ['sl_no' => $headerKey, 'activities' => $row->activities, 'id' => $row->id],
+                        'activities' => [],
+                    ]
+                    : [
+                        'header'     => $headerKey,
+                        'activities' => [],
+                    ];
+
+                // Map "1" -> index in $result
+                $index[$headerKey] = count($result) - 1;
+            }
+
+            // Activity (level 2)
+            if ($level === 2) {
+                [$headerKey, $childNo] = explode('.', $row->sl_no, 2);
+
+                // Skip if header missing (import should ensure header first)
+                if (!array_key_exists($headerKey, $index)) {
+                    // If you want to collect orphans, you can push them to a side array.
+                    continue;
+                }
+
+                $pos = $index[$headerKey];
+
+                if ($withDetails) {
+                    $result[$pos]['activities'][] = [
+                        'sl_no'      => $row->sl_no,
+                        'activities' => $row->activities,
+                        'qty'        => $row->qty,
+                        'rate'       => $row->rate,
+                        'amount'     => $row->amount,
+                        'id'         => $row->id,
+                        'parent_id'  => $row->parent_id,
+                    ];
+                } else {
+                    $result[$pos]['activities'][] = $row->sl_no;
+                }
+            }
+        }
+
+        return $result;
+    }
+}
+```
+
+---
+
+## 3) Controller: return the structure (JSON)
+
+> `?full=1` will include details; default is only `sl_no` lists.
+
+```php
+// app/Http/Controllers/Company/ActivitiesStructureController.php
+
+namespace App\Http\Controllers\Company;
+
+use App\Http\Controllers\Controller;
+use App\Support\ActivitiesStructure;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+
+class ActivitiesStructureController extends Controller
+{
+    public function index(Request $request)
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId   = searchCompanyId($authCompany);
+
+        $projectId    = (int) $request->get('project');
+        $subprojectId = $request->has('subproject') && $request->get('subproject') !== ''
+            ? (int) $request->get('subproject')
+            : null;
+
+        if (!$projectId) {
+            return response()->json(['error' => 'project is required'], 422);
+        }
+
+        $withDetails = (bool) $request->boolean('full', false);
+
+        $data = ActivitiesStructure::build(
+            companyId:   $companyId,
+            projectId:   $projectId,
+            subprojectId:$subprojectId,
+            withDetails: $withDetails
+        );
+
+        return response()->json([
+            'project_id'    => $projectId,
+            'subproject_id' => $subprojectId,
+            'company_id'    => $companyId,
+            'activities_structure' => $data,
+        ]);
+    }
+}
+```
+
+**Route:**
+
+```php
+// routes/web.php (or routes/api.php)
+Route::get('/company/activities/structure', [\App\Http\Controllers\Company\ActivitiesStructureController::class, 'index'])
+    ->name('company.activities.structure');
+```
+
+---
+
+## 4) Sample outputs
+
+### A) Default (only sl_no)
+
+GET `/company/activities/structure?project=12&subproject=3`
+
+```json
+[
+  {
+    "header": "1",
+    "activities": ["1.1", "1.2", "1.3"]
+  },
+  {
+    "header": "2",
+    "activities": ["2.1", "2.2"]
+  }
+]
+```
+
+### B) Full details
+
+GET `/company/activities/structure?project=12&subproject=3&full=1`
+
+```json
+[
+  {
+    "header": { "sl_no": "1", "activities": "Main Header 1", "id": 101 },
+    "activities": [
+      { "sl_no": "1.1", "activities": "Excavation", "qty": 10, "rate": 150, "amount": 1500, "id": 102, "parent_id": 101 },
+      { "sl_no": "1.2", "activities": "Concrete",   "qty": 8,  "rate": 200, "amount": 1600, "id": 103, "parent_id": 101 }
+    ]
+  },
+  {
+    "header": { "sl_no": "2", "activities": "Main Header 2", "id": 104 },
+    "activities": [
+      { "sl_no": "2.1", "activities": "Plumbing",  "qty": 3, "rate": 250, "amount": 750, "id": 105, "parent_id": 104 }
+    ]
+  }
+]
+```
+
+---
+
+## (Optional) DB hardening (recommended)
+
+Add a unique key so your import stays idempotent (as in the last message):
+
+```sql
+ALTER TABLE activities
+ADD UNIQUE KEY uniq_company_project_subproject_slno (company_id, project_id, subproject_id, sl_no);
+```
+
+---
+
+### Want 3 levels (e.g., `1.1.1`) next?
+
+Say **“add 3-level sorter + structure”** and I’ll extend both the sorter and the builder accordingly.
+
+
+
+
+
+
 **************************************************************************************************
+<?php
+
+namespace App\Exports\Activites;
+
+use App\Models\Company\Assets;
+use App\Models\Company\Activities;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Events\AfterSheet;
+use App\Http\Resources\Export\ActivitesExportResources;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+
+
+class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+    protected $projects;       // Selected project ID
+    protected $subprojects;    // Selected subproject ID
+    protected $units;          // Dropdown options for units
+    protected $rowCount;       // Number of rows to apply formatting rules
+
+    public function __construct($projects, $subprojects)
+    {
+        $this->projects = $projects;           // Assign selected project
+        $this->subprojects = $subprojects;     // Assign selected subproject
+        $this->units = getUnit();              // Fetch unit options dynamically
+        $this->rowCount = 100;                 // Set maximum rows for the sheet
+    }
+
+    /**
+     * Collect the data to be exported.
+     */
+    public function collection()
+    {
+        $authCompanyId = Auth::guard('company')->user()->id; // Get authenticated company user
+        $companyId = searchCompanyId($authCompanyId);        // Search for the actual company ID
+
+        $activities = Activities::with('units', 'project', 'subproject') // Fetch related models
+            ->where('company_id', $companyId);
+
+        // Filter by project if selected
+        if (!empty($this->projects)) {
+            $activities->where('project_id', $this->projects);
+
+            // Further filter by subproject if selected
+            if (!empty($this->subprojects)) {
+                $activities->where('subproject_id', $this->subprojects);
+            }
+        }
+        // dd($activities->get()->toArray());
+        // Fetch the activities and add serial numbers (#) to the data
+        $data = ActivitesExportResources::collection($activities->get());
+        return collect($data->map(function ($item, $index) {
+            $item['#'] = $index + 1; // Add serial number starting from 1
+            return $item;
+        }));
+    }
+
+    /**
+     * Define the column headings for the export.
+     */
+    public function headings(): array
+    {
+        return [
+            '#',          // A - Serial number
+            'UUID',       // B - Hidden
+            'Project',    // C - Hidden
+            'Subproject', // D - Hidden
+            'Type',       // E
+            'SL No',      // F
+            'Activities', // G
+            'Units',      // H
+            'Qty',        // I
+            'Rate',       // J
+            'Amount',     // K
+            'Start Date(dd-mm-yyyy)', // L
+            'End Date(dd-mm-yyyy)',   // M
+            'Unit uuid',   // N-Hidden
+        ];
+    }
+
+    /**
+     * Register events for formatting and applying rules to the sheet.
+     */
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                // Hide columns B, C, and D
+                $this->hideColumns($event, ['B', 'C', 'D', 'N']);
+
+                // Apply dropdown validation for "Type" (E) and "Units" (H)
+                $this->applyDropdownValidation($event, 'E', ['heading', 'activities']);
+                $this->applyDropdownValidation($event, 'H', $this->units);
+
+                // Apply formula for Amount (K = I * J)
+                $this->applyCalculationFormula($event, 'K', 'I', 'J');
+
+                // Apply date format for Start Date (L) and End Date (M)
+                $this->applyDateFormat($event, 'L');
+                $this->applyDateFormat($event, 'M');
+
+                // Apply auto-sizing for all columns
+                $this->autoSizeColumns($event, 13); // Total 13 columns
+            },
+        ];
+    }
+
+    /**
+     * Hide specified columns.
+     */
+    private function hideColumns($event, $columns)
+    {
+        foreach ($columns as $column) {
+            $event->sheet->getDelegate()->getColumnDimension($column)->setVisible(false);
+        }
+    }
+
+    /**
+     * Apply dropdown validation to a column.
+     */
+    private function applyDropdownValidation($event, $column, $options)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $validation = $event->sheet->getCell("{$column}{$row}")->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(false);
+            $validation->setShowDropDown(true);
+            $validation->setFormula1(sprintf('"%s"', implode(',', $options)));
+        }
+    }
+
+    /**
+     * Apply calculation formula (e.g., K = I * J) to a column.
+     */
+    private function applyCalculationFormula($event, $resultColumn, $qtyColumn, $rateColumn)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $qtyCell = "{$qtyColumn}{$row}";
+            $rateCell = "{$rateColumn}{$row}";
+            $resultCell = "{$resultColumn}{$row}";
+
+            // Set the formula for the cell
+            $event->sheet->getDelegate()
+                ->setCellValue($resultCell, "={$qtyCell}*{$rateCell}");
+        }
+    }
+
+    /**
+     * Apply date format to a column.
+     */
+    private function applyDateFormat($event, $column)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $cell = "{$column}{$row}";
+            $event->sheet->getDelegate()->getStyle($cell)->getNumberFormat()
+                ->setFormatCode('dd-mm-yyyy');
+        }
+    }
+
+    /**
+     * Auto-size all columns up to the given column count.
+     */
+    private function autoSizeColumns($event, $columnCount)
+    {
+        for ($i = 1; $i <= $columnCount; $i++) {
+            $column = Coordinate::stringFromColumnIndex($i);
+            $event->sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+    }
+}
+
+*********************** ***************************************************************************
+*********************** ***************************************************************************
+*********************** ***************************************************************************
+*********************** ***************************************************************************
+  public function import(Request $request)
+    {
+        $authCompany = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompany);
+
+        $additionalFeatures = fetchDataActivities($companyId, $request->project);
+        $subscription = checkSubscriptionPermission($companyId, 'activities');
+
+        // if (count($additionalFeatures) < $subscription->is_subscription) {
+        try {
+            $file = $request->file('file');
+            $project = $request->project;
+            $subproject = $request->subproject;
+            $cacheKey = 'tmpcachekey';
+
+            Cache::put($cacheKey, []);
+
+            Excel::import(new ActivitesImport($project, $subproject, $companyId, $cacheKey), $file);
+            $importedData = Cache::get($cacheKey);
+
+            if (empty($importedData)) {
+                return redirect()->route('company.activities.list')
+                    ->with('success', 'Import Data Uploaded Successfully');
+            } else {
+                return redirect()->route('company.activities.nonImportData');
+            }
+        } catch (\Exception $e) {
+            Log::error('Error importing Excel file: ' . $e->getMessage());
+
+            return redirect()->back()
+                ->with('error', 'Error importing Excel file');
+        }
+        // } else {
+        //     return redirect()->back()
+        //         ->with('expired', true);
+        // }
+    }
+
+
+
+
+
+
+<?php
+
+namespace App\Imports\Activites;
+
+use Illuminate\Support\Str;
+use App\Events\ExcelDataImported;
+use App\Models\Company\Activities;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Events\AfterSheet;
+use Maatwebsite\Excel\Events\AfterImport;
+use Maatwebsite\Excel\Events\BeforeImport;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+
+class ActivitesImport implements ToModel, WithHeadingRow
+{
+    protected $project;
+    protected $subproject;
+    protected $companyId;
+    protected $tmpcachekey;
+
+    public function __construct($project, $subproject, $companyId, $tmpcachekey)
+    {
+        $this->project = $project;
+        $this->subproject = $subproject;
+        $this->companyId = $companyId;
+        $this->tmpcachekey = $tmpcachekey;
+    }
+
+    public function model(array $row)
+    {
+        Log::info('Excel import process started', $row);
+
+        // dd(excelDateToDate($row['start_datedd_mm_yyyy']));
+        // Null row checking
+        if ($this->isNullRow($row)) {
+            $this->cacheInvalidRow($row, 'Row is null or contains invalid data');
+            return null;
+        }
+
+        // dd($row->collection());
+        // Validate the row structure
+        if (!$this->isValidSlNo($row)) {
+            $this->cacheInvalidRow($row);
+            return null;
+        }
+
+        $companyId = $this->companyId;
+        $parentId = $this->calculateParentId($row['sl_no']);
+
+        // Check if the same data already exists
+        $existingActivity = Activities::where('project_id', $this->project)
+            ->when($this->subproject, function ($query) {
+                $query->where('subproject_id', $this->subproject);
+            })
+            ->where('activities', $row["activities"])   // Assuming 'id' is present in the row
+            // ->oRwhere('uuid', $row["uuid"])   // Assuming 'id' is present in the row
+            ->where('company_id', $companyId)
+            ->first();
+
+        if ($existingActivity) {
+            $this->updateExistingActivity($existingActivity, $row);
+            return null;
+        }
+
+        // Create new activity
+        $data = new Activities([
+            // 'uuid' => Str::uuid(),
+            'project_id' => $this->project,
+            'subproject_id' => $this->subproject,
+            'type' => $parentId === null ? 'heading' : 'activity',
+            'sl_no' => $row['sl_no'],
+            'parent_id' => $parentId,
+            'activities' => $row['activities'],
+            'unit_id' => $this->getUnitId($row['units']),
+            'qty' => $row['qty'],
+            'rate' => $row['rate'],
+            'amount' => $row['qty'] * $row['rate'],
+            'start_date' => excelDateToDate($row['start_datedd_mm_yyyy']),
+            'end_date' => excelDateToDate($row['end_datedd_mm_yyyy']),
+            'company_id' => $companyId,
+        ]);
+        // dd($data);
+        Log::info('************************Excel import process started Activities************************');
+        Log::info($data);
+        Log::info('************************End Excel import process started Activities************************');
+        $this->logExportedData($data);
+        return $data;
+    }
+
+    protected function isNullRow(array $row)
+    {
+        // Check if all required fields are null or empty
+        $requiredFields = ['type', 'activities'];
+        foreach ($requiredFields as $field) {
+            if (!isset($row[$field]) || trim($row[$field]) === '') {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected function isValidSlNo(array $row)
+    {
+        $slNoParts = explode('.', $row['sl_no']);
+        $slNoCount = count($slNoParts);
+
+        if ($slNoCount === 1 || $slNoCount === null) {
+            return true;
+        } elseif ($slNoCount === 2) {
+            return $this->checkSlNo($slNoParts[0]);
+        } elseif ($slNoCount === 3) {
+            $slNoCombined = $slNoParts[0] . '.' . $slNoParts[1];
+            return $this->checkSlNo($slNoCombined);
+        }
+
+        return false;
+    }
+
+    protected function calculateParentId($slNo)
+    {
+        $slNoParts = explode('.', $slNo);
+        $slNoCount = count($slNoParts);
+
+        if ($slNoCount === 1 || $slNoCount === null) {
+            return null;
+        } elseif ($slNoCount === 2) {
+            return $this->getParentId($slNoParts[0]);
+        } elseif ($slNoCount === 3) {
+            $slNoCombined = $slNoParts[0] . '.' . $slNoParts[1];
+            return $this->getParentId($slNoCombined);
+        }
+        return null;
+    }
+
+    protected function getParentId($slNoParts)
+    {
+        return Activities::where('sl_no', $slNoParts)
+            ->where('company_id', $this->companyId)
+            ->value('id'); // Directly fetch ID
+    }
+
+    protected function checkSlNo($slNoParts)
+    {
+        return Activities::where('sl_no', $slNoParts)
+            ->where('company_id', $this->companyId)
+            ->exists(); // Returns true/false
+    }
+
+    protected function getUnitId($unitName)
+    {
+        $unitId = nametoid($unitName, 'units');
+        if ($unitId === false) {
+            $unitId = createunit($unitName, $this->companyId);
+        }
+        return $unitId;
+    }
+
+    protected function updateExistingActivity($existingActivity, $row)
+    {
+        $shouldUpdate = (
+            $existingActivity->unit_id !== $this->getUnitId($row['units']) ||
+            $existingActivity->qty !== $row['qty'] ||
+            $existingActivity->rate !== $row['rate'] ||
+            $existingActivity->amount !== $row['qty'] * $row['rate']
+        );
+
+        // dd($shouldUpdate);
+        if ($shouldUpdate) {
+            $existingActivity->update([
+                'activities' => $row['activities'],
+                'unit_id' => $this->getUnitId($row['units']),
+                'qty' => $row['qty'],
+                'rate' => $row['rate'],
+                'amount' => $row['qty'] * $row['rate'],
+            ]);
+        }
+    }
+
+    protected function cacheInvalidRow($row)
+    {
+        $invalidRows = Cache::get($this->tmpcachekey, []);
+        $invalidRows[] = $row;
+        Cache::put($this->tmpcachekey, $invalidRows);
+    }
+
+    protected function logExportedData($data)
+
+
+
+**************************************************************************************************
+******************************Import********************************************************************
+
+
+
+Awesome—here’s the updated importer that builds a **two-level hierarchy** exactly like your example:
+**header → activities (no grandchildren)**, **no `sl_no`**, and activities always attach to the **last seen header**.
+
+I’ve kept your cache + logging style and made the upsert idempotent.
+
+---
+
+# 🔧 Controller (no major change)
+
+Your controller already works. Just keep it as is (only note: we still use the cache key to collect invalid rows). If you want the latest minor safety checks, here’s a tidy version:
+
+```php
+public function import(Request $request)
+{
+    $authCompany = Auth::guard('company')->user()->id;
+    $companyId   = searchCompanyId($authCompany);
+
+    // Optional checks you already had
+    $additionalFeatures = fetchDataActivities($companyId, $request->project);
+    $subscription       = checkSubscriptionPermission($companyId, 'activities');
+
+    try {
+        $file       = $request->file('file');
+        $project    = $request->project;
+        $subproject = $request->subproject;
+
+        if (!$file || !$project) {
+            return back()->with('error', 'Missing file or project.');
+        }
+
+        $cacheKey = 'activities_import_' . \Illuminate\Support\Str::uuid()->toString();
+        Cache::put($cacheKey, []); // holds invalid rows with reasons
+
+        Excel::import(new \App\Imports\Activites\ActivitesImport(
+            project:     $project,
+            subproject:  $subproject,
+            companyId:   $companyId,
+            tmpcachekey: $cacheKey
+        ), $file);
+
+        $invalid = Cache::get($cacheKey, []);
+        if (empty($invalid)) {
+            return redirect()->route('company.activities.list')
+                ->with('success', 'Import completed successfully.');
+        }
+
+        session(['activities_import_invalid_rows' => $invalid]);
+
+        return redirect()->route('company.activities.nonImportData')
+            ->with('warning', 'Some rows could not be imported. Review them on the next page.');
+    } catch (\Throwable $e) {
+        \Log::error('Error importing Excel file: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
+        return back()->with('error', 'Error importing Excel file.');
+    }
+}
+```
+
+---
+
+# 🧠 Importer (two-level, no `sl_no`)
+
+**Key points**
+
+* Only two levels: `header` and `activities`.
+* Track `$lastHeaderId` across rows in the same import run.
+* If a row is `activities` but no header has appeared yet → cached as invalid.
+* Upsert uniqueness:
+
+  * For **header**: (`company_id`, `project_id`, `subproject_id`, `type=header`, `activities`).
+  * For **activities**: add `parent_id` to the key so activities with same name under different headers don’t collide.
+
+```php
+<?php
+
+namespace App\Imports\Activites;
+
+use App\Models\Company\Activities;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+
+class ActivitesImport implements ToModel, WithHeadingRow
+{
+    protected $project;
+    protected $subproject;
+    protected $companyId;
+    protected $tmpcachekey;
+
+    /** @var int|null */
+    protected $lastHeaderId = null;
+
+    public function __construct($project, $subproject, $companyId, $tmpcachekey)
+    {
+        $this->project     = $project;
+        $this->subproject  = $subproject;
+        $this->companyId   = $companyId;
+        $this->tmpcachekey = $tmpcachekey;
+    }
+
+    /**
+     * Two-level hierarchy import:
+     * - type=header       -> parent_id = null, becomes current $lastHeaderId
+     * - type=activities   -> parent_id = $lastHeaderId (must exist)
+     */
+    public function model(array $row)
+    {
+        // 1.) Raw row log
+        Log::info('1.) Incoming row', $row);
+
+        $row = array_change_key_case($row, CASE_LOWER);
+
+        // Basic validations (no sl_no logic here)
+        if ($this->isNullRow($row)) {
+            return $this->cacheInvalidRow($row, 'Missing required fields (type, activities).');
+        }
+
+        $type = strtolower(trim($row['type'] ?? ''));
+        if (!in_array($type, ['header', 'activities'], true)) {
+            return $this->cacheInvalidRow($row, 'Invalid type. Allowed: header, activities');
+        }
+
+        $activitiesName = trim((string)($row['activities'] ?? ''));
+        if ($activitiesName === '') {
+            return $this->cacheInvalidRow($row, 'Missing activities name.');
+        }
+
+        // Resolve numbers
+        $qty   = $this->toNumber($row['qty']  ?? null);
+        $rate  = $this->toNumber($row['rate'] ?? null);
+        $amount = ($qty !== null && $rate !== null) ? $qty * $rate : null;
+
+        // Dates (use your helper if available)
+        $startDate = !empty($row['start_datedd_mm_yyyy']) ? excelDateToDate($row['start_datedd_mm_yyyy']) : null;
+        $endDate   = !empty($row['end_datedd_mm_yyyy'])   ? excelDateToDate($row['end_datedd_mm_yyyy'])   : null;
+
+        // Units
+        $unitId = null;
+        if (!empty($row['units'])) {
+            $unitId = $this->getUnitId($row['units']);
+        }
+
+        // Build base payload
+        $payload = [
+            'project_id'    => $this->project,
+            'subproject_id' => $this->subproject,
+            'company_id'    => $this->companyId,
+            'type'          => $type, // 'header' | 'activities'
+            'parent_id'     => null,
+            'activities'    => $activitiesName,
+            'unit_id'       => $unitId,
+            'qty'           => $qty,
+            'rate'          => $rate,
+            'amount'        => $amount,
+            'start_date'    => $startDate,
+            'end_date'      => $endDate,
+        ];
+
+        // 2.) Prepared payload (before parent attach)
+        Log::info('2.) Prepared payload (pre-parent)', $payload);
+
+        // Two-level hierarchy rule
+        if ($type === 'header') {
+            // Upsert header by (company, project, subproject, type=header, activities)
+            $activity = Activities::updateOrCreate(
+                [
+                    'company_id'    => $this->companyId,
+                    'project_id'    => $this->project,
+                    'subproject_id' => $this->subproject,
+                    'type'          => 'header',
+                    'activities'    => $activitiesName,
+                ],
+                $payload
+            );
+
+            $this->lastHeaderId = $activity->id;
+            Log::info('3.) Saved HEADER row', ['id' => $activity->id, 'activities' => $activitiesName]);
+            return $activity;
+        }
+
+        // type === 'activities'
+        if ($this->lastHeaderId === null) {
+            return $this->cacheInvalidRow($row, 'Encountered activities before any header. Place a header first.');
+        }
+
+        $payload['parent_id'] = $this->lastHeaderId;
+
+        // Upsert activity by (company, project, subproject, type=activities, parent_id, activities)
+        $activity = Activities::updateOrCreate(
+            [
+                'company_id'    => $this->companyId,
+                'project_id'    => $this->project,
+                'subproject_id' => $this->subproject,
+                'type'          => 'activities',
+                'parent_id'     => $this->lastHeaderId,
+                'activities'    => $activitiesName,
+            ],
+            $payload
+        );
+
+        Log::info('3.) Saved ACTIVITIES row', [
+            'id' => $activity->id,
+            'parent_id' => $this->lastHeaderId,
+            'activities' => $activitiesName
+        ]);
+
+        return $activity;
+    }
+
+    /* ----------------------- Helpers ----------------------- */
+
+    protected function isNullRow(array $row): bool
+    {
+        $type = trim((string)($row['type'] ?? ''));
+        $act  = trim((string)($row['activities'] ?? ''));
+        return ($type === '' || $act === '');
+    }
+
+    protected function toNumber($value): ?float
+    {
+        if ($value === null || $value === '') return null;
+        if (is_numeric($value)) return (float)$value;
+        $clean = str_replace([',', ' '], '', (string)$value);
+        return is_numeric($clean) ? (float)$clean : null;
+    }
+
+    protected function getUnitId($unitName)
+    {
+        $unitId = nametoid($unitName, 'units');
+        if ($unitId === false || $unitId === null) {
+            $unitId = createunit($unitName, $this->companyId);
+        }
+        return $unitId;
+    }
+
+    protected function cacheInvalidRow(array $row, string $reason)
+    {
+        Log::warning('Invalid import row', ['reason' => $reason, 'row' => $row]);
+
+        $invalidRows   = Cache::get($this->tmpcachekey, []);
+        $invalidRows[] = ['reason' => $reason, 'row' => $row];
+        Cache::put($this->tmpcachekey, $invalidRows);
+
+        return null;
+    }
+}
+```
+
+---
+
+## ✅ What this gives you (aligned to your example)
+
+**Input rows (order matters):**
+
+```
+type=header,     activities=Foundation Work
+type=activities, activities=Excavation
+type=activities, activities=Manual Digging
+```
+
+**Resulting hierarchy (no sl_no):**
+
+```
+Foundation Work (header)
+ ├─ Excavation         (activities)
+ └─ Manual Digging     (activities)
+```
+
+**DB snapshot**
+
+| id  | type       | parent_id | activities      |
+| --- | ---------- | --------- | --------------- |
+| 241 | header     | NULL      | Foundation Work |
+| 242 | activities | 241       | Excavation      |
+| 243 | activities | 241       | Manual Digging  |
+
+---
+
+## 🔒 (Optional) DB unique indexes for clean upserts
+
+To guarantee idempotency:
+
+```sql
+-- headers: unique by name within company+project+subproject
+CREATE UNIQUE INDEX uniq_head
+ON activities (company_id, project_id, subproject_id, type, activities)
+WHERE type = 'header';
+
+-- activities: unique by header parent + name
+CREATE UNIQUE INDEX uniq_child
+ON activities (company_id, project_id, subproject_id, type, parent_id, activities)
+WHERE type = 'activities';
+```
+
+---
+
+If you want, I can also add:
+
+* automatic **trimming/title-casing** of names,
+* **row counters** and a **final JSON summary** you can save or log,
+* a **“dry run”** mode to only validate and preview before inserting.
+
+************************with slno**************************************************************************
+<?php
+
+namespace App\Imports\Activites;
+
+use App\Models\Company\Activities;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+use Maatwebsite\Excel\Concerns\ToCollection;
+
+class ActivitesImport implements ToCollection, WithHeadingRow
+{
+    protected int $project;
+    protected ?int $subproject;
+    protected int $companyId;
+    protected string $tmpcachekey;
+
+    /** Keep a map of sl_no => id created/updated during this run */
+    protected array $idBySlNo = [];
+
+    public function __construct($project, $subproject, $companyId, $tmpcachekey)
+    {
+        $this->project     = (int) $project;
+        $this->subproject  = $subproject !== null && $subproject !== '' ? (int) $subproject : null;
+        $this->companyId   = (int) $companyId;
+        $this->tmpcachekey = (string) $tmpcachekey;
+    }
+
+    /**
+     * Two-pass import:
+     *  - Pass 1: upsert headers (level 1)
+     *  - Pass 2: upsert activities (level 2) with parent_id
+     */
+    public function collection(Collection $rows)
+    {
+        Log::info('1.) Activities import started', [
+            'company_id' => $this->companyId,
+            'project_id' => $this->project,
+            'subproject_id' => $this->subproject,
+            'rows' => $rows->count()
+        ]);
+
+        // Normalize headings to lowercase
+        $rows = $rows->map(function ($row) {
+            $norm = [];
+            foreach ($row as $k => $v) {
+                $norm[strtolower(trim((string)$k))] = is_string($v) ? trim($v) : $v;
+            }
+            return $norm;
+        });
+
+        // Filter out completely empty lines
+        $rows = $rows->filter(function ($row) {
+            return $this->hasAnyValue($row);
+        })->values();
+
+        // Split rows by level (sl_no)
+        $headers   = [];
+        $activities = [];
+
+        foreach ($rows as $row) {
+            if ($this->isNullRow($row)) {
+                $this->cacheInvalidRow($row, 'Missing required fields (sl_no, activities)');
+                continue;
+            }
+
+            $sl = (string) $row['sl_no'];
+            $level = $this->levelOf($sl);
+
+            if ($level === 0) {
+                $this->cacheInvalidRow($row, 'Invalid sl_no format. Use 1, 2, 1.1, 2.3 etc.');
+                continue;
+            }
+
+            if ($level === 1) {
+                $headers[] = $row;
+            } elseif ($level === 2) {
+                $activities[] = $row;
+            } else {
+                // We only support header->activity (two levels) per your requirement
+                $this->cacheInvalidRow($row, 'Only two levels supported (e.g., 1 and 1.1)');
+            }
+        }
+
+        Log::info('2.) Rows categorized', [
+            'headers' => count($headers),
+            'activities' => count($activities)
+        ]);
+
+        // Pass 1: Upsert headers
+        foreach ($this->orderBySlNo2($headers) as $row) {
+            $this->upsertHeaderRow($row);
+        }
+
+        // Pass 2: Upsert activities
+        foreach ($this->orderBySlNo2($activities) as $row) {
+            $this->upsertActivityRow($row);
+        }
+
+        Log::info('3.) Activities import finished', [
+            'mapped_ids' => $this->idBySlNo,
+            'invalid_rows_count' => count(Cache::get($this->tmpcachekey, []))
+        ]);
+    }
+
+    /* ---------------------- UPSERT HELPERS ---------------------- */
+
+    protected function upsertHeaderRow(array $row): void
+    {
+        $slNo = (string) $row['sl_no'];
+
+        $payload = $this->buildPayload($row, 'header', null);
+
+        Log::info('2.1) Upserting header', ['sl_no' => $slNo, 'payload' => $payload]);
+
+        $model = Activities::updateOrCreate(
+            [
+                'company_id'    => $this->companyId,
+                'project_id'    => $this->project,
+                'subproject_id' => $this->subproject,
+                'sl_no'         => $slNo,
+            ],
+            $payload
+        );
+
+        $this->idBySlNo[$slNo] = $model->id;
+
+        Log::info('2.1.a) Header saved', ['id' => $model->id, 'sl_no' => $slNo]);
+    }
+
+    protected function upsertActivityRow(array $row): void
+    {
+        $slNo = (string) $row['sl_no'];
+        $parentSl = $this->parentSlNo($slNo);
+
+        if (!$parentSl) {
+            $this->cacheInvalidRow($row, "Cannot determine parent for {$slNo}");
+            return;
+        }
+
+        $parentId = $this->findIdBySlNo($parentSl);
+        if (!$parentId) {
+            // Try DB lookup if not already mapped in this run
+            $parentId = Activities::where('company_id', $this->companyId)
+                ->where('project_id', $this->project)
+                ->when($this->subproject, fn($q) => $q->where('subproject_id', $this->subproject))
+                ->where('sl_no', $parentSl)
+                ->value('id');
+
+            if ($parentId) {
+                $this->idBySlNo[$parentSl] = $parentId;
+            }
+        }
+
+        if (!$parentId) {
+            $this->cacheInvalidRow($row, "Parent not found for {$slNo} (expected header {$parentSl})");
+            return;
+        }
+
+        $payload = $this->buildPayload($row, 'activity', $parentId);
+
+        Log::info('2.2) Upserting activity', ['sl_no' => $slNo, 'parent_sl_no' => $parentSl, 'payload' => $payload]);
+
+        $model = Activities::updateOrCreate(
+            [
+                'company_id'    => $this->companyId,
+                'project_id'    => $this->project,
+                'subproject_id' => $this->subproject,
+                'sl_no'         => $slNo,
+            ],
+            $payload
+        );
+
+        $this->idBySlNo[$slNo] = $model->id;
+
+        Log::info('2.2.a) Activity saved', ['id' => $model->id, 'sl_no' => $slNo, 'parent_id' => $parentId]);
+    }
+
+    protected function buildPayload(array $row, string $type, ?int $parentId): array
+    {
+        $qty   = $this->toNumber($row['qty'] ?? null);
+        $rate  = $this->toNumber($row['rate'] ?? null);
+        $amount = ($qty !== null && $rate !== null) ? $qty * $rate : null;
+
+        $unitId = null;
+        if (!empty($row['units'])) {
+            $unitId = $this->getUnitId($row['units']);
+        }
+
+        $startDate = !empty($row['start_datedd_mm_yyyy'])
+            ? excelDateToDate($row['start_datedd_mm_yyyy'])
+            : null;
+
+        $endDate = !empty($row['end_datedd_mm_yyyy'])
+            ? excelDateToDate($row['end_datedd_mm_yyyy'])
+            : null;
+
+        return [
+            'project_id'    => $this->project,
+            'subproject_id' => $this->subproject,
+            'company_id'    => $this->companyId,
+            'type'          => $type,            // 'header' | 'activity'
+            'sl_no'         => (string) $row['sl_no'],
+            'parent_id'     => $parentId,        // null for header
+            'activities'    => $row['activities'] ?? null,
+            'unit_id'       => $unitId,
+            'qty'           => $qty,
+            'rate'          => $rate,
+            'amount'        => $amount,
+            'start_date'    => $startDate,
+            'end_date'      => $endDate,
+        ];
+    }
+
+    /* ---------------------- UTILITIES ---------------------- */
+
+    protected function isNullRow(array $row): bool
+    {
+        $sl = trim((string)($row['sl_no'] ?? ''));
+        $ac = trim((string)($row['activities'] ?? ''));
+        return $sl === '' || $ac === '';
+    }
+
+    protected function levelOf(string $slNo): int
+    {
+        if (!preg_match('/^\d+(\.\d+)?$/', $slNo)) {
+            return 0;
+        }
+        return substr_count($slNo, '.') + 1; // "1" => 1, "1.2" => 2
+    }
+
+    protected function parentSlNo(string $slNo): ?string
+    {
+        $parts = explode('.', $slNo);
+        if (count($parts) <= 1) return null;
+        array_pop($parts);
+        return implode('.', $parts);
+    }
+
+    protected function findIdBySlNo(string $slNo): ?int
+    {
+        return $this->idBySlNo[$slNo] ?? null;
+    }
+
+    protected function toNumber($value): ?float
+    {
+        if ($value === null || $value === '') return null;
+        if (is_numeric($value)) return (float) $value;
+        $clean = str_replace([',', ' '], '', (string) $value);
+        return is_numeric($clean) ? (float) $clean : null;
+    }
+
+    protected function getUnitId($unitName)
+    {
+        // Your existing helpers
+        // nametoid($name, 'units') returns id or false
+        // createunit($name, $companyId) creates and returns id
+        $unitId = nametoid($unitName, 'units');
+        if ($unitId === false || $unitId === null) {
+            $unitId = createunit($unitName, $this->companyId);
+        }
+        return $unitId;
+    }
+
+    protected function hasAnyValue(array $row): bool
+    {
+        foreach ($row as $v) {
+            if ($v !== null && $v !== '' && $v !== []) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Sort rows numerically by sl_no up to two levels (1, 1.2)
+     * Example order: 1, 1.1, 1.2, 2, 2.1, 2.2
+     */
+    protected function orderBySlNo2(array $rows): array
+    {
+        usort($rows, function ($a, $b) {
+            $a1 = (int) explode('.', (string) $a['sl_no'])[0];
+            $b1 = (int) explode('.', (string) $b['sl_no'])[0];
+
+            if ($a1 !== $b1) return $a1 <=> $b1;
+
+            $a2 = strpos((string) $a['sl_no'], '.') !== false ? (int) explode('.', (string) $a['sl_no'])[1] : 0;
+            $b2 = strpos((string) $b['sl_no'], '.') !== false ? (int) explode('.', (string) $b['sl_no'])[1] : 0;
+
+            return $a2 <=> $b2;
+        });
+
+        return $rows;
+    }
+
+    /* ---------------------- INVALID ROWS CACHE ---------------------- */
+
+    protected function cacheInvalidRow(array $row, string $reason): void
+    {
+        Log::warning('Invalid import row', ['reason' => $reason, 'row' => $row]);
+
+        $invalid = Cache::get($this->tmpcachekey, []);
+        $invalid[] = ['reason' => $reason, 'row' => $row];
+        Cache::put($this->tmpcachekey, $invalid);
+    }
+}
 
 
 **************************************************************************************************
@@ -422,7 +2352,303 @@ class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, W
     }
 }
 
-**************************************************************************************************
+*********************** ***************************************************************************
+
+
+<?php
+
+namespace App\Exports\Activites;
+
+use App\Models\Company\Assets;
+use App\Models\Company\Activities;
+use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Events\AfterSheet;
+use App\Http\Resources\Export\ActivitesExportResources;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Concerns\WithMapping;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+
+class ActivitesExport implements FromCollection, WithHeadings, ShouldAutoSize, WithEvents
+{
+    protected $projects;
+    protected $subprojects;
+    protected $units;
+    protected $rowCount;
+
+    public function __construct($projects, $subprojects)
+    {
+        $this->projects = $projects;
+        $this->subprojects = $subprojects;
+        $this->units = getUnit();
+        $this->rowCount = 100;
+    }
+
+    /**
+     * ✅ MAIN DATA COLLECTION WITH HIERARCHICAL SL NO
+     */
+    public function collection()
+    {
+        $authCompanyId = Auth::guard('company')->user()->id;
+        $companyId = searchCompanyId($authCompanyId);
+
+        $activities = Activities::with('units', 'project', 'subproject')
+            ->where('company_id', $companyId);
+
+        if (!empty($this->projects)) {
+            $activities->where('project_id', $this->projects);
+
+            if (!empty($this->subprojects)) {
+                $activities->where('subproject_id', $this->subprojects);
+            }
+        }
+
+        // Get transformed resource array
+        $rows = ActivitesExportResources::collection($activities->get())->toArray(request());
+
+        $headerCounter = 0;
+        $activityCounter = 0;
+        $flatCounter = 0;
+
+        foreach ($rows as &$row) {
+            // Flat serial no
+            $flatCounter++;
+            $row['#'] = $flatCounter;
+
+            // Normalize type
+            $type = isset($row['type']) ? strtolower(trim((string)$row['type'])) : '';
+
+            if ($type === 'heading') {
+                $headerCounter++;
+                $activityCounter = 0;
+                $row['sl_no'] = (string)$headerCounter;
+            } else {
+                if ($headerCounter === 0) {
+                    // If activities appear before heading, start at 1
+                    $headerCounter = 1;
+                    $activityCounter = 0;
+                }
+                $activityCounter++;
+                $row['sl_no'] = $headerCounter . '.' . $activityCounter;
+            }
+        }
+
+        unset($row);
+
+        return collect($rows);
+    }
+
+    /**
+     * ✅ HEADERS
+     */
+    public function headings(): array
+    {
+        return [
+            '#',          // Serial number
+            'UUID',       // Hidden
+            'Project',    // Hidden
+            'Subproject', // Hidden
+            'Type',       // Visible
+            'SL No',      // Hierarchical 1 / 1.1 / 1.2 etc
+            'Activities',
+            'Units',
+            'Qty',
+            'Rate',
+            'Amount',
+            'Start Date(dd-mm-yyyy)',
+            'End Date(dd-mm-yyyy)',
+            'Unit uuid', // Hidden
+        ];
+    }
+
+    /**
+     * ✅ ALL SHEET EVENTS
+     */
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+
+                // Hide UUID, Project, Subproject, Unit uuid
+                $this->hideColumns($event, ['B', 'C', 'D', 'N']);
+
+                // Dropdown for Type
+                $this->applyDropdownValidation($event, 'E', ['heading', 'activities']);
+
+                // Dropdown for Units
+                $this->applyDropdownValidation($event, 'H', $this->units);
+
+                // Apply amount formula: Amount = Qty * Rate
+                $this->applyCalculationFormula($event, 'K', 'I', 'J');
+
+                // Apply date format
+                $this->applyDateFormat($event, 'L');
+                $this->applyDateFormat($event, 'M');
+
+                // Auto-size all columns
+                $this->autoSizeColumns($event, 13);
+            },
+        ];
+    }
+
+    /**
+     * ✅ UTILITIES
+     */
+
+    private function hideColumns($event, $columns)
+    {
+        foreach ($columns as $column) {
+            $event->sheet->getDelegate()->getColumnDimension($column)->setVisible(false);
+        }
+    }
+
+    private function applyDropdownValidation($event, $column, $options)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $validation = $event->sheet->getCell("{$column}{$row}")->getDataValidation();
+            $validation->setType(DataValidation::TYPE_LIST);
+            $validation->setErrorStyle(DataValidation::STYLE_STOP);
+            $validation->setAllowBlank(false);
+            $validation->setShowDropDown(true);
+            $validation->setFormula1(sprintf('"%s"', implode(',', $options)));
+        }
+    }
+
+    private function applyCalculationFormula($event, $resultColumn, $qtyColumn, $rateColumn)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $event->sheet->getDelegate()
+                ->setCellValue("{$resultColumn}{$row}", "={$qtyColumn}{$row}*{$rateColumn}{$row}");
+        }
+    }
+
+    private function applyDateFormat($event, $column)
+    {
+        for ($row = 2; $row <= $this->rowCount; $row++) {
+            $event->sheet->getDelegate()
+                ->getStyle("{$column}{$row}")
+                ->getNumberFormat()
+                ->setFormatCode('dd-mm-yyyy');
+        }
+    }
+
+    private function autoSizeColumns($event, $columnCount)
+    {
+        for ($i = 1; $i <= $columnCount; $i++) {
+            $column = Coordinate::stringFromColumnIndex($i);
+            $event->sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+    }
+}
+
+*********************** ***************************************************************************
+ rd1 
+
+Got it — you want the **SL No** column to be generated at export time as a hierarchical number based on the `type` column (`heading` vs `activities`):
+
+* `heading` → `1`, `2`, `3` …
+* `activities` under a heading → `1.1`, `1.2`, `2.1`, `2.2` …
+
+Here’s a drop-in update for your export. It keeps your simple `#` counter and *adds/overrides* `sl_no` per row without relying on any DB `sl_no`.
+
+### What changed
+
+* Rewrote `collection()` to:
+
+  * Pull the resource collection to an array.
+  * Walk rows in their current order.
+  * Maintain `headerCounter` and `activityCounter`.
+  * Set `sl_no` as `"{headerCounter}"` for headings and `"{headerCounter}.{activityCounter}"` for activities.
+  * Ensure a group starts at `1` even if the first row isn’t a heading.
+
+> This assumes the resource exposes a `type` field with values like `"heading"` and `"activities"`, and that the resource already outputs the rest of the fields in the order matching your `headings()`. If the resource contains a `sl_no` key from DB, this code **overwrites** it.
+
+---
+
+### Updated method
+
+```php
+public function collection()
+{
+    $authCompanyId = Auth::guard('company')->user()->id; // Get authenticated company user
+    $companyId = searchCompanyId($authCompanyId);        // Resolve actual company ID
+
+    $activities = Activities::with('units', 'project', 'subproject')
+        ->where('company_id', $companyId);
+
+    if (!empty($this->projects)) {
+        $activities->where('project_id', $this->projects);
+        if (!empty($this->subprojects)) {
+            $activities->where('subproject_id', $this->subprojects);
+        }
+    }
+
+    // Get data shaped by your resource
+    $rows = ActivitesExportResources::collection($activities->get())->toArray(request());
+
+    $headerCounter = 0;
+    $activityCounter = 0;
+    $flatCounter = 0;
+
+    foreach ($rows as &$row) {
+        // 1) Simple flat counter "#"
+        $flatCounter++;
+        $row['#'] = $flatCounter;
+
+        // 2) Normalize type safely
+        $type = isset($row['type']) ? strtolower(trim((string)$row['type'])) : '';
+
+        if ($type === 'heading') {
+            // New header group
+            $headerCounter++;
+            $activityCounter = 0;
+            $row['sl_no'] = (string)$headerCounter;
+        } else {
+            // Activity under current header
+            if ($headerCounter === 0) {
+                // If activities appear before any header, start with header 1
+                $headerCounter = 1;
+                $activityCounter = 0;
+            }
+            $activityCounter++;
+            $row['sl_no'] = $headerCounter . '.' . $activityCounter;
+        }
+    }
+    unset($row);
+
+    // Return as collection for Laravel Excel
+    return collect($rows);
+}
+```
+
+> Nothing else needs to change in your class. Your existing `headings()` already includes `'#'` and `'SL No'`. Ensure your resource uses the key `sl_no` (lowercase underscore) so it aligns with the **SL No** header. If your resource uses a different key, either rename it in the loop or adjust the header text to match the key.
+
+---
+
+### Example result (conceptual)
+
+```
+# | UUID | Project | Subproject | Type       | SL No | Activities | Units | Qty | Rate | Amount | Start Date | End Date | Unit uuid
+1 | ...  | ...     | ...        | heading    | 1     | Foundation | ...   | ... | ...  | ...    | ...        | ...      | ...
+2 | ...  | ...     | ...        | activities | 1.1   | Excavation | ...   | ... | ...  | ...    | ...        | ...      | ...
+3 | ...  | ...     | ...        | activities | 1.2   | Manual Dig | ...   | ... | ...  | ...    | ...        | ...      | ...
+4 | ...  | ...     | ...        | heading    | 2     | Superstruc | ...   | ... | ...  | ...    | ...        | ...      | ...
+5 | ...  | ...     | ...        | activities | 2.1   | Column     | ...   | ... | ...  | ...    | ...        | ...      | ...
+```
+
+If you also want to **bold** header rows or color them, say the word and I’ll add a tiny `AfterSheet` styling block targeting rows where `type === 'heading'`.
+
+*********************** ***************************************************************************
+
+
+
+*********************** ***************************************************************************
+*********************** ***************************************************************************
 
 
 
