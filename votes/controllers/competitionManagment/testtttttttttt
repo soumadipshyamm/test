@@ -1,37 +1,29 @@
 const participantMoveToNextRound = async (): Promise<any> => {
 	try {
-		// console.log("1. Fetching active competitions...");
-		// lean() to reduce memory usage
+		console.log("1.) Fetching active competitions...");
 		const competitions = await CompetitionModel.find({ status: COMPETITION_STATUS.active }).lean();
 
 		const now = new Date();
 
 		for (const competition of competitions) {
-			// console.log(`\n=== Processing competition ${competition._id} (${competition.name}) ===`);
+			console.log(`\n=== Competition ${competition._id} :: ${competition.name} ===`);
 
-			// Ensure rounds is an array and sort ascending by end_date_time (oldest first)
+			// 2.) Normalize & sort rounds by end_date_time ASC (oldest first)
 			const rounds = Array.isArray(competition.rounds) ? [...competition.rounds] : [];
 			rounds.sort((a, b) => new Date(a.end_date_time).getTime() - new Date(b.end_date_time).getTime());
 
 			for (let rIndex = 0; rIndex < rounds.length; rIndex++) {
 				const round = rounds[rIndex];
-
-				// // skip already processed rounds
-				// if (round.processed) {
-				// console.log(`- Round ${round._id} already processed. Skipping.`);
-				// 	continue;
-				// }
-
 				const roundEnd = new Date(round.end_date_time);
-				// console.log(`- Round ${round._id} ends at ${roundEnd.toISOString()}; now ${now.toISOString()}`);
+				console.log(`- Round ${round._id} (#${round.round_no}) ends ${roundEnd.toISOString()} | now ${now.toISOString()}`);
 
-				// skip if round hasn't ended yet
+				// 3.) Skip if round hasn’t ended
 				if (roundEnd > now) {
-					// console.log(`  > Round not ended yet. Skipping.`);
+					console.log("  > Round not ended yet. Skipping.");
 					continue;
 				}
 
-				// Fetch participants who have paid and are currently participating in this round
+				// 4.) Get all paid + participating in this round
 				const allParticipants = await ParticipantModel.find({
 					competition_object_id: new mongoose.Types.ObjectId(competition._id),
 					round_object_id: new mongoose.Types.ObjectId(round._id),
@@ -40,7 +32,7 @@ const participantMoveToNextRound = async (): Promise<any> => {
 				}).lean();
 
 				if (!allParticipants || allParticipants.length === 0) {
-					// console.log(`  > No participants in round ${round._id}. Marking round processed and continuing.`);
+					console.log(`  > No participants in round ${round._id}. Marking round processed.`);
 					await CompetitionModel.updateOne(
 						{ _id: competition._id, "rounds._id": round._id },
 						{ $set: { "rounds.$.processed": true } }
@@ -48,9 +40,9 @@ const participantMoveToNextRound = async (): Promise<any> => {
 					continue;
 				}
 
-				// console.log(`- Counted ${allParticipants.length} participants. Aggregating vote counts...`);
-				// Approach A (robust): Aggregate using ParticipantModel + $lookup to votes collection (works if votes store participant_object_id)
-				// This avoids scanning entire votes collection by matching participants first.
+				console.log(`- Found ${allParticipants.length} participants. Aggregating total votes (sum of votes_earened)...`);
+
+				// 5.) Aggregate total votes (sum of votes_earened) per participant
 				const participantIds = allParticipants.map(p => p.participant_object_id);
 
 				const voteAgg = await ParticipantModel.aggregate([
@@ -63,76 +55,110 @@ const participantMoveToNextRound = async (): Promise<any> => {
 					},
 					{
 						$lookup: {
-							from: "votes", // change if your votes collection name differs
-							localField: "participant_object_id",
-							foreignField: "participant_object_id",
-							as: "votes"
+							from: "votes", // <-- change if your votes collection is named differently
+							let: { p_id: "$participant_object_id" },
+							pipeline: [
+								{
+									$match: {
+										$expr: { $eq: ["$participant_object_id", "$$p_id"] },
+										// If your votes have competition/round fields, uncomment to limit precisely:
+										// competition_object_id: new mongoose.Types.ObjectId(competition._id),
+										// round_object_id: new mongoose.Types.ObjectId(round._id),
+									}
+								},
+								{
+									$group: {
+										_id: null,
+										total: {
+											$sum: {
+												$ifNull: ["$votes_earened", 0] // sum votes_earened; default 0 if missing
+											}
+										}
+									}
+								}
+							],
+							as: "voteStats"
+						}
+					},
+					{
+						$addFields: {
+							totalVotes: { $ifNull: [{ $arrayElemAt: ["$voteStats.total", 0] }, 0] }
 						}
 					},
 					{
 						$project: {
 							participant_object_id: 1,
 							participant_name: 1,
-							createdAt: 1, // used as tie-breaker if your ParticipantModel stores createdAt
-							voteCount: { $size: "$votes" }
+							createdAt: 1, // tiebreaker if available
+							totalVotes: 1
 						}
 					}
 				]);
 
-				// Build array with deterministic sorting keys
-				// If createdAt exists on participant, use earlier-created as higher priority tie-breaker
-				const voteArray = voteAgg.map(v => ({
-					id: v.participant_object_id.toString(),
-					name: v.participant_name,
-					count: v.voteCount ?? 0,
-					// createdAt: v.createdAt ? new Date(v.createdAt).getTime() : 0
-				}));
+				// 6.) Build a complete array (ensure zero-vote participants exist)
+				const aggMap = new Map<string, any>(
+					voteAgg.map(v => [v.participant_object_id.toString(), v])
+				);
 
-				// Make sure participants with zero votes but not present in voteAgg are included
-				const voteMapFromAgg = new Map(voteArray.map(x => [x.id, x]));
-				for (const p of allParticipants) {
+				const voteArray = allParticipants.map(p => {
 					const idStr = p.participant_object_id.toString();
-					if (!voteMapFromAgg.has(idStr)) {
-						voteArray.push({
-							id: idStr,
-							name: p.participant_name,
-							count: 0
-							// createdAt: p?.createdAt ? new Date(p.createdAt).getTime() : 0
-						});
-					}
-				}
-
-				// Sort: primary by votes desc (max -> min), secondary by createdAt asc (earlier participant wins ties), tertiary by id string
-				voteArray.sort((a, b) => {
-					if (b.count !== a.count) return b.count - a.count; // more votes first
-					// if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt; // earlier created first
-					return a.id.localeCompare(b.id); // deterministic final tie-breaker
+					const fromAgg = aggMap.get(idStr);
+					return {
+						id: idStr,
+						name: p.participant_name,
+						count: fromAgg?.totalVotes ?? 0,
+						createdAt: fromAgg?.createdAt ? new Date(fromAgg.createdAt).getTime() : 0
+					};
 				});
 
+				// 7.) Sort by totalVotes DESC, then earliest createdAt ASC, then id ASC (deterministic)
+				voteArray.sort((a, b) => {
+					if (b.count !== a.count) return b.count - a.count;
+					if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+					return a.id.localeCompare(b.id);
+				});
+
+				// 8.) Persist total_votes to current round participant rows
+				const totalVotesBulk = voteArray.map(v => ({
+					updateOne: {
+						filter: {
+							competition_object_id: new mongoose.Types.ObjectId(competition._id),
+							round_object_id: new mongoose.Types.ObjectId(round._id),
+							participant_object_id: new mongoose.Types.ObjectId(v.id)
+						},
+						update: { $set: { total_votes: v.count } }
+					}
+				}));
+				if (totalVotesBulk.length) {
+					await ParticipantModel.bulkWrite(totalVotesBulk);
+				}
+
 				const sortedParticipantIds = voteArray.map(v => v.id);
-				// console.log("- Participants sorted (max->min). Top 10 preview:", sortedParticipantIds.slice(0, 10));
+				console.log("- Sorted participants (max→min by total votes). Top preview:",
+					voteArray.slice(0, 5).map(v => ({ id: v.id, votes: v.count }))
+				);
 
-				// Compute how many proceed to next round
+				// 9.) Determine proceed counts
 				const total = allParticipants.length;
-				// round.no_of_participant_proceeding expected as percent (like 30 for top 30%)
 				const percent = typeof round.no_of_participant_proceeding === "number" ? round.no_of_participant_proceeding : 0;
-				const proceedCount = Math.max(1, Math.floor((total * percent) / 100)); // ensure at least 1 proceeds
-				// console.log(`- total: ${total}, proceedPercent: ${percent}%, proceedCount: ${proceedCount}`);
+				const proceedCount = Math.max(1, Math.floor((total * percent) / 100)); // at least 1
+				console.log(`- total: ${total}, proceedPercent: ${percent}%, proceedCount: ${proceedCount}`);
 
-				const nextRound = rounds[rIndex + 1]; // undefined if this is final round
+				const nextRound = rounds[rIndex + 1];
 				const proceedIds = sortedParticipantIds.slice(0, proceedCount);
 				const eliminatedIds = sortedParticipantIds.slice(proceedCount);
 
-				// Start session/transaction (requires replica set). If not supported, operations will run without transaction.
+				// 10.) Transactional status updates
 				const session = await mongoose.startSession();
 				let inTx = false;
 				try {
-					// Try startTransaction; if not supported it will throw
 					session.startTransaction();
 					inTx = true;
 
 					if (nextRound) {
-						// Upsert proceedIds into next round as PARTICIPATION_STATUS.participating with PAYMENT_STATUS pending
+						console.log(`- Moving ${proceedIds.length} to next round ${nextRound._id}; eliminating ${eliminatedIds.length}.`);
+
+						// Upsert next-round rows for proceeding participants
 						const upserts = proceedIds.map(idStr => {
 							const idObj = new mongoose.Types.ObjectId(idStr);
 							return {
@@ -150,7 +176,7 @@ const participantMoveToNextRound = async (): Promise<any> => {
 											competition_name: competition.name,
 											round_object_id: new mongoose.Types.ObjectId(nextRound._id),
 											participant_name: voteMapName(idStr, voteArray),
-											participant_payment_status: TRANSACTION_STATUS.pending // they must pay for next round (if applicable)
+											participant_payment_status: TRANSACTION_STATUS.pending
 										},
 										$set: {
 											status: PARTICIPATION_STATUS.participating
@@ -162,11 +188,10 @@ const participantMoveToNextRound = async (): Promise<any> => {
 						});
 
 						if (upserts.length > 0) {
-							// console.log(`- Bulk upsert ${upserts.length} participants into next round ${nextRound._id}`);
 							await ParticipantModel.bulkWrite(upserts, { session });
 						}
 
-						// Mark proceeded participants in current round as participated
+						// Mark proceeded (this round) as "participated"
 						if (proceedIds.length > 0) {
 							await ParticipantModel.updateMany(
 								{
@@ -179,7 +204,7 @@ const participantMoveToNextRound = async (): Promise<any> => {
 							);
 						}
 
-						// Mark eliminated participants in current round as eliminated
+						// Mark eliminated (this round) as "eliminated"
 						if (eliminatedIds.length > 0) {
 							await ParticipantModel.updateMany(
 								{
@@ -192,12 +217,11 @@ const participantMoveToNextRound = async (): Promise<any> => {
 							);
 						}
 					} else {
-						// Final round -> declare winners
-						// console.log("- This is the final round. Declaring winners...");
+						// Final round → declare winners
 						const winnerCount = Math.max(1, competition.no_of_winner ?? 1);
 						const winnerIds = sortedParticipantIds.slice(0, winnerCount);
+						console.log(`- Final round. Declaring ${winnerCount} winner(s).`);
 
-						// Bulk updates: winners vs eliminated
 						const finalUpdates = sortedParticipantIds.map(idStr => {
 							const isWinner = winnerIds.includes(idStr);
 							return {
@@ -217,37 +241,1028 @@ const participantMoveToNextRound = async (): Promise<any> => {
 						}
 					}
 
-					// Mark round as processed
+					// 11.) Mark round processed
 					await CompetitionModel.updateOne(
 						{ _id: competition._id, "rounds._id": round._id },
 						{ $set: { "rounds.$.processed": true } },
 						{ session }
 					);
 
-					// Commit transaction
 					await session.commitTransaction();
-					// console.log(`- Transaction committed for round ${round._id}`);
+					console.log(`- ✅ Transaction committed for round ${round._id}`);
 				} catch (txErr) {
-					// If transaction fails, abort and log
-					if (inTx) {
-						await session.abortTransaction();
-					}
-					// console.error(`Transaction error for competition ${competition._id}, round ${round._id}:`, txErr);
-
-					// As fallback (best-effort): try non-transactional updates so system doesn't stall
-					// (Optional) you may choose not to run fallback to avoid double processing.
+					if (inTx) await session.abortTransaction();
+					console.error(`- ❌ Transaction error for competition ${competition._id}, round ${round._id}:`, txErr);
+					// Optional: add non-transactional fallback here.
 				} finally {
 					session.endSession();
 				}
-			} // end rounds loop
-		} // end competitions loop
+			} // rounds
+		} // competitions
 	} catch (err) {
 		console.error("Fatal error in participantMoveToNextRound:", err);
 	}
 };
 
-// Helper to fetch participant name from voteArray
+// Helper: get name by id from voteArray
 function voteMapName(idStr: string, voteArray: Array<{ id: string; name?: string }>) {
 	const found = voteArray.find(v => v.id === idStr);
 	return found?.name ?? "";
 }
+
+
+*******************************************************************************************************
+
+
+
+
+Perfect—here’s a clean way to **produce, log, return, and persist** a *Structured JSON summary* named `competitionResults` for every competition processed.
+
+It includes:
+
+1. a small **Mongoose model** to save results,
+2. **types** for strong typing, and
+3. changes to your function to **collect per-round summaries**, **save them (upsert)**, **console.log** them, and **return** them.
+
+---
+
+## 1) Result Types (TS)
+
+```ts
+// types/results.ts
+export type ProceedSummary = {
+  id: string;
+  name: string;
+  votes: number;
+};
+
+export type RoundResult = {
+  round_id: string;
+  round_no: number;
+  proceed_percent: number;
+  total_participants: number;
+  proceed_count: number;
+  proceeding: ProceedSummary[];
+  eliminated: ProceedSummary[];
+  is_final_round: boolean;
+  winners?: ProceedSummary[]; // present only for final round
+  processed: boolean;         // true after success
+};
+
+export type CompetitionResult = {
+  competition_id: string;
+  competition_name: string;
+  processed_at: string;  // ISO timestamp
+  rounds: RoundResult[];
+  final_winners?: ProceedSummary[]; // same as last round winners (if final)
+};
+```
+
+---
+
+## 2) Result Model (Mongo)
+
+```ts
+// models/CompetitionResultModel.ts
+import mongoose, { Schema, Document } from "mongoose";
+
+interface IRoundResult {
+  round_id: string;
+  round_no: number;
+  proceed_percent: number;
+  total_participants: number;
+  proceed_count: number;
+  proceeding: { id: string; name: string; votes: number }[];
+  eliminated: { id: string; name: string; votes: number }[];
+  is_final_round: boolean;
+  winners?: { id: string; name: string; votes: number }[];
+  processed: boolean;
+}
+
+export interface ICompetitionResult extends Document {
+  competition_id: mongoose.Types.ObjectId;
+  competition_name: string;
+  processed_at: Date;
+  rounds: IRoundResult[];
+  final_winners?: { id: string; name: string; votes: number }[];
+}
+
+const RoundResultSchema = new Schema<IRoundResult>(
+  {
+    round_id: { type: String, required: true },
+    round_no: { type: Number, required: true },
+    proceed_percent: { type: Number, required: true },
+    total_participants: { type: Number, required: true },
+    proceed_count: { type: Number, required: true },
+    proceeding: [
+      { id: String, name: String, votes: Number }
+    ],
+    eliminated: [
+      { id: String, name: String, votes: Number }
+    ],
+    is_final_round: { type: Boolean, required: true },
+    winners: [
+      { id: String, name: String, votes: Number }
+    ],
+    processed: { type: Boolean, required: true }
+  },
+  { _id: false }
+);
+
+const CompetitionResultSchema = new Schema<ICompetitionResult>({
+  competition_id: { type: Schema.Types.ObjectId, index: true, required: true },
+  competition_name: { type: String, required: true },
+  processed_at: { type: Date, default: Date.now, index: true },
+  rounds: { type: [RoundResultSchema], default: [] },
+  final_winners: [
+    { id: String, name: String, votes: Number }
+  ]
+}, { timestamps: true, collection: "competition_results" });
+
+CompetitionResultSchema.index({ competition_id: 1, processed_at: -1 });
+
+export const CompetitionResultModel =
+  mongoose.models.CompetitionResult ||
+  mongoose.model<ICompetitionResult>("CompetitionResult", CompetitionResultSchema);
+```
+
+---
+
+## 3) Helper: push round summary
+
+```ts
+// utils/result-helpers.ts
+import { ProceedSummary, RoundResult } from "../types/results";
+
+export function buildProceedList(
+  ids: string[],
+  voteArray: Array<{ id: string; name?: string; count: number }>
+): ProceedSummary[] {
+  const map = new Map(voteArray.map(v => [v.id, v]));
+  return ids.map(id => {
+    const v = map.get(id);
+    return { id, name: v?.name ?? "", votes: v?.count ?? 0 };
+  });
+}
+
+export function buildRoundResult(args: {
+  roundId: string;
+  roundNo: number;
+  proceedPercent: number;
+  totalParticipants: number;
+  proceedIds: string[];
+  eliminatedIds: string[];
+  voteArray: Array<{ id: string; name?: string; count: number }>;
+  isFinal: boolean;
+  winnerIds?: string[];
+}): RoundResult {
+  const {
+    roundId, roundNo, proceedPercent, totalParticipants,
+    proceedIds, eliminatedIds, voteArray, isFinal, winnerIds
+  } = args;
+
+  const proceeding = buildProceedList(proceedIds, voteArray);
+  const eliminated = buildProceedList(eliminatedIds, voteArray);
+  const winners = isFinal && winnerIds?.length
+    ? buildProceedList(winnerIds, voteArray)
+    : undefined;
+
+  return {
+    round_id: roundId,
+    round_no: roundNo,
+    proceed_percent: proceedPercent,
+    total_participants: totalParticipants,
+    proceed_count: proceedIds.length,
+    proceeding,
+    eliminated,
+    is_final_round: isFinal,
+    winners,
+    processed: true
+  };
+}
+```
+
+---
+
+## 4) Function changes (collect, save, return)
+
+> Below is your function updated to **accumulate `competitionResults`**, **persist** them to `competition_results`, **log** them, and **return** them.
+
+```ts
+import { CompetitionResultModel } from "./models/CompetitionResultModel";
+import { CompetitionResult } from "./types/results";
+import { buildRoundResult } from "./utils/result-helpers";
+
+// ... keep your existing imports and enums
+
+export const participantMoveToNextRound = async (): Promise<CompetitionResult[]> => {
+  const allCompetitionResults: CompetitionResult[] = [];
+
+  try {
+    console.log("1.) Fetching active competitions...");
+    const competitions = await CompetitionModel.find({ status: COMPETITION_STATUS.active }).lean();
+
+    const now = new Date();
+
+    for (const competition of competitions) {
+      console.log(`\n=== Competition ${competition._id} :: ${competition.name} ===`);
+
+      const rounds = Array.isArray(competition.rounds) ? [...competition.rounds] : [];
+      rounds.sort((a, b) => new Date(a.end_date_time).getTime() - new Date(b.end_date_time).getTime());
+
+      const compResult: CompetitionResult = {
+        competition_id: competition._id.toString(),
+        competition_name: competition.name,
+        processed_at: new Date().toISOString(),
+        rounds: []
+      };
+
+      for (let rIndex = 0; rIndex < rounds.length; rIndex++) {
+        const round = rounds[rIndex];
+        const roundEnd = new Date(round.end_date_time);
+        console.log(`- Round ${round._id} (#${round.round_no}) ends ${roundEnd.toISOString()} | now ${now.toISOString()}`);
+
+        if (roundEnd > now) {
+          console.log("  > Round not ended yet. Skipping.");
+          continue;
+        }
+
+        const allParticipants = await ParticipantModel.find({
+          competition_object_id: new mongoose.Types.ObjectId(competition._id),
+          round_object_id: new mongoose.Types.ObjectId(round._id),
+          participant_payment_status: "SUCCESS",
+          status: PARTICIPATION_STATUS.participating
+        }).lean();
+
+        if (!allParticipants || allParticipants.length === 0) {
+          console.log(`  > No participants in round ${round._id}. Marking round processed.`);
+          await CompetitionModel.updateOne(
+            { _id: competition._id, "rounds._id": round._id },
+            { $set: { "rounds.$.processed": true } }
+          );
+          // still append an empty but processed round summary for traceability
+          compResult.rounds.push({
+            round_id: round._id.toString(),
+            round_no: round.round_no,
+            proceed_percent: Number(round.no_of_participant_proceeding ?? 0),
+            total_participants: 0,
+            proceed_count: 0,
+            proceeding: [],
+            eliminated: [],
+            is_final_round: rIndex === rounds.length - 1,
+            processed: true
+          });
+          continue;
+        }
+
+        // === Aggregate total votes (sum votes_earened) ===
+        const participantIds = allParticipants.map(p => p.participant_object_id);
+
+        const voteAgg = await ParticipantModel.aggregate([
+          {
+            $match: {
+              competition_object_id: new mongoose.Types.ObjectId(competition._id),
+              round_object_id: new mongoose.Types.ObjectId(round._id),
+              participant_object_id: { $in: participantIds }
+            }
+          },
+          {
+            $lookup: {
+              from: "votes", // adjust if your collection name differs
+              let: { p_id: "$participant_object_id" },
+              pipeline: [
+                { $match: { $expr: { $eq: ["$participant_object_id", "$$p_id"] } } },
+                {
+                  $group: {
+                    _id: null,
+                    total: { $sum: { $ifNull: ["$votes_earened", 0] } }
+                  }
+                }
+              ],
+              as: "voteStats"
+            }
+          },
+          {
+            $addFields: {
+              totalVotes: { $ifNull: [{ $arrayElemAt: ["$voteStats.total", 0] }, 0] }
+            }
+          },
+          { $project: { participant_object_id: 1, participant_name: 1, createdAt: 1, totalVotes: 1 } }
+        ]);
+
+        const aggMap = new Map<string, any>(voteAgg.map(v => [v.participant_object_id.toString(), v]));
+        const voteArray = allParticipants.map(p => {
+          const idStr = p.participant_object_id.toString();
+          const fromAgg = aggMap.get(idStr);
+          return {
+            id: idStr,
+            name: p.participant_name,
+            count: fromAgg?.totalVotes ?? 0,
+            createdAt: fromAgg?.createdAt ? new Date(fromAgg.createdAt).getTime() : 0
+          };
+        });
+
+        voteArray.sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count;
+          if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+          return a.id.localeCompare(b.id);
+        });
+
+        // persist total_votes in this round
+        if (voteArray.length) {
+          await ParticipantModel.bulkWrite(
+            voteArray.map(v => ({
+              updateOne: {
+                filter: {
+                  competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                  round_object_id: new mongoose.Types.ObjectId(round._id),
+                  participant_object_id: new mongoose.Types.ObjectId(v.id)
+                },
+                update: { $set: { total_votes: v.count } }
+              }
+            }))
+          );
+        }
+
+        const sortedIds = voteArray.map(v => v.id);
+        console.log("- Sorted (max→min). Top preview:", voteArray.slice(0, 5).map(v => ({ id: v.id, votes: v.count })));
+
+        const total = allParticipants.length;
+        const percent = typeof round.no_of_participant_proceeding === "number" ? round.no_of_participant_proceeding : 0;
+        const proceedCount = Math.max(1, Math.floor((total * percent) / 100));
+        const nextRound = rounds[rIndex + 1];
+        const proceedIds = sortedIds.slice(0, proceedCount);
+        const eliminatedIds = sortedIds.slice(proceedCount);
+
+        const session = await mongoose.startSession();
+        let inTx = false;
+        try {
+          session.startTransaction();
+          inTx = true;
+
+          if (nextRound) {
+            // upsert next round participants
+            if (proceedIds.length) {
+              await ParticipantModel.bulkWrite(
+                proceedIds.map(idStr => ({
+                  updateOne: {
+                    filter: {
+                      competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                      participant_object_id: new mongoose.Types.ObjectId(idStr),
+                      round_object_id: new mongoose.Types.ObjectId(nextRound._id)
+                    },
+                    update: {
+                      $setOnInsert: {
+                        competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                        participant_object_id: new mongoose.Types.ObjectId(idStr),
+                        round_no: nextRound.round_no,
+                        competition_name: competition.name,
+                        round_object_id: new mongoose.Types.ObjectId(nextRound._id),
+                        participant_name: voteArray.find(v => v.id === idStr)?.name ?? "",
+                        participant_payment_status: TRANSACTION_STATUS.pending
+                      },
+                      $set: { status: PARTICIPATION_STATUS.participating }
+                    },
+                    upsert: true
+                  }
+                })),
+                { session }
+              );
+            }
+
+            if (proceedIds.length) {
+              await ParticipantModel.updateMany(
+                {
+                  competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                  round_object_id: new mongoose.Types.ObjectId(round._id),
+                  participant_object_id: { $in: proceedIds.map(id => new mongoose.Types.ObjectId(id)) }
+                },
+                { $set: { status: PARTICIPATION_STATUS.participated } },
+                { session }
+              );
+            }
+
+            if (eliminatedIds.length) {
+              await ParticipantModel.updateMany(
+                {
+                  competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                  round_object_id: new mongoose.Types.ObjectId(round._id),
+                  participant_object_id: { $in: eliminatedIds.map(id => new mongoose.Types.ObjectId(id)) }
+                },
+                { $set: { status: PARTICIPATION_STATUS.eliminated } },
+                { session }
+              );
+            }
+          } else {
+            // final round → winners
+            const winnerCount = Math.max(1, competition.no_of_winner ?? 1);
+            const winnerIds = sortedIds.slice(0, winnerCount);
+
+            if (sortedIds.length) {
+              await ParticipantModel.bulkWrite(
+                sortedIds.map(idStr => {
+                  const isWinner = winnerIds.includes(idStr);
+                  return {
+                    updateOne: {
+                      filter: {
+                        competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                        round_object_id: new mongoose.Types.ObjectId(round._id),
+                        participant_object_id: new mongoose.Types.ObjectId(idStr)
+                      },
+                      update: { $set: { status: isWinner ? PARTICIPATION_STATUS.winner : PARTICIPATION_STATUS.eliminated } }
+                    }
+                  };
+                }),
+                { session }
+              );
+            }
+          }
+
+          // mark round processed
+          await CompetitionModel.updateOne(
+            { _id: competition._id, "rounds._id": round._id },
+            { $set: { "rounds.$.processed": true } },
+            { session }
+          );
+
+          await session.commitTransaction();
+          console.log(`- ✅ Transaction committed for round ${round._id}`);
+        } catch (e) {
+          if (inTx) await session.abortTransaction();
+          console.error(`- ❌ Transaction error for competition ${competition._id}, round ${round._id}:`, e);
+        } finally {
+          session.endSession();
+        }
+
+        // === Build and append round summary for results ===
+        const isFinal = !nextRound;
+        const winnerCount = isFinal ? Math.max(1, competition.no_of_winner ?? 1) : 0;
+        const winnerIds = isFinal ? sortedIds.slice(0, winnerCount) : undefined;
+
+        compResult.rounds.push(
+          buildRoundResult({
+            roundId: round._id.toString(),
+            roundNo: round.round_no,
+            proceedPercent: percent,
+            totalParticipants: total,
+            proceedIds,
+            eliminatedIds,
+            voteArray,
+            isFinal,
+            winnerIds
+          })
+        );
+
+        if (isFinal && winnerIds) {
+          compResult.final_winners = winnerIds.map(id => {
+            const v = voteArray.find(x => x.id === id);
+            return { id, name: v?.name ?? "", votes: v?.count ?? 0 };
+          });
+        }
+      } // rounds loop
+
+      // Only store if we processed at least one ended round
+      if (compResult.rounds.length) {
+        // Persist once per competition run
+        const saved = await CompetitionResultModel.create({
+          competition_id: new mongoose.Types.ObjectId(compResult.competition_id),
+          competition_name: compResult.competition_name,
+          processed_at: new Date(compResult.processed_at),
+          rounds: compResult.rounds,
+          final_winners: compResult.final_winners
+        });
+
+        console.log("=== competitionResults saved ===");
+        console.log(JSON.stringify(compResult, null, 2));
+
+        allCompetitionResults.push(compResult);
+      }
+    } // competitions
+  } catch (err) {
+    console.error("Fatal error in participantMoveToNextRound:", err);
+  }
+
+  // Return the whole summary array to the caller
+  return allCompetitionResults;
+};
+```
+
+---
+
+## 5) What you get
+
+* **Console log** shows a pretty JSON summary per competition.
+* **Return value** is `CompetitionResult[]` so your caller (cron/API) can consume it.
+* **Saved** to Mongo in `competition_results` with an index by `{ competition_id, processed_at }`.
+
+---
+
+## 6) Example saved/returned JSON (shape)
+
+```json
+[
+  {
+    "competition_id": "67a1e99df8734ad045a2f91c",
+    "competition_name": "Mega Singing Contest",
+    "processed_at": "2025-11-11T03:25:27.412Z",
+    "rounds": [
+      {
+        "round_id": "67a1eb1af8734ad045a2f91d",
+        "round_no": 1,
+        "proceed_percent": 80,
+        "total_participants": 10,
+        "proceed_count": 8,
+        "proceeding": [{ "id": "P03", "name": "A3", "votes": 132 }, ...],
+        "eliminated": [{ "id": "P06", "name": "A6", "votes": 45 }, ...],
+        "is_final_round": false,
+        "processed": true
+      },
+      {
+        "round_id": "67a1eb1af8734ad045a2f91e",
+        "round_no": 2,
+        "proceed_percent": 60,
+        "total_participants": 8,
+        "proceed_count": 4,
+        "proceeding": [{ "id": "P07", "name": "A7", "votes": 141 }, ...],
+        "eliminated": [{ "id": "P05", "name": "A5", "votes": 87 }, ...],
+        "is_final_round": false,
+        "processed": true
+      },
+      {
+        "round_id": "67a1eb1af8734ad045a2f91f",
+        "round_no": 3,
+        "proceed_percent": 20,
+        "total_participants": 4,
+        "proceed_count": 1,
+        "proceeding": [{ "id": "P03", "name": "A3", "votes": 152 }],
+        "eliminated": [{ "id": "P07", "name": "A7", "votes": 147 }, ...],
+        "is_final_round": true,
+        "winners": [{ "id": "P03", "name": "A3", "votes": 152 }],
+        "processed": true
+      }
+    ],
+    "final_winners": [{ "id": "P03", "name": "A3", "votes": 152 }]
+  }
+]
+```
+
+---
+
+## 7) Small operational tips
+
+* If you run this in a **cron**, the returned JSON is ready to push to logs/S3/monitoring.
+* You can add an **API endpoint** to fetch latest summary:
+
+  * `GET /competitions/:id/results?limit=1` → read from `competition_results` ordered by `processed_at desc`.
+
+If you want me to add the GET endpoint + controller code and indexes for participants/votes, say the word and I’ll drop them in.
+
+
+
+
+
+
+
+*********************************************************************************************************
+
+
+
+
+
+
+Perfect — here’s a **drop-in addition** that builds a **structured JSON summary** for every competition, **returns it** from the function, and **persists** it to a `competition_results` collection (upsert). It records each round’s inputs/outputs (proceed %, counts, IDs, votes) and the final winner(s).
+
+> If you already have a results collection, just adjust the `CompetitionResultModel` schema/collection name.
+
+```ts
+// ---- Add this Model once (e.g., models/CompetitionResult.ts) ----
+import mongoose, { Schema, Types } from "mongoose";
+
+const RoundSummarySchema = new Schema(
+  {
+    round_object_id: { type: Schema.Types.ObjectId, required: true },
+    round_no: { type: Number, required: true },
+    end_date_time: { type: Date, required: false },
+    proceed_percent: { type: Number, required: true },
+    total_participants: { type: Number, required: true },
+    proceed_count: { type: Number, required: true },
+    proceeding_ids: [{ type: Schema.Types.ObjectId, required: true }],
+    eliminated_ids: [{ type: Schema.Types.ObjectId, required: true }],
+    top_preview: [
+      {
+        id: String,
+        votes: Number
+      }
+    ],
+    per_participant: [
+      {
+        id: String,
+        name: String,
+        total_votes: Number,
+        status_after_round: String // participated | eliminated | winner
+      }
+    ],
+    processed: { type: Boolean, default: true }
+  },
+  { _id: false }
+);
+
+const CompetitionResultSchema = new Schema(
+  {
+    competition_object_id: { type: Schema.Types.ObjectId, unique: true, index: true, required: true },
+    competition_name: { type: String, required: true },
+    rounds: { type: [RoundSummarySchema], default: [] },
+    winner_ids: [{ type: Schema.Types.ObjectId, required: false, default: [] }],
+    processed_at: { type: Date, default: Date.now }
+  },
+  { timestamps: true, collection: "competition_results" }
+);
+
+export const CompetitionResultModel =
+  mongoose.models.CompetitionResult ||
+  mongoose.model("CompetitionResult", CompetitionResultSchema);
+```
+
+---
+
+## Updated processor that **returns** and **saves** `competitionResults`
+
+```ts
+// Return type: array of competition summaries
+const participantMoveToNextRound = async (): Promise<any[]> => {
+  const competitionResults: any[] = [];
+
+  try {
+    console.log("1.) Fetching active competitions...");
+    const competitions = await CompetitionModel.find({ status: COMPETITION_STATUS.active }).lean();
+
+    const now = new Date();
+
+    for (const competition of competitions) {
+      console.log(`\n=== Competition ${competition._id} :: ${competition.name} ===`);
+
+      const summary = {
+        competition_id: competition._id.toString(),
+        competition_name: competition.name,
+        rounds: [] as any[],
+        winner_ids: [] as string[],
+        processed_at: new Date().toISOString()
+      };
+
+      // sort rounds oldest -> newest
+      const rounds = Array.isArray(competition.rounds) ? [...competition.rounds] : [];
+      rounds.sort((a, b) => new Date(a.end_date_time).getTime() - new Date(b.end_date_time).getTime());
+
+      for (let rIndex = 0; rIndex < rounds.length; rIndex++) {
+        const round = rounds[rIndex];
+        const nextRound = rounds[rIndex + 1];
+        const roundEnd = new Date(round.end_date_time);
+        console.log(`- Round ${round._id} (#${round.round_no}) ends ${roundEnd.toISOString()} | now ${now.toISOString()}`);
+
+        // Skip unfinished rounds
+        if (roundEnd > now) {
+          console.log("  > Round not ended yet. Skipping.");
+          continue;
+        }
+
+        // Paid + participating in this round
+        const allParticipants = await ParticipantModel.find({
+          competition_object_id: new mongoose.Types.ObjectId(competition._id),
+          round_object_id: new mongoose.Types.ObjectId(round._id),
+          participant_payment_status: "SUCCESS",
+          status: PARTICIPATION_STATUS.participating
+        }).lean();
+
+        if (!allParticipants || allParticipants.length === 0) {
+          console.log(`  > No participants in round ${round._id}. Marking round processed.`);
+          await CompetitionModel.updateOne(
+            { _id: competition._id, "rounds._id": round._id },
+            { $set: { "rounds.$.processed": true } }
+          );
+
+          // still record an empty round summary for traceability
+          summary.rounds.push({
+            round_object_id: round._id,
+            round_no: round.round_no,
+            end_date_time: round.end_date_time,
+            proceed_percent: round.no_of_participant_proceeding ?? 0,
+            total_participants: 0,
+            proceed_count: 0,
+            proceeding_ids: [],
+            eliminated_ids: [],
+            top_preview: [],
+            per_participant: [],
+            processed: true
+          });
+          continue;
+        }
+
+        console.log(`- Found ${allParticipants.length} participants. Aggregating total votes (sum of votes_earened)...`);
+
+        const participantIds = allParticipants.map(p => p.participant_object_id);
+
+        // Aggregate total votes_earened per participant
+        const voteAgg = await ParticipantModel.aggregate([
+          {
+            $match: {
+              competition_object_id: new mongoose.Types.ObjectId(competition._id),
+              round_object_id: new mongoose.Types.ObjectId(round._id),
+              participant_object_id: { $in: participantIds }
+            }
+          },
+          {
+            $lookup: {
+              from: "votes", // adjust if needed
+              let: { p_id: "$participant_object_id" },
+              pipeline: [
+                {
+                  $match: {
+                    $expr: { $eq: ["$participant_object_id", "$$p_id"] },
+                    // If votes store competition/round, uncomment to hard-scope:
+                    // competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                    // round_object_id: new mongoose.Types.ObjectId(round._id),
+                  }
+                },
+                {
+                  $group: {
+                    _id: null,
+                    total: { $sum: { $ifNull: ["$votes_earened", 0] } }
+                  }
+                }
+              ],
+              as: "voteStats"
+            }
+          },
+          {
+            $addFields: {
+              totalVotes: { $ifNull: [{ $arrayElemAt: ["$voteStats.total", 0] }, 0] }
+            }
+          },
+          { $project: { participant_object_id: 1, participant_name: 1, createdAt: 1, totalVotes: 1 } }
+        ]);
+
+        // Merge back to include zero-vote participants
+        const aggMap = new Map<string, any>(voteAgg.map(v => [v.participant_object_id.toString(), v]));
+        const voteArray = allParticipants.map(p => {
+          const idStr = p.participant_object_id.toString();
+          const fromAgg = aggMap.get(idStr);
+          return {
+            id: idStr,
+            name: p.participant_name,
+            count: fromAgg?.totalVotes ?? 0,
+            createdAt: fromAgg?.createdAt ? new Date(fromAgg.createdAt).getTime() : 0
+          };
+        });
+
+        // Sort by totalVotes DESC → createdAt ASC → id ASC
+        voteArray.sort((a, b) => {
+          if (b.count !== a.count) return b.count - a.count;
+          if (a.createdAt !== b.createdAt) return a.createdAt - b.createdAt;
+          return a.id.localeCompare(b.id);
+        });
+
+        // Persist total_votes per row (current round)
+        const totalVotesBulk = voteArray.map(v => ({
+          updateOne: {
+            filter: {
+              competition_object_id: new mongoose.Types.ObjectId(competition._id),
+              round_object_id: new mongoose.Types.ObjectId(round._id),
+              participant_object_id: new mongoose.Types.ObjectId(v.id)
+            },
+            update: { $set: { total_votes: v.count } }
+          }
+        }));
+        if (totalVotesBulk.length) await ParticipantModel.bulkWrite(totalVotesBulk);
+
+        const sortedIds = voteArray.map(v => v.id);
+        const preview = voteArray.slice(0, 5).map(v => ({ id: v.id, votes: v.count }));
+        console.log("- Sorted participants (max→min). Top preview:", preview);
+
+        // Proceed math
+        const total = allParticipants.length;
+        const percent = typeof round.no_of_participant_proceeding === "number" ? round.no_of_participant_proceeding : 0;
+        const proceedCount = Math.max(1, Math.floor((total * percent) / 100));
+
+        const proceedIds = sortedIds.slice(0, proceedCount);
+        const eliminatedIds = sortedIds.slice(proceedCount);
+
+        // Build round summary structure now; we’ll finalize statuses below
+        const roundSummary = {
+          round_object_id: round._id,
+          round_no: round.round_no,
+          end_date_time: round.end_date_time,
+          proceed_percent: percent,
+          total_participants: total,
+          proceed_count: proceedCount,
+          proceeding_ids: proceedIds.map(id => new mongoose.Types.ObjectId(id)),
+          eliminated_ids: eliminatedIds.map(id => new mongoose.Types.ObjectId(id)),
+          top_preview: preview,
+          per_participant: voteArray.map(v => ({
+            id: v.id,
+            name: v.name,
+            total_votes: v.count,
+            status_after_round: "" // fill after updates
+          })),
+          processed: true
+        };
+
+        // Transactional updates
+        const session = await mongoose.startSession();
+        let inTx = false;
+
+        try {
+          session.startTransaction();
+          inTx = true;
+
+          if (nextRound) {
+            console.log(`- total: ${total}, proceedPercent: ${percent}%, proceedCount: ${proceedCount}`);
+            console.log(`- Moving ${proceedIds.length} to next round ${nextRound._id}; eliminating ${eliminatedIds.length}.`);
+
+            // Upsert next round participants
+            if (proceedIds.length) {
+              const upserts = proceedIds.map(idStr => {
+                const idObj = new mongoose.Types.ObjectId(idStr);
+                return {
+                  updateOne: {
+                    filter: {
+                      competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                      participant_object_id: idObj,
+                      round_object_id: new mongoose.Types.ObjectId(nextRound._id)
+                    },
+                    update: {
+                      $setOnInsert: {
+                        competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                        participant_object_id: idObj,
+                        round_no: nextRound.round_no,
+                        competition_name: competition.name,
+                        round_object_id: new mongoose.Types.ObjectId(nextRound._id),
+                        participant_name: voteMapName(idStr, voteArray),
+                        participant_payment_status: TRANSACTION_STATUS.pending
+                      },
+                      $set: { status: PARTICIPATION_STATUS.participating }
+                    },
+                    upsert: true
+                  }
+                };
+              });
+              await ParticipantModel.bulkWrite(upserts, { session });
+            }
+
+            // Current round: mark proceeded as participated
+            if (proceedIds.length) {
+              await ParticipantModel.updateMany(
+                {
+                  competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                  round_object_id: new mongoose.Types.ObjectId(round._id),
+                  participant_object_id: { $in: proceedIds.map(id => new mongoose.Types.ObjectId(id)) }
+                },
+                { $set: { status: PARTICIPATION_STATUS.participated } },
+                { session }
+              );
+            }
+
+            // Current round: mark eliminated
+            if (eliminatedIds.length) {
+              await ParticipantModel.updateMany(
+                {
+                  competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                  round_object_id: new mongoose.Types.ObjectId(round._id),
+                  participant_object_id: { $in: eliminatedIds.map(id => new mongoose.Types.ObjectId(id)) }
+                },
+                { $set: { status: PARTICIPATION_STATUS.eliminated } },
+                { session }
+              );
+            }
+
+            // Fill per_participant status for round summary
+            for (const p of roundSummary.per_participant) {
+              if (proceedIds.includes(p.id)) p.status_after_round = "participated";
+              else p.status_after_round = "eliminated";
+            }
+          } else {
+            // Final round → winners
+            const winnerCount = Math.max(1, competition.no_of_winner ?? 1);
+            const winnerIds = sortedIds.slice(0, winnerCount);
+            console.log(`- Final round. Declaring ${winnerCount} winner(s).`);
+
+            const finalUpdates = sortedIds.map(idStr => {
+              const isWinner = winnerIds.includes(idStr);
+              return {
+                updateOne: {
+                  filter: {
+                    competition_object_id: new mongoose.Types.ObjectId(competition._id),
+                    round_object_id: new mongoose.Types.ObjectId(round._id),
+                    participant_object_id: new mongoose.Types.ObjectId(idStr)
+                  },
+                  update: { $set: { status: isWinner ? PARTICIPATION_STATUS.winner : PARTICIPATION_STATUS.eliminated } }
+                }
+              };
+            });
+            if (finalUpdates.length) await ParticipantModel.bulkWrite(finalUpdates, { session });
+
+            // Fill per_participant status for round summary
+            for (const p of roundSummary.per_participant) {
+              if (winnerIds.includes(p.id)) p.status_after_round = "winner";
+              else p.status_after_round = "eliminated";
+            }
+
+            summary.winner_ids = winnerIds.map(id => id.toString());
+          }
+
+          // Mark round processed in Competition
+          await CompetitionModel.updateOne(
+            { _id: competition._id, "rounds._id": round._id },
+            { $set: { "rounds.$.processed": true } },
+            { session }
+          );
+
+          await session.commitTransaction();
+          console.log(`- ✅ Transaction committed for round ${round._id}`);
+        } catch (err) {
+          if (inTx) await session.abortTransaction();
+          console.error(`- ❌ Transaction error for competition ${competition._id}, round ${round._id}:`, err);
+          // Optional: handle fallback logic here
+        } finally {
+          session.endSession();
+        }
+
+        // Push this round's summary to competition summary
+        summary.rounds.push(roundSummary);
+      } // end rounds loop
+
+      // ---- Persist the summary document (UPSERT) ----
+      await CompetitionResultModel.updateOne(
+        { competition_object_id: new mongoose.Types.ObjectId(summary.competition_id) },
+        {
+          $set: {
+            competition_object_id: new mongoose.Types.ObjectId(summary.competition_id),
+            competition_name: summary.competition_name,
+            rounds: summary.rounds,
+            winner_ids: summary.winner_ids.map(id => new mongoose.Types.ObjectId(id)),
+            processed_at: new Date(summary.processed_at)
+          }
+        },
+        { upsert: true }
+      );
+
+      competitionResults.push(summary);
+    } // competitions
+  } catch (err) {
+    console.error("Fatal error in participantMoveToNextRound:", err);
+  }
+
+  // Return all processed competition summaries
+  return competitionResults;
+};
+
+// Helper: get name by id from voteArray
+function voteMapName(idStr: string, voteArray: Array<{ id: string; name?: string }>) {
+  const found = voteArray.find(v => v.id === idStr);
+  return found?.name ?? "";
+}
+```
+
+---
+
+## What you get
+
+* A **JSON object per competition** like:
+
+```json
+{
+  "competition_id": "67a1e99df8734ad045a2f91c",
+  "competition_name": "Mega Singing Contest",
+  "rounds": [
+    {
+      "round_object_id": "67a1eb1af8734ad045a2f91d",
+      "round_no": 1,
+      "end_date_time": "2025-11-10T23:59:59.000Z",
+      "proceed_percent": 80,
+      "total_participants": 10,
+      "proceed_count": 8,
+      "proceeding_ids": ["671f...123", "..."],
+      "eliminated_ids": ["671f...678", "..."],
+      "top_preview": [{ "id": "671f...123", "votes": 132 }, { "id": "..." , "votes": 121 }],
+      "per_participant": [
+        { "id": "671f...123", "name": "A3", "total_votes": 132, "status_after_round": "participated" },
+        { "id": "671f...678", "name": "A6", "total_votes": 45, "status_after_round": "eliminated" }
+      ],
+      "processed": true
+    },
+    { "... round 2 ..." },
+    { "... round 3 (winners marked) ..." }
+  ],
+  "winner_ids": ["671f...abc"],
+  "processed_at": "2025-11-11T03:25:00.000Z"
+}
+```
+
+* It’s **returned from the function** and also **saved** (upsert) to `competition_results` for later audit, dashboards, or exports.
+
+---
+
+### Notes
+
+* Uses your 3-round rule automatically (R1=80%, R2=60%, R3=20%, winner by max votes in last round).
+* If your votes collection uses different field names for `participant_object_id` or includes competition/round fields, update the `$lookup` pipeline match accordingly.
+* If you want to maintain **history of each run**, change the schema to store an array `runs[]` and `$push` a new `run` instead of overwriting `rounds`.
