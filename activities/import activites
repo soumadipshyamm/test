@@ -1,3 +1,316 @@
+<?php
+
+namespace App\Imports\Activites;
+
+use Illuminate\Support\Str;
+use App\Models\Company\Activities;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use Maatwebsite\Excel\Concerns\ToModel;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
+
+class ActivitesImport implements ToModel, WithHeadingRow
+{
+    protected $project;
+    protected $subproject;
+    protected $companyId;
+    protected $tmpcachekey;
+
+    public function __construct($project, $subproject, $companyId, $tmpcachekey)
+    {
+        $this->project     = $project;
+        $this->subproject  = $subproject;
+        $this->companyId   = $companyId;
+        $this->tmpcachekey = $tmpcachekey;
+    }
+
+    public function model(array $row)
+    {
+        // 0) Normalize
+        $row = $this->normalizeRow($row);
+
+        Log::info('[ActivitiesImport] Row', [
+            'uuid'       => $row['uuid'] ?? null,
+            'sl_no'      => $row['sl_no'] ?? null,
+            'type'       => $row['type'] ?? null,
+            'activities' => $row['activities'] ?? null,
+        ]);
+
+        // 1) Basic required fields
+        if ($this->isNullRow($row)) {
+            $this->cacheInvalidRow($row, 'Missing required "type" or "activities".');
+            return null;
+        }
+
+        // 2) Validate structure / parent presence (top-level is ok with null sl_no)
+        if (!$this->isValidSlNo($row)) {
+            $this->cacheInvalidRow($row, 'Invalid sl_no structure or missing parent.');
+            return null;
+        }
+
+        // 3) Resolve parent in-scope (company+project+subproject)
+        $parentId = $this->calculateParentIdScoped($row['sl_no']);
+
+        // Child-like sl_no (e.g., 2.1) but parent not found → cache as invalid to avoid orphans
+        if ($this->looksLikeChild($row['sl_no']) && $parentId === null) {
+            $this->cacheInvalidRow($row, 'Parent sl_no not found in this project/subproject.');
+            return null;
+        }
+
+        // 4) Find existing row (uuid → sl_no → (parent_id + activities))
+        $existingActivity = $this->findExisting($row, $parentId);
+
+        // 5) Units / numerics / dates
+        $unitId = $this->getUnitId($row['units'] ?? null);
+        $qty    = $this->toNumber($row['qty'] ?? 0);
+        $rate   = $this->toNumber($row['rate'] ?? 0);
+        $amount = $qty * $rate;
+
+        $start  = $this->safeDate($row['start_datedd_mm_yyyy'] ?? null);
+        $end    = $this->safeDate($row['end_datedd_mm_yyyy'] ?? null);
+
+        // 6) Resolve final type
+        $type = $this->resolveType($row['type'] ?? null, $parentId);
+
+        if ($existingActivity) {
+            $dirty =
+                (int)$existingActivity->parent_id !== (int)($parentId ?? 0) ||
+                (string)$existingActivity->type !== (string)$type ||
+                (string)$existingActivity->activities !== (string)$row['activities'] ||
+                (int)$existingActivity->unit_id !== (int)($unitId ?? 0) ||
+                (float)$existingActivity->qty !== (float)$qty ||
+                (float)$existingActivity->rate !== (float)$rate ||
+                (float)$existingActivity->amount !== (float)$amount ||
+                (string)optional($existingActivity->start_date) !== (string)$start ||
+                (string)optional($existingActivity->end_date) !== (string)$end;
+
+            if ($dirty) {
+                $existingActivity->update([
+                    'project_id'    => $this->project,
+                    'subproject_id' => $this->subproject,
+                    'type'          => $type,
+                    'sl_no'         => $row['sl_no'],
+                    'parent_id'     => $parentId,
+                    'activities'    => $row['activities'],
+                    'unit_id'       => $unitId,
+                    'qty'           => $qty,
+                    'rate'          => $rate,
+                    'amount'        => $amount,
+                    'start_date'    => $start,
+                    'end_date'      => $end,
+                    'company_id'    => $this->companyId,
+                ]);
+                Log::info('[ActivitiesImport] Updated', ['id' => $existingActivity->id]);
+            }
+            return null; // ToModel skip create
+        }
+
+        // 7) Create new
+        $data = new Activities([
+            'uuid'          => $row['uuid'] ?: Str::uuid()->toString(),
+            'project_id'    => $this->project,
+            'subproject_id' => $this->subproject,
+            'type'          => $type,
+            'sl_no'         => $row['sl_no'],
+            'parent_id'     => $parentId,
+            'activities'    => $row['activities'],
+            'unit_id'       => $unitId,
+            'qty'           => $qty,
+            'rate'          => $rate,
+            'amount'        => $amount,
+            'start_date'    => $start,
+            'end_date'      => $end,
+            'company_id'    => $this->companyId,
+        ]);
+
+        Log::info('[ActivitiesImport] Creating', [
+            'uuid' => $data->uuid, 'sl_no' => $data->sl_no, 'type' => $data->type
+        ]);
+
+        return $data;
+    }
+
+    /* ----------------- Helpers ----------------- */
+
+    protected function normalizeRow(array $row): array
+    {
+        // Drop accidental index column with empty header (your "#" column)
+        unset($row['']);
+        // Trim common fields
+        foreach (['uuid','type','sl_no','activities','units'] as $k) {
+            if (isset($row[$k]) && is_string($row[$k])) {
+                $row[$k] = trim($row[$k]);
+                if ($row[$k] === '') $row[$k] = null;
+            }
+        }
+        // Normalize "activities" -> "activity"
+        if (!empty($row['type']) && strtolower($row['type']) === 'activities') {
+            $row['type'] = 'activity';
+        }
+        return $row;
+    }
+
+    protected function isNullRow(array $row): bool
+    {
+        return empty($row['activities']) || empty($row['type']);
+    }
+
+    protected function looksLikeChild($slNo): bool
+    {
+        if (!$slNo) return false;
+        return count(explode('.', (string)$slNo)) > 1;
+    }
+
+    protected function isValidSlNo(array $row): bool
+    {
+        // Top-level heading/activity: null sl_no is OK
+        if (empty($row['sl_no'])) return true;
+
+        $parts = explode('.', $row['sl_no']);
+        $depth = count($parts);
+
+        if ($depth === 1) return true;
+
+        // For depth >= 2, ensure parent exists in-scope
+        array_pop($parts);
+        $parentSl = implode('.', $parts);
+
+        return Activities::query()
+            ->where('company_id', $this->companyId)
+            ->where('project_id', $this->project)
+            ->when($this->subproject, fn($q) => $q->where('subproject_id', $this->subproject))
+            ->where('sl_no', $parentSl)
+            ->exists();
+    }
+
+    protected function calculateParentIdScoped($slNo): ?int
+    {
+        if (!$slNo) return null;
+
+        $parts = explode('.', $slNo);
+        if (count($parts) <= 1) return null;
+
+        array_pop($parts);
+        $parentSl = implode('.', $parts);
+
+        return Activities::query()
+            ->where('company_id', $this->companyId)
+            ->where('project_id', $this->project)
+            ->when($this->subproject, fn($q) => $q->where('subproject_id', $this->subproject))
+            ->where('sl_no', $parentSl)
+            ->value('id');
+    }
+
+    protected function findExisting(array $row, ?int $parentId): ?Activities
+    {
+        if (!empty($row['uuid'])) {
+            $byUuid = Activities::query()
+                ->where('company_id', $this->companyId)
+                ->where('uuid', $row['uuid'])
+                ->first();
+            if ($byUuid) return $byUuid;
+        }
+
+        if (!empty($row['sl_no'])) {
+            $bySl = Activities::query()
+                ->where('company_id', $this->companyId)
+                ->where('project_id', $this->project)
+                ->when($this->subproject, fn($q) => $q->where('subproject_id', $this->subproject))
+                ->where('sl_no', $row['sl_no'])
+                ->first();
+            if ($bySl) return $bySl;
+        }
+
+        return Activities::query()
+            ->where('company_id', $this->companyId)
+            ->where('project_id', $this->project)
+            ->when($this->subproject, fn($q) => $q->where('subproject_id', $this->subproject))
+            ->where('parent_id', $parentId)
+            ->where('activities', $row['activities'] ?? null)
+            ->first();
+    }
+
+    protected function toNumber($v): float
+    {
+        if (is_string($v) && strlen($v) && $v[0] === '=') return 0.0; // formula, ignore
+        return is_numeric($v) ? (float)$v : 0.0;
+    }
+
+    protected function safeDate($v)
+    {
+        // If you have excelDateToDate(), try it; otherwise parse Y-m-d strings
+        try {
+            $d = excelDateToDate($v);
+            if ($d) return $d;
+        } catch (\Throwable $e) { /* ignore */ }
+
+        if (is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) {
+            return $v; // already Y-m-d
+        }
+
+        if (is_string($v) && strtotime($v)) {
+            return date('Y-m-d', strtotime($v));
+        }
+
+        return null;
+    }
+
+    protected function getUnitId(?string $unitName): ?int
+    {
+        if (!$unitName) return null;
+        $unitId = nametoid($unitName, 'units');
+        if ($unitId === false || $unitId === null) {
+            $unitId = createunit($unitName, $this->companyId);
+        }
+        return $unitId ?: null;
+    }
+
+    protected function cacheInvalidRow(array $row, string $reason): void
+    {
+        $invalid = Cache::get($this->tmpcachekey, []);
+        $invalid[] = ['row' => $row, 'reason' => $reason];
+        Cache::put($this->tmpcachekey, $invalid);
+        Log::warning('[ActivitiesImport] Invalid row', ['reason' => $reason, 'sl_no' => $row['sl_no'] ?? null]);
+    }
+
+    protected function resolveType(?string $given, ?int $parentId): string
+    {
+        $given = $given ? strtolower($given) : null;
+        if (in_array($given, ['heading', 'activity'], true)) {
+            return $given;
+        }
+        return $parentId === null ? 'heading' : 'activity';
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 array:14 [▼ // app\Imports\Activites\ActivitesImport.php:37
   "" => 4828
   "uuid" => "0ed15c21-800e-4ca9-b6cc-2763070eb656"
