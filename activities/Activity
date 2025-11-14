@@ -1,3 +1,172 @@
+Sure 👍 — here’s a **concise, structured description** for each table you listed, grouped by their modules. Each description is short and clear, suitable for documentation or architecture overview.
+
+---
+
+## 🧑‍💼 **Super Admin**
+
+| Table Name                     | Description                                                                   |
+| ------------------------------ | ----------------------------------------------------------------------------- |
+| `admin_menus`                  | Stores menu items for the super admin dashboard and navigation.               |
+| `admin_notifactions`           | Contains notifications generated for super admin users.                       |
+| `admin_permissions`            | Defines system-level permissions (like create, edit, delete) for super admin. |
+| `admin_profiles`               | Stores profile information of super admin users.                              |
+| `admin_roles`                  | Stores predefined admin roles (e.g., Super Admin, Moderator).                 |
+| `admin_user_permissions`       | Maps individual admin users to specific permissions.                          |
+| `admin_user_roles`             | Links admin users with their assigned roles.                                  |
+| `admin_user_role_permissions`  | Associates roles with permissions for access control.                         |
+| `subscription_companies`       | Tracks which companies are subscribed to which plans.                         |
+| `additional_features`          | Lists optional add-on features available for subscriptions.                   |
+| `subscription_logs`            | Logs subscription activity such as renewals or upgrades.                      |
+| `subscription_packages`        | Contains available subscription plans.                                        |
+| `subscription_package_options` | Stores package-specific options and limitations.                              |
+| `notifactions`                 | Global notification table for all user types.                                 |
+| `users`                        | Main users table for all system accounts (admins, company users, etc.).       |
+| `user_chats`                   | Stores chat messages between users.                                           |
+| `user_mail_send_details`       | Logs sent emails and their delivery status.                                   |
+
+---
+
+## 📰 **CMS (Content Management System)**
+
+| Table Name        | Description                                                |
+| ----------------- | ---------------------------------------------------------- |
+| `banner_pages`    | Stores homepage and inner-page banners with images/text.   |
+| `contact_details` | Contains contact information shown on the site.            |
+| `contact_reports` | Records messages or inquiries submitted via contact forms. |
+| `home_pages`      | Data for homepage dynamic content sections.                |
+| `menu_managments` | Stores menu structure and hierarchy for the frontend.      |
+| `page_managments` | Manages static and dynamic pages (About Us, Terms, etc.).  |
+
+---
+
+## 🏢 **Company Admin**
+
+| Table Name                    | Description                                                           |
+| ----------------------------- | --------------------------------------------------------------------- |
+| `company_permissions`         | Defines permission modules for company-level users.                   |
+| `company_project_permissions` | Project-specific permission settings for companies.                   |
+| `company_roles`               | Stores role definitions within a company (e.g., Manager, Supervisor). |
+| `company_role_managments`     | Maps roles to their respective access levels.                         |
+| `company_role_permissions`    | Links company roles with specific permissions.                        |
+| `company_user_permissions`    | Assigns direct permissions to company users.                          |
+| `company_user_roles`          | Maps users to their company roles.                                    |
+
+---
+
+## 🗂️ **Master Data**
+
+| Table Name                | Description                                                |
+| ------------------------- | ---------------------------------------------------------- |
+| `activities`              | Stores project activity or task definitions.               |
+| `assets`                  | Lists physical or digital assets belonging to companies.   |
+| `cities`                  | Master list of cities used across the system.              |
+| `clients`                 | Stores client company details.                             |
+| `companies`               | Holds registered company details.                          |
+| `company_managments`      | Manages relationships between companies and parent admins. |
+| `companyuser_roles`       | Links company users to system-level roles.                 |
+| `projects`                | Master list of all projects.                               |
+| `sub_projects`            | Sub-level projects under main projects.                    |
+| `labours`                 | Stores labor/worker details.                               |
+| `materials`               | Material master used in inventory and DPR.                 |
+| `vendors`                 | Registered vendor details.                                 |
+| `store_warehouses`        | Details of store or warehouse locations.                   |
+| `units`                   | Measurement units (e.g., kg, m³, pcs).                     |
+| `company_users`           | All users under a specific company.                        |
+| `countries`               | Master table for countries.                                |
+| `states`                  | Master table for states.                                   |
+| `assets_opening_stocks`   | Initial stock records for assets.                          |
+| `material_opening_stocks` | Initial stock records for materials.                       |
+| `profile_designations`    | Job titles or designations within organizations.           |
+| `teams`                   | Team structure and team-member mapping.                    |
+
+---
+
+## 🧱 **DPR (Daily Progress Report)**
+
+| Table Name            | Description                                     |
+| --------------------- | ----------------------------------------------- |
+| `dprs`                | Stores daily progress entries for projects.     |
+| `activity_histories`  | Logs historical changes in activity progress.   |
+| `assets_histories`    | Tracks asset usage and history.                 |
+| `materials_histories` | Material usage and change history.              |
+| `labour_histories`    | Logs daily or weekly labor usage data.          |
+| `hinderances`         | Records work interruptions or site delays.      |
+| `safeties`            | Stores safety observations or incident reports. |
+
+---
+
+## 🏗️ **Inventory / Procurement (Invert)**
+
+| Table Name                     | Description                                               |
+| ------------------------------ | --------------------------------------------------------- |
+| `inventories`                  | General stock and inventory records.                      |
+| `inventory_logs`               | Logs of all inventory transactions.                       |
+| `inventory_stores`             | Lists store/warehouse inventory allocations.              |
+| `inv_inwards`                  | Incoming material entries (purchase, return).             |
+| `inv_inward_entry_types`       | Defines types of inward entries (e.g., Purchase, Return). |
+| `inv_issues`                   | Issue slips for materials sent out.                       |
+| `inv_issues_details`           | Item-wise details for each issue.                         |
+| `inv_issue_goods`              | Goods associated with issued materials.                   |
+| `inv_issue_lists`              | List of all issued materials per project/site.            |
+| `inv_issue_stores`             | Store information related to issued materials.            |
+| `inv_returns`                  | Return slips for materials received back.                 |
+| `inv_returns_details`          | Item-level details for returned goods.                    |
+| `inv_return_goods`             | Returned goods records.                                   |
+| `inv_return_stores`            | Store reference for returned materials.                   |
+| `goods`                        | Master list of goods available in inventory.              |
+| `inward_goods`                 | Items received from vendors or other sources.             |
+| `inward_goods_details`         | Detailed inward material records.                         |
+| `inward_stores`                | Warehouse/store data for inward transactions.             |
+| `materials_stock_management`   | Tracks material stock adjustments.                        |
+| `materials_stock_reports`      | Reports of material stock levels.                         |
+| `material_issues`              | Issue records of specific materials.                      |
+| `material_issue_stocks`        | Tracks stock after material issues.                       |
+| `material_requests`            | Requests raised for required materials.                   |
+| `material_request_details`     | Line items for each material request.                     |
+| `project_companies`            | Mapping of companies to projects.                         |
+| `project_members`              | Members working on a project.                             |
+| `project_subproject`           | Links projects with their sub-projects.                   |
+| `pr_approval_members`          | Users responsible for purchase request approvals.         |
+| `pr_member_managments`         | Manages which members handle PR activities.               |
+| `purch_requests`               | Purchase request records.                                 |
+| `quotes`                       | Vendor quotation headers.                                 |
+| `quotes_details`               | Item-level details for vendor quotations.                 |
+| `quotes_material_requests`     | Maps material requests with quotes.                       |
+| `quotes_material_send_vendors` | Tracks vendors who received quote requests.               |
+| `transactions`                 | Financial or stock movement transactions.                 |
+| `opening_stocks`               | Initial stock data for inventory setup.                   |
+| `settings`                     | General settings for inventory module.                    |
+| `stock_managments`             | Master table for managing stock data.                     |
+| `stock_reports`                | Generated stock summary or movement reports.              |
+
+---
+
+## 🔑 **System / API & Tokens**
+
+| Table Name                      | Description                                             |
+| ------------------------------- | ------------------------------------------------------- |
+| `failed_jobs`                   | Stores failed queued jobs for debugging.                |
+| `flights`                       | Example/test table often used in Laravel demos.         |
+| `images`                        | Stores uploaded image references.                       |
+| `jobs`                          | Queue job management.                                   |
+| `media`                         | Stores uploaded media metadata (files, images, videos). |
+| `migrations`                    | Tracks executed Laravel migrations.                     |
+| `oauth_access_tokens`           | Stores issued OAuth access tokens.                      |
+| `oauth_auth_codes`              | Temporary authorization codes for OAuth.                |
+| `oauth_clients`                 | OAuth clients registered in the system.                 |
+| `oauth_personal_access_clients` | Personal access client credentials.                     |
+| `oauth_refresh_tokens`          | Refresh tokens for renewing sessions.                   |
+| `password_resets`               | Legacy password reset entries.                          |
+| `password_reset_tokens`         | Current password reset token records.                   |
+| `personal_access_tokens`        | Tokens generated via Laravel Sanctum or Passport.       |
+
+---
+
+Would you like me to format this as a **Markdown documentation file (README-style)** or as a **database dictionary table (for export as CSV or PDF)**?
+
+
+
+
 Super Admin : 
 TABLE `admin_menus`
 TABLE `admin_notifactions`
