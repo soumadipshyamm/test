@@ -1,0 +1,486 @@
+@extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('assets/custom/css/style.css') }}">
+@endpush
+@section('content')
+    <div class="container-xxl flex-grow-1 container-p-y">
+        <div class="app-ecommerce">
+            <!-- Add Product -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
+                <div class="d-flex flex-column justify-content-center">
+                    <h4 class="mb-1 mt-3">{{ __('Add Fare') }}</h4>
+                </div>
+                <div class="d-flex align-content-center flex-wrap gap-3">
+                    <x-site.back />
+                </div>
+            </div>
+            <div class="row">
+                <!-- First column-->
+                <div class="col-12">
+                    <!-- User Information -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="form_header">
+                                <h5 class="card-tile mb-3">{{ __('Fare Information') }}</h5>
+                            </div>
+                            <form method="post" class="arrayFormSubmit" id="addFareForm"
+                                action="{{ route('admin.fares.day.add') }}">
+                                @csrf
+
+                                <div class="add_form">
+                                    <div class="row  rounded-2 p-2">
+                                        <div class="col-md-6">
+                                            <label for="category_id">Vehicle Category<span
+                                                    class="text-rose-500">*</span></label>
+                                            <select name="category_id" id="category_id" required
+                                                class="form-control @error('category_id') is-invalid @enderror">
+                                                <option>Select Vehicle Category</option>
+                                                {{ getCategoryTypeSubType('') }}
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6 fare_type fare-type">
+                                            <label for="">Fare Type<span class="text-rose-500">*</span></label>
+                                            <div class="d-flex col-md-12 p-2 fare_type">
+                                                <div class="skin skin-square mx-1">
+                                                    <input type="radio" value="non-ac" name="fare_for[]"
+                                                        id="check_inline_non_ac">
+                                                    <label for="check_inline_non_ac">Non Ac</label>
+                                                </div>
+                                                <div class="skin skin-square mx-1">
+                                                    <input type="radio" value="ac" name="fare_for[]"
+                                                        id="check_inline_ac">
+                                                    <label for="check_inline_ac">Ac</label>
+                                                </div>
+                                                <div class="skin skin-square mx-1">
+                                                    <input type="radio" value="both" name="fare_for[]"
+                                                        id="check_inline_both">
+                                                    <label for="check_inline_both">Both</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-12 mb-2 mt-3">
+                                            <div class="row">
+                                                <!-- Days of Week -->
+                                                <div class="mb-4">
+                                                    <label class="form-label">Applicable Days <span
+                                                            class="text-danger">*</span></label>
+                                                    <div class="row g-2">
+                                                        @php
+                                                            $weekDays = [
+                                                                'mon' => 'Mon',
+                                                                'tue' => 'Tue',
+                                                                'wed' => 'Wed',
+                                                                'thu' => 'Thu',
+                                                                'fri' => 'Fri',
+                                                                'sat' => 'Sat',
+                                                                 'sun' => 'Sun',
+                                                            ];
+                                                        @endphp
+                                                        @foreach ($weekDays as $value => $label)
+                                                            <div class="col-6 col-sm-4 col-md-3 col-lg-auto day-checkbox">
+                                                                <div class="form-check">
+                                                                    <input class="form-check-input" type="checkbox"
+                                                                        name="days[]" id="day_{{ $value }}"
+                                                                        value="{{ $value }}">
+                                                                    <label class="form-check-label fw-bold"
+                                                                        for="day_{{ $value }}">{{ $label }}</label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                    <small class="text-muted">Select days this fare applies to</small>
+                                                </div>
+                                                {{-- <div class="col-md-8">
+                                                    <div class="row">
+                                                        @php
+                                                            $weekDays = [
+                                                                'sun' => 'Sun',
+                                                                'mon' => 'Mon',
+                                                                'tue' => 'Tue',
+                                                                'wed' => 'Wed',
+                                                                'thu' => 'Thu',
+                                                                'fri' => 'Fri',
+                                                                'sat' => 'Sat',
+                                                            ];
+                                                        @endphp
+
+                                                        @foreach ($weekDays as $value => $label)
+                                                            <div class="col-md-1">
+                                                                <input type="checkbox" class="form-check-input"
+                                                                    name="days[]" id="day_{{ $value }}"
+                                                                    value="{{ $value }}"
+                                                                    style="transform: scale(1.5);">
+                                                                <label class="form-check-label fw-bold mt-2 d-block"
+                                                                    for="day_{{ $value }}">
+                                                                    {{ $label }}
+                                                                </label>
+                                                            </div>
+                                                        @endforeach
+
+                                                    </div>
+                                                </div> --}}
+                                                <div class="col-md-8 mt-2">
+                                                    <div class="row">
+                                                        <div class="col-md-4">
+                                                            <label for="start">Start At<span
+                                                                    class="text-rose-500">*</span></label>
+                                                            <input type="time" class="form-control time-range" required
+                                                                name="start" id="start" value="00:00">
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label for="end">End At<span
+                                                                    class="text-rose-500">*</span></label>
+                                                            <input type="time" class="form-control time-range" required
+                                                                name="end" id="end" value="23:59">
+                                                        </div>
+
+
+                                                        <div class="col-md-4 mb-2">
+                                                            <label for="base_fare">Base Fare<span
+                                                                    class="text-rose-500">*</span></label>
+                                                            <input type="text" class="form-control number-only" required
+                                                                step=".01" min="0" name="base_fare"
+                                                                id="base_fare">
+                                                        </div>
+                                                        <div class="col-md-4 mb-2">
+                                                            <label for="rate_per_km">Per KM Fare<span
+                                                                    class="text-rose-500">*</span></label>
+                                                            <input type="text" class="form-control number-only" required
+                                                                step=".01" name="rate_per_km" id="rate_per_km">
+                                                        </div>
+                                                        <div class="col-md-4 mb-2">
+                                                            <label for="time_charge">Time/Charge (Rs./Minute)<span
+                                                                    class="text-rose-500">*</span></label>
+                                                            {{-- <span class="input-group-text contact_input_txt">{{ getCurrency() }}</span> --}}
+                                                            <input type="text" class="form-control number-only"
+                                                                required step=".01" name="rate_per_minute"
+                                                                id="rate_per_minute">
+                                                        </div>
+                                                        <div class="col-md-4 mb-2">
+                                                            <label for="waiting_charge">Waiting Charge (Rs./Minute)<span
+                                                                    class="text-rose-500">*</span></label>
+                                                            {{-- <span class="input-group-text contact_input_txt">{{ getCurrency() }}</span> --}}
+                                                            <input type="text" class="form-control number-only"
+                                                                required step=".01" name="waiting_charge"
+                                                                id="waiting_charge">
+                                                        </div>
+                                                        <div class="col-md-4 mb-2">
+                                                            <label for="toll_mcd">Toll + MCD<span
+                                                                    class="text-rose-500">*</span></label>
+                                                            {{-- <span class="input-group-text contact_input_txt">{{ getCurrency() }}</span> --}}
+                                                            <input type="text" class="form-control number-only"
+                                                                required step=".01" name="toll_mcd_charge"
+                                                                id="toll_mcd">
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="col-md-4">
+                                                    <label class="form-label">Existing Time Ranges</label>
+                                                    <div class="fare-preview km_fare_time p-3">
+                                                        <p class="text-muted small">Select category to view existing fares
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <br>
+                                        <div class="button_right ">
+                                            <button type="submit" class="btn btn-primary">{{ __('Save') }}</button>
+                                        </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+@endsection
+
+@push('scripts')
+    <script src="{{ asset('assets/custom/js/zone.js') }}"></script>
+    <script>
+        $(document).ready(function() {
+            // Global flags
+            let startValid = false;
+            let endValid = false;
+            const $start = $('#start');
+            const $end = $('#end');
+            const $cat = $('#category_id');
+            const $submit = $('#addFareForm button[type="submit"]');
+
+            // Helper: convert HH:MM → minutes
+            function timeToMins(t) {
+                const [h, m] = t.split(':').map(Number);
+                return h * 60 + m;
+            }
+
+            // Helper: show error under a specific field
+            function showError(msg, $field) {
+                // Remove any previous error under this field
+                $field.siblings('.time-range-error').remove();
+                const $err = $('<div class="time-range-error text-danger mt-1"></div>').text(msg);
+                $err.insertAfter($field);
+                setTimeout(() => $err.fadeOut('slow', () => $err.remove()), 4000);
+            }
+
+            // Enable/disable submit
+            function updateSubmitButton() {
+                $submit.prop('disabled', !(startValid && endValid));
+            }
+
+            // -------------------------------------------------------------
+            // 1. VALIDATE START TIME (runs first)
+            // -------------------------------------------------------------
+            function validateStart() {
+                const cat = $cat.val();
+                const s = $start.val();
+
+                startValid = false;
+                updateSubmitButton();
+                $end.prop('disabled', true); // block end until start is valid
+
+                if (!cat) {
+                    showError('Please select a vehicle category first.', $cat);
+                    return;
+                }
+
+                if (!s) {
+                    showError('Please select a start time.', $start);
+                    return;
+                }
+
+                if (!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(s)) {
+                    showError('Start time must be in HH:MM format (24-hour).', $start);
+                    return;
+                }
+
+                // AJAX: check if this exact start time already exists
+                $.ajax({
+                    url: baseUrl + 'ajax/validateStartTime',
+                    type: 'GET',
+                    data: {
+                        category: cat,
+                        start: s
+                    },
+                    dataType: 'json',
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(res) {
+                        if (!res.valid) {
+                            showError('This start time already belongs to an existing fare.', $start);
+                            $start.val('');
+                        } else {
+                            $start.siblings('.time-range-error').remove();
+                            startValid = true;
+                            updateSubmitButton();
+                            $end.prop('disabled', false).focus(); // allow end input
+                        }
+                    },
+                    error: function() {
+                        showError('Failed to check start time. Try again.', $start);
+                    }
+                });
+            }
+
+            // -------------------------------------------------------------
+            // 2. VALIDATE END TIME (only if start is valid)
+            // -------------------------------------------------------------
+            function validateEnd() {
+                if (!startValid) return;
+
+                const cat = $cat.val();
+                const s = $start.val();
+                const e = $end.val();
+
+                endValid = false;
+                updateSubmitButton();
+
+                if (!e) {
+                    showError('Please select an end time.', $end);
+                    return;
+                }
+
+                if (!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(e)) {
+                    showError('End time must be in HH:MM format (24-hour).', $end);
+                    return;
+                }
+
+                const sMins = timeToMins(s);
+                const eMins = timeToMins(e);
+
+                if (eMins <= sMins) {
+                    showError('End time must be later than start time.', $end);
+                    return;
+                }
+
+                // AJAX: check for overlap
+                $.ajax({
+                    url: baseUrl + 'ajax/validateTimeRange',
+                    type: 'GET',
+                    data: {
+                        category: cat,
+                        start: s,
+                        end: e
+                    },
+                    dataType: 'json',
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(res) {
+                        if (!res.valid) {
+                            showError('This time range overlaps with an existing fare.', $end);
+                            $end.val('');
+                        } else {
+                            $end.siblings('.time-range-error').remove();
+                            endValid = true;
+                            updateSubmitButton();
+                        }
+                    },
+                    error: function() {
+                        showError('Failed to verify time range.', $end);
+                    }
+                });
+            }
+
+            // -------------------------------------------------------------
+            // 3. EVENT LISTENERS
+            // -------------------------------------------------------------
+            $cat.on('change', function() {
+                startValid = endValid = false;
+                $start.val('00:00').siblings('.time-range-error').remove();
+                $end.val('23:59').prop('disabled', true).siblings('.time-range-error').remove();
+                updateSubmitButton();
+                if ($start.val()) validateStart();
+            });
+
+            $start.on('change', validateStart);
+            $end.on('change', validateEnd);
+
+            // -------------------------------------------------------------
+            // 4. FORM SUBMIT PROTECTION
+            // -------------------------------------------------------------
+            // $('#addFareForm').on('submit', function(e) {
+            //     if (!startValid || !endValid) {
+            //         e.preventDefault();
+            //         showError('Please fix time errors before saving.', $end);
+            //         return false;
+            //     }
+            // });
+
+            // -------------------------------------------------------------
+            // 5. YOUR EXISTING CATEGORY AJAX (unchanged)
+            // -------------------------------------------------------------
+            $('.fare-type').hide();
+            $('#category_id').on('change', function(e) {
+                e.preventDefault();
+                let category = $(this).val();
+                $.ajax({
+                    type: "GET",
+                    url: baseUrl + 'ajax/getCategoryType',
+                    data: {
+                        'category': category
+                    },
+                    dataType: "json",
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    },
+                    success: function(response) {
+                        $('.km_fare_time').empty();
+                        if (response.km_fare && response.km_fare.length > 0) {
+                            response.km_fare.forEach(fare => {
+                                $('.km_fare_time').append(
+                                    `<div class="fare-info p-2 border rounded mb-2">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-bold">Time Range:</span>
+                                        <span>${fare.start} - ${fare.end}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-bold">Base Fare:</span>
+                                        <span>${fare.base_fare}</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-bold">Rate/Km:</span>
+                                        <span>${fare.rate_per_km}</span>
+                                    </div>
+                                </div>`
+                                );
+                            });
+                        }
+                        $('.fare_type').toggle(response.slug === 'four_wheeler');
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error occurred: " + error);
+                    }
+                });
+            });
+
+            // Initial state
+            $end.prop('disabled', true);
+            updateSubmitButton();
+        });
+    </script>
+@endpush
+
+
+  public function getCategoryType(Request $request)
+    {
+        if ($request->ajax()) {
+            // dd($request->all());
+            try {
+                // $id = uuidtoid($request->category, 'categories');
+                $totalData = $this->categoryService->findCategoryById($request->category);
+                $vehicleType = Category::where('id', $totalData->parent_id)->first();
+                $kmFare = KmFare::where('category_id', $totalData->id)->get();
+                $vehicleType->km_fare = $kmFare;
+                // dd($vehicleType);
+                return $vehicleType;
+            } catch (\Exception $e) {
+                logger($e->getMessage() . ' on ' . $e->getFile() . ' line number ' . $e->getLine());
+                return $jsonData = array(
+                    "draw" => (int) $request->input('draw'),
+                    "recordsTotal" => (int) 0,
+                    "recordsFiltered" => (int) 0,
+                    "data" => []
+                );
+            }
+        }
+    }
+
+
+  public function validateTimeRange(Request $request)
+    {
+        $newStart = $request->start;
+        $newEnd   = $request->end;
+
+        $overlap = KmFare::where('category_id', $request->category)
+            ->where(function ($q) use ($newStart, $newEnd) {
+                $q->whereRaw('? BETWEEN start AND end', [$newStart])
+                    ->orWhereRaw('? BETWEEN start AND end', [$newEnd])
+                    ->orWhereRaw('start BETWEEN ? AND ?', [$newStart, $newEnd])
+                    ->orWhereRaw('end BETWEEN ? AND ?', [$newStart, $newEnd]);
+            })->exists();
+
+        return response()->json(['valid' => !$overlap]);
+    }
+
+  public function validateStartTime(Request $request)
+    {
+        $newStart = $request->start;
+        $newEnd   = $request->end;
+
+        $overlap = KmFare::where('category_id', $request->category)
+            ->where(function ($q) use ($newStart, $newEnd) {
+                $q->whereRaw('? BETWEEN start AND end', [$newStart])
+                    ->orWhereRaw('? BETWEEN start AND end', [$newEnd])
+                    ->orWhereRaw('start BETWEEN ? AND ?', [$newStart, $newEnd])
+                    ->orWhereRaw('end BETWEEN ? AND ?', [$newStart, $newEnd]);
+            })->exists();
+
+        return response()->json(['valid' => !$overlap]);
+    }
+
+
+      
