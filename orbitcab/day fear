@@ -1,3 +1,392 @@
+
+
+# Add days validation (frontend + backend)
+
+Nice — below is a complete, practical patch that adds **day-based validation** so the form will block time-ranges that overlap **on any selected day**. I make two backend options depending on how you store days in `km_fares`:
+
+* Preferred: `days` stored as a **JSON array** (MySQL `JSON` column). Example row: `["mon","tue"]`.
+* Fallback: `days` stored as a **comma-separated string** (`mon,tue`) — I include that variant too.
+
+---
+
+## 1) Frontend changes (Blade / JS)
+
+1. Send selected `days[]` in AJAX validation calls.
+2. Ensure at least one day is selected before validating start/end.
+3. Show errors if no days selected.
+
+Replace the existing JS validation functions with this updated script (only changed parts shown where possible; you can replace the whole `<script>` content inside your `@push('scripts')` block):
+
+```html
+<script>
+$(document).ready(function() {
+    // ... keep previous top part (startValid/endValid, helpers) ...
+
+    // Helper: get selected days as array (from checkboxes)
+    function getSelectedDays() {
+        const days = [];
+        $('input[name="days[]"]:checked').each(function() {
+            days.push($(this).val());
+        });
+        return days;
+    }
+
+    function validateStart() {
+        const cat = $cat.val();
+        const s = $start.val();
+        const selectedDays = getSelectedDays();
+
+        startValid = false;
+        updateSubmitButton();
+        $end.prop('disabled', true);
+
+        if (!cat) {
+            showError('Please select a vehicle category first.', $cat);
+            return;
+        }
+
+        if (selectedDays.length === 0) {
+            showError('Please select at least one day this fare applies to.', $('input[name="days[]"]').first());
+            return;
+        }
+
+        if (!s) {
+            showError('Please select a start time.', $start);
+            return;
+        }
+
+        if (!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(s)) {
+            showError('Start time must be in HH:MM format (24-hour).', $start);
+            return;
+        }
+
+        // AJAX: check if this exact start time already exists for ANY of the selected days
+        $.ajax({
+            url: baseUrl + 'ajax/validateStartTime',
+            type: 'GET',
+            data: {
+                category: cat,
+                start: s,
+                days: selectedDays // send array (jQuery will expand to days[]=mon&days[]=tue)
+            },
+            dataType: 'json',
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function(res) {
+                if (!res.valid) {
+                    showError('This start time already belongs to an existing fare for one or more selected days.', $start);
+                    $start.val('');
+                } else {
+                    $start.siblings('.time-range-error').remove();
+                    startValid = true;
+                    updateSubmitButton();
+                    $end.prop('disabled', false).focus();
+                }
+            },
+            error: function() {
+                showError('Failed to check start time. Try again.', $start);
+            }
+        });
+    }
+
+    function validateEnd() {
+        if (!startValid) return;
+
+        const cat = $cat.val();
+        const s = $start.val();
+        const e = $end.val();
+        const selectedDays = getSelectedDays();
+
+        endValid = false;
+        updateSubmitButton();
+
+        if (selectedDays.length === 0) {
+            showError('Please select at least one day this fare applies to.', $('input[name="days[]"]').first());
+            return;
+        }
+
+        if (!e) {
+            showError('Please select an end time.', $end);
+            return;
+        }
+
+        if (!/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(e)) {
+            showError('End time must be in HH:MM format (24-hour).', $end);
+            return;
+        }
+
+        const sMins = timeToMins(s);
+        const eMins = timeToMins(e);
+
+        if (eMins <= sMins) {
+            showError('End time must be later than start time.', $end);
+            return;
+        }
+
+        // AJAX: check for overlap for any of the selected days
+        $.ajax({
+            url: baseUrl + 'ajax/validateTimeRange',
+            type: 'GET',
+            data: {
+                category: cat,
+                start: s,
+                end: e,
+                days: selectedDays
+            },
+            dataType: 'json',
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function(res) {
+                if (!res.valid) {
+                    showError('This time range overlaps with an existing fare on one or more selected days.', $end);
+                    $end.val('');
+                } else {
+                    $end.siblings('.time-range-error').remove();
+                    endValid = true;
+                    updateSubmitButton();
+                }
+            },
+            error: function() {
+                showError('Failed to verify time range.', $end);
+            }
+        });
+    }
+
+    // Re-run validation when days checkboxes change (if start already present)
+    $('input[name="days[]"]').on('change', function() {
+        // reset validity and disable end until validated again
+        startValid = endValid = false;
+        $end.prop('disabled', true);
+        updateSubmitButton();
+        if ($start.val()) validateStart();
+    });
+
+    // keep your existing category change handler but ensure it doesn't remove days selection
+    // existing bindings for $cat, $start, $end remain
+    // ...
+});
+</script>
+```
+
+**Notes (frontend):**
+
+* The JS sends `days` as an array, e.g. `days[]=mon&days[]=tue`.
+* It also prevents validating if no day is selected and shows an inline error.
+* I've added a handler to re-validate when days change.
+
+---
+
+## 2) Backend changes (Controller) — two variants
+
+### A) Preferred: `days` column is JSON (MySQL `JSON`), e.g. `["mon","tue"]`
+
+Add/replace `validateTimeRange` and `validateStartTime` with this code (Laravel):
+
+```php
+use Illuminate\Http\Request;
+use App\Models\KmFare;
+
+public function validateTimeRange(Request $request)
+{
+    $category = $request->category;
+    $newStart = $request->start;
+    $newEnd   = $request->end;
+    $days = $request->input('days', []); // expect array
+
+    if (empty($days) || !$category || !$newStart || !$newEnd) {
+        return response()->json(['valid' => false]);
+    }
+
+    // Build query: find any km_fare for this category that shares ANY day in $days
+    // and has a time overlap with [$newStart, $newEnd]
+    $overlapQuery = KmFare::where('category_id', $category)
+        ->where(function($q) use ($days) {
+            foreach ($days as $day) {
+                // whereJsonContains works with MySQL JSON columns
+                $q->orWhereJsonContains('days', $day);
+            }
+        })
+        ->where(function ($q) use ($newStart, $newEnd) {
+            // overlap conditions — same as before
+            $q->whereRaw('? BETWEEN start AND end', [$newStart])
+                ->orWhereRaw('? BETWEEN start AND end', [$newEnd])
+                ->orWhereRaw('start BETWEEN ? AND ?', [$newStart, $newEnd])
+                ->orWhereRaw('end BETWEEN ? AND ?', [$newStart, $newEnd]);
+        });
+
+    $overlap = $overlapQuery->exists();
+
+    return response()->json(['valid' => !$overlap]);
+}
+
+public function validateStartTime(Request $request)
+{
+    $category = $request->category;
+    $newStart = $request->start;
+    $days = $request->input('days', []);
+
+    if (empty($days) || !$category || !$newStart) {
+        return response()->json(['valid' => false]);
+    }
+
+    $overlapQuery = KmFare::where('category_id', $category)
+        ->where(function($q) use ($days) {
+            foreach ($days as $day) {
+                $q->orWhereJsonContains('days', $day);
+            }
+        })
+        ->where(function ($q) use ($newStart) {
+            // Checking the newStart in existing ranges OR existing start equal to newStart
+            $q->whereRaw('? BETWEEN start AND end', [$newStart])
+              ->orWhere('start', $newStart);
+        });
+
+    $overlap = $overlapQuery->exists();
+
+    return response()->json(['valid' => !$overlap]);
+}
+```
+
+### B) Fallback: `days` stored as comma-separated string (e.g. `mon,tue`)
+
+If your `days` column is stored as `mon,tue` (VARCHAR), use `FIND_IN_SET` or `LIKE`. This is less ideal, but works:
+
+```php
+public function validateTimeRange(Request $request)
+{
+    $category = $request->category;
+    $newStart = $request->start;
+    $newEnd   = $request->end;
+    $days = $request->input('days', []);
+
+    if (empty($days) || !$category || !$newStart || !$newEnd) {
+        return response()->json(['valid' => false]);
+    }
+
+    $overlapQuery = KmFare::where('category_id', $category)
+        ->where(function($q) use ($days) {
+            foreach ($days as $day) {
+                // FIND_IN_SET will check CSV stored days
+                $q->orWhereRaw("FIND_IN_SET(?, days)", [$day]);
+            }
+        })
+        ->where(function ($q) use ($newStart, $newEnd) {
+            $q->whereRaw('? BETWEEN start AND end', [$newStart])
+                ->orWhereRaw('? BETWEEN start AND end', [$newEnd])
+                ->orWhereRaw('start BETWEEN ? AND ?', [$newStart, $newEnd])
+                ->orWhereRaw('end BETWEEN ? AND ?', [$newStart, $newEnd]);
+        });
+
+    $overlap = $overlapQuery->exists();
+
+    return response()->json(['valid' => !$overlap]);
+}
+
+public function validateStartTime(Request $request)
+{
+    $category = $request->category;
+    $newStart = $request->start;
+    $days = $request->input('days', []);
+
+    if (empty($days) || !$category || !$newStart) {
+        return response()->json(['valid' => false]);
+    }
+
+    $overlapQuery = KmFare::where('category_id', $category)
+        ->where(function($q) use ($days) {
+            foreach ($days as $day) {
+                $q->orWhereRaw("FIND_IN_SET(?, days)", [$day]);
+            }
+        })
+        ->where(function ($q) use ($newStart) {
+            $q->whereRaw('? BETWEEN start AND end', [$newStart])
+              ->orWhere('start', $newStart);
+        });
+
+    $overlap = $overlapQuery->exists();
+
+    return response()->json(['valid' => !$overlap]);
+}
+```
+
+**Important:** `FIND_IN_SET` works only for comma-separated strings without spaces. If values are stored like `mon, tue`, trim them or normalize before storing.
+
+---
+
+## 3) Optional: When saving new KmFare (server-side final check)
+
+Even though client-side validation helps UX, always also check on server-side before inserting. Example (in `store` method):
+
+```php
+// gather inputs
+$category = $request->category_id;
+$start = $request->start;
+$end = $request->end;
+$days = $request->days; // array
+
+// run the same overlap check as validateTimeRange (reuse logic in a private method)
+if (! $this->isTimeRangeValidForDays($category, $start, $end, $days)) {
+    return back()->withErrors(['time' => 'Selected time range overlaps existing fare for selected day(s).'])->withInput();
+}
+
+// then save
+KmFare::create([
+    'category_id' => $category,
+    'start' => $start,
+    'end' => $end,
+    'days' => json_encode($days), // preferred
+    // ... other fields
+]);
+```
+
+And create a reusable function `isTimeRangeValidForDays()` to avoid duplication.
+
+---
+
+## 4) What else to check / recommended changes
+
+* Ensure your `km_fares` table has a `days` column. If not, add one (prefer `json`):
+
+  ```php
+  $table->json('days')->nullable(); // migration
+  ```
+* Normalize days values (`mon,tue,wed`) and validate incoming days on the backend.
+* If you use timezone-sensitive times, store times in a consistent format (you currently use HH:MM — OK if consistent).
+* Add database index on `category_id` and consider indexes for JSON lookups if necessary (MySQL supports functional indexes on JSON keys in newer versions).
+* Keep the server-side validation as authoritative (never trust client only).
+
+---
+
+If you want, I can:
+
+* Patch your controller file with the JSON-based implementation (I can produce the full controller code).
+* Provide a migration to add a `days` JSON column and an example seeder for `KmFare`.
+* Add the server-side reusable `isTimeRangeValidForDays()` helper method and show how to call it from `store()`.
+
+Tell me which one you'd like next and I’ll produce the code.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 @extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
 @push('styles')
     <link rel="stylesheet" href="{{ asset('assets/custom/css/style.css') }}">
