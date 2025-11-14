@@ -1,253 +1,144 @@
-@extends('Company.layouts.app')
-&nbsp;
-&nbsp;
+Super Admin : 
+TABLE `admin_menus`
+TABLE `admin_notifactions`
+TABLE `admin_permissions`
+TABLE `admin_profiles`
+TABLE `admin_roles`
+TABLE `admin_user_permissions`
+TABLE `admin_user_roles`
+TABLE `admin_user_role_permissions`
 
-@section('activities-active', 'active')
-@section('title', __('Activities'))
-&nbsp;
-&nbsp;
+TABLE `subscription_companies`
+TABLE `additional_features`
+TABLE `subscription_logs`
+TABLE `subscription_packages`
+TABLE `subscription_package_options`
 
-@push('styles')
-<!-- Add any additional styles here -->
-@endpush
-&nbsp;
-&nbsp;
+TABLE `notifactions`
 
-@section('content')
-<div class="app-main__outer">
-    <div class="app-main__inner card">
-        <div class="dashboard_body">
-            <div class="activites-datas">
-                <div class="comp-top">
-                    <a href="{{ route('company.activities.add') }}" class="ads-btn">
-                        <span><i class="fa-solid fa-plus"></i></span>Create New
-                    </a>
-                    <a href="{{ route('company.activities.bulkbulkupload') }}" class="btn btn-secondary">
-                        <span><i class="fa-solid fa-plus"></i></span>Bulk Upload
-                    </a>
-                    <button type="button" class="btn btn-primary copy_data" data-bs-toggle="modal" data-bs-target="#myModal">Copy</button>
-                    <a href="{{ route('company.activities.export') }}" class="ads-btn">
-                        <span><i class="fa fa-download" aria-hidden="true" title="Download Activities Data in Excel"></i></span>
-                    </a>
-                </div>
-&nbsp;
-&nbsp;
+TABLE `users`
+TABLE `user_chats`
+TABLE `user_mail_send_details`
 
-                <div class="comp-top">
-                    <div class="col-lg-12">
-                        <form id="filter-form" class="d-flex">
-                            <div class="col-lg-4">
-                                <label for="from_project">Project</label>
-                                <select class="form-control mySelect2" name="from_project" id="from_project">
-                                    <option value="">----Select Project----</option>
-                                    {{ getProject('$data->project_id') }}
-                                </select>
-                                @error('project')
-                                    <div class="error">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <div class="col-lg-4">
-                                <label for="from_subproject">Sub Project</label>
-                                <select class="form-control mySelect2" name="from_subproject" id="from_subproject">
-                                    <option value="">----Select SubProject----</option>
-                                </select>
-                                @error('subproject')
-                                    <div class="error">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </form>
-                    </div>
-                </div>
-&nbsp;
-&nbsp;
 
-                <div class="comp-body">
-                    <div class="structuretable">
-                        <div class="structure_head">
-                            <div class="structureh_sing"><p>#</p></div>
-                            <div class="structureh_sing activity_strbox"><p>Activities</p></div>
-                            <div class="structureh_sing"><p>Unit</p></div>
-                            <div class="structureh_sing"><p>Qty</p></div>
-                            <div class="structureh_sing"><p>Rate</p></div>
-                            <div class="structureh_sing"><p>Amount</p></div>
-                            <div class="structureh_sing"><p>Start Date</p></div>
-                            <div class="structureh_sing"><p>End Date</p></div>
-                            <div class="structureh_sing"><p>Action</p></div>
-                        </div>
-                        <div class="accordion companyig_box" id="constGroup">
-                            {{-- @include('Company.activities.include.list') --}}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-&nbsp;
-&nbsp;
 
-<!-- Modal for Copy Activities -->
-<div class="modal fade" id="myModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h1 class="modal-title fs-5" id="exampleModalLabel">Copy Activities</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ route('company.activities.addCopyActivites') }}" method="post" enctype="multipart/form-data">
-                    @csrf
-                    <div class="row">
-                        <div class="col-lg-5">
-                            <div class="position-relative form-group">
-                                <label for="to_project">Project</label>
-                                <select class="form-control mySelect2" name="to_project" id="to_project">
-                                    <option value="">----Select Project----</option>
-                                    {{ getProject('$data->project_id') }}
-                                </select>
-                                @error('to_project')
-                                    <div class="error">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <div class="position-relative form-group">
-                                <label for="to_subproject">Sub Project</label>
-                                <select class="form-control mySelect2" name="to_subproject" id="to_subproject">
-                                    <option value="">----Select SubProject----</option>
-                                </select>
-                                @error('to_subproject')
-                                    <div class="error">{{ $message }}</div>
-                                @enderror
-                            </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <div class="position-relative form-group typeAdd">
-                                <label for="type">Type</label>
-                                <select class="form-control activiesType" name="type" id="type">
-                                    <option value="">---Select Activities---</option>
-                                    <option value="heading" {{ isset($data) && $data->type == 'heading' ? 'selected' : '' }}>Heading</option>
-                                    <option value="activites" {{ isset($data) && $data->type == 'activites' ? 'selected' : '' }}>Activities</option>
-                                </select>
-                                @error('type')
-                                    <div class="error">{{ $message }}</div>
-                                @enderror
-                            </div>
-                            <input type="hidden" value="{{ isset($data) ? $data->additional_fields : '' }}" id="additional_fields" class="additional_fields">
-                        </div>
-                        <div class="col-md-6">
-                            <div class="activites"></div>
-                        </div>
-                        <div class="activitesDatas"></div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="submit" class="btn btn-primary">Save</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-&nbsp;
-&nbsp;
+CMS  : this table mentantede for cms content, dynamic menubar  
+TABLE `banner_pages`
+TABLE `contact_details`
+TABLE `contact_reports`
+TABLE `home_pages`
+TABLE `menu_managments`
+TABLE `page_managments`
 
-@push('scripts')
-<script>
-    $(document).ready(function() {
-        $('.comp-body').hide();
-&nbsp;
-&nbsp;
 
-        // Toggle activity details
-        $(document).on("click", ".structureb_head > a", function() {
-            const $this = $(this);
-            $this.toggleClass("active");
-            $this.siblings(".structureb_sub").slideToggle(200);
-            $this.find("i.fa-solid").toggleClass("fa-chevron-down fa-chevron-up");
-        });
-&nbsp;
-&nbsp;
+Company Admin
+TABLE `company_permissions`
+TABLE `company_project_permissions`
+TABLE `company_roles`
+TABLE `company_role_managments`
+TABLE `company_role_permissions`
+TABLE `company_user_permissions`
+TABLE `company_user_roles`
 
-        // Filter projects and subprojects
-        $('#from_project').change(function() {
-            const projectId = $(this).val();
-            $.get(`{{ url('company/activities/subprojects') }}/${projectId}`, function(data) {
-                $('#from_subproject').empty().append('<option value="">---Select sub project----</option>');
-                $.each(data, function(key, value) {
-                    $.each(value.sub_project, function(subkey, subvalue) {
-                        $('#from_subproject').append(`<option value="${subvalue.id}">${subvalue.name}</option>`);
-                    });
-                });
-            });
-        });
-&nbsp;
-&nbsp;
 
-        $('#filter-form').on('change', function() {
-            const project = $('#from_project').val();
-            const subproject = $('#from_subproject').val();
-            $.ajax({
-                url: "{{ route('company.activities.copyActivites') }}",
-                type: "GET",
-                data: { project, subproject },
-                success: function(response) {
-                    $('.comp-body').show();
-                    $("#constGroup").html(response);
-                },
-                error: function(error) {
-                    alert(error);
-                }
-            });
-        });
-&nbsp;
-&nbsp;
+Master Data
+TABLE `activities`
+TABLE `assets`
+TABLE `cities`
+TABLE `clients`
+TABLE `companies`
+TABLE `company_managments`
+TABLE `companyuser_roles`
+TABLE `projects`
+TABLE `sub_projects`
+TABLE `labours`
+TABLE `materials`
+TABLE `vendors`
+TABLE `store_warehouses`
+TABLE `units`
+TABLE `company_users`
+TABLE `countries`
+TABLE `states`
+TABLE `assets_opening_stocks`
+TABLE `material_opening_stocks`
+TABLE `profile_designations`
+TABLE `teams`
 
-        // Copy activities
-        $(document).on('click', '.copy_data', function() {
-            const selectedItems = $('input[type="checkbox"]:checked').map(function() {
-                return $(this).val();
-            }).get();
-&nbsp;
-&nbsp;
 
-            $.ajax({
-                type: "post",
-                url: "{{ route('company.activities.findId') }}",
-                data: { selectedItems },
-                success: function(response) {
-                    response.forEach((value, key) => {
-                        const activityHtml = copyActivity(value, key);
-                        $('.activitesDatas').append(activityHtml);
-                    });
-                    $('#myModal').modal('show');
-                },
-                error: function(xhr) {
-                    console.error(xhr.responseText);
-                }
-            });
-        });
-&nbsp;
-&nbsp;
+DPR 
+TABLE `dprs`
+TABLE `activity_histories`
+TABLE `assets_histories`
+TABLE `materials_histories`
+TABLE `labour_histories`
+TABLE `hinderances`
+TABLE `safeties` 
 
-        function copyActivity(value, key) {
-            return `
-                <div class="position-relative form-group activity-item" data-key="${key}">
-                    <input type="hidden" name="id[${key}]" value="${value.id}">
-                    <input name="name[${key}]" value="${value.activities}">
-                    <input name="copyType[${key}]" value="${value.type}">
-                    <button type="button" class="btn btn-danger remove-activity" data-key="${key}">Remove</button>
-                </div>`;
-        }
-&nbsp;
-&nbsp;
 
-        // Remove activity from copied list
-        $(document).on('click', '.remove-activity', function() {
-            const key = $(this).data('key');
-            $(`.activity-item[data-key="${key}"]`).remove();
-        });
-    });
-</script>
-@endpush
-@endsection
+Invert 
+TABLE `inventories`
+TABLE `inventory_logs`
+TABLE `inventory_stores`
+TABLE `inv_inwards`
+TABLE `inv_inward_entry_types`
+TABLE `inv_issues`
+TABLE `inv_issues_details`
+TABLE `inv_issue_goods`
+TABLE `inv_issue_lists`
+TABLE `inv_issue_stores`
+TABLE `inv_returns`
+TABLE `inv_returns_details`
+TABLE `inv_return_goods`
+TABLE `inv_return_stores`
+TABLE `goods`
+TABLE `inward_goods`
+TABLE `inward_goods_details`
+TABLE `inward_stores`
+TABLE `materials_stock_management`
+TABLE `materials_stock_reports`
+TABLE `material_issues`
+TABLE `material_issue_stocks`
+TABLE `material_requests`
+TABLE `material_request_details`
+TABLE `project_companies`
+TABLE `project_members`
+TABLE `project_subproject`
+TABLE `pr_approval_members`
+TABLE `pr_member_managments`
+TABLE `purch_requests`
+TABLE `quotes`
+TABLE `quotes_details`
+TABLE `quotes_material_requests`
+TABLE `quotes_material_send_vendors`
+TABLE `transactions`
+TABLE `opening_stocks`
+TABLE `settings`
+TABLE `stock_managments`
+TABLE `stock_reports`
+
+
+
+
+
+
+This is a api token related useses
+TABLE `failed_jobs`
+TABLE `flights`
+TABLE `images`
+TABLE `jobs`
+TABLE `media`
+TABLE `migrations`
+TABLE `oauth_access_tokens`
+TABLE `oauth_auth_codes`
+TABLE `oauth_clients`
+TABLE `oauth_personal_access_clients`
+TABLE `oauth_refresh_tokens`
+TABLE `password_resets`
+TABLE `password_reset_tokens`
+TABLE `personal_access_tokens`
+
+
+
+
+
+
