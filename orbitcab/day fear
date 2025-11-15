@@ -1,3 +1,16 @@
+array:4 [ // app\Http\Controllers\Ajax\AjaxController.php:3396
+  "category" => "91"
+  "start" => "01:00"
+  "end" => "06:59"
+  "days" => array:3 [
+    0 => "mon"
+    1 => "tue"
+    2 => "wed"
+  ]
+]
+
+
+
 Got it — you want **step-by-step, real-time validation** tied to:
 
 1. **Category** → show existing fares.
