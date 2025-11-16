@@ -1,3 +1,207 @@
+<script>
+$(function () {
+    let startValid = false;
+    let endValid   = false;
+
+    const $cat     = $('#category_id');
+    const $start   = $('#start');
+    const $end     = $('#end');
+    const $daysChk = $('input[name="days[]"]');
+    const $submit  = $('#addFareForm button[type="submit"]');
+
+    function getSelectedDays() {
+        const d = [];
+        $daysChk.each(function () {
+            if ($(this).is(':checked')) d.push($(this).val());
+        });
+        return d;
+    }
+
+    function showError(msg, $field) {
+        $field.siblings('.time-range-error').remove();
+        const $err = $('<div class="time-range-error text-danger mt-1"></div>').text(msg);
+        $err.insertAfter($field);
+        setTimeout(() => $err.fadeOut('slow', () => $err.remove()), 5000);
+    }
+
+    function updateSubmit() {
+        $submit.prop('disabled', !(startValid && endValid));
+    }
+
+    function resetValidation() {
+        startValid = false;
+        endValid   = false;
+        $start.siblings('.time-range-error').remove();
+        $end.siblings('.time-range-error').remove();
+        $end.prop('disabled', true);
+        updateSubmit();
+    }
+
+    // ---------------- START VALIDATION ----------------
+    function validateStart() {
+        const cat  = $cat.val();
+        const s    = $start.val();
+        const days = getSelectedDays();
+
+        startValid = false;
+        endValid   = false;
+        updateSubmit();
+        $end.prop('disabled', true);
+
+        if (!cat) {
+            showError('Select a vehicle category first.', $cat);
+            return;
+        }
+
+        if (!days.length) {
+            showError('Select at least one applicable day.', $daysChk.first());
+            return;
+        }
+
+        if (!s) {
+            showError('Select a start time.', $start);
+            return;
+        }
+
+        $.ajax({
+            url: baseUrl + 'ajax/validateStartTime',
+            type: 'GET',
+            dataType: 'json',
+            data: {
+                category: cat,
+                start: s,
+                days: days // days[]=mon&days[]=tue...
+            },
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function (res) {
+                if (!res.valid) {
+                    const conflictDays = Object.keys(res.by_day || {})
+                        .filter(d => (res.by_day[d] || []).length > 0)
+                        .map(d => d.toUpperCase())
+                        .join(', ');
+
+                    const msg = conflictDays
+                        ? `Start time conflicts on: ${conflictDays}.`
+                        : (res.message || 'Start time not allowed.');
+
+                    showError(msg, $start);
+                    $start.val('');
+                    startValid = false;
+                } else {
+                    $start.siblings('.time-range-error').remove();
+                    startValid = true;
+                    $end.prop('disabled', false).focus();
+                }
+                updateSubmit();
+            },
+            error: function () {
+                showError('Error validating start time.', $start);
+            }
+        });
+    }
+
+    // ---------------- END VALIDATION ----------------
+    function validateEnd() {
+        if (!startValid) return;
+
+        const cat  = $cat.val();
+        const s    = $start.val();
+        const e    = $end.val();
+        const days = getSelectedDays();
+
+        endValid = false;
+        updateSubmit();
+
+        if (!cat || !s) return;
+
+        if (!days.length) {
+            showError('Select at least one applicable day.', $daysChk.first());
+            return;
+        }
+
+        if (!e) {
+            showError('Select an end time.', $end);
+            return;
+        }
+
+        $.ajax({
+            url: baseUrl + 'ajax/validateTimeRange',
+            type: 'GET',
+            dataType: 'json',
+            data: {
+                category: cat,
+                start: s,
+                end: e,
+                days: days
+            },
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function (res) {
+                if (!res.valid) {
+                    const conflictDays = Object.keys(res.by_day || {})
+                        .filter(d => (res.by_day[d] || []).length > 0)
+                        .map(d => d.toUpperCase())
+                        .join(', ');
+
+                    const msg = conflictDays
+                        ? `Time range conflicts on: ${conflictDays}.`
+                        : (res.message || 'Time range not allowed.');
+
+                    showError(msg, $end);
+                    $end.val('');
+                    endValid = false;
+                } else {
+                    $end.siblings('.time-range-error').remove();
+                    endValid = true;
+                }
+                updateSubmit();
+            },
+            error: function () {
+                showError('Error validating time range.', $end);
+            }
+        });
+    }
+
+    // ---------------- EVENTS ----------------
+    $start.on('change', validateStart);
+    $end.on('change', validateEnd);
+
+    $daysChk.on('change', function () {
+        resetValidation();
+        if ($start.val()) validateStart();
+    });
+
+    $cat.on('change', function () {
+        resetValidation();
+        // you already have your existing AJAX here to load existing fares
+        // keep that part, just don’t forget resetValidation() at the top
+    });
+
+    // initial
+    $end.prop('disabled', true);
+    updateSubmit();
+});
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 public function validateStartTime(Request $request)
 {
     $category = $request->category;
