@@ -1,4 +1,46 @@
- public function getFareByLocation(Request $request)
+
+ function getFareLocCulateDistance($currentLat, $currentLng, $vehicleLatitude, $vehicleLongitude)
+    {
+        $origins = $currentLat . ',' . $currentLng;
+        $destinations = $vehicleLatitude . ',' . $vehicleLongitude;
+        // Google API Key
+        $apiKey = env('GOOGLE_MAP_KEY');
+        $travelModes = ['driving', 'walking', 'bicycling', 'transit'];
+
+        // Create the Google Distance Matrix API URL
+        $url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins={$origins}&destinations={$destinations}&key={$apiKey}";
+        // Create a Guzzle client
+        $client = new Client();
+        // dd($url);
+        // Make the request to the Google Distance Matrix API
+        $response = $client->request('GET', $url);
+        // Parse the JSON response
+        $data = json_decode($response->getBody(), true);
+        // dd($data);
+        // Extract the distances and times
+        $distance = [];
+        $duration = [];
+        if ($data['status'] === 'OK') {
+            foreach ($data['rows'][0]['elements'] as $index => $element) {
+                if ($element['status'] === 'OK') {
+                    // dd($element['distance']['text']);
+                    $distance = $element['distance']['text']; // e.g., "12.4 km"
+                    $duration = $element['duration']['text']; // e.g., "18 mins"
+                    "Distance to point " . ($index + 1) . ": $distance, Duration: $duration<br>";
+                } else {
+                    "Error for point " . ($index + 1) . ": " . $element['status'] . "<br>";
+                }
+            }
+            return ['distance' => $distance, 'duration' => $duration];
+            // dd($distance, $duration);
+        } else {
+            return "Error: " . $data['status'];
+        }
+        // }
+    }
+
+
+public function getFareByLocation(Request $request)
     {
         try {
             // Fetch online drivers
