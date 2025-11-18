@@ -1,918 +1,118 @@
-<?php
-
-namespace App\Http\Controllers\Admin;
-
-use App\Http\Controllers\Controller;
-use App\Services\UserService;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
-
-class UserDocumentController extends Controller
-{
-    protected $userService;
-
-    public function __construct(UserService $userService)
-    {
-        $this->userService = $userService;
-    }
-
-    /**
-     * Handle document upload/update
-     */
-    public function documentUpdate(Request $request, $userType, $uuid)
-    {
-        Log::info('Document Upload Request', [
-            'userType' => $userType,
-            'uuid' => $uuid,
-            'all_data' => $request->all(),
-            'files' => array_keys($request->allFiles())
-        ]);
-
-        $this->setPageTitle('Documents');
-        $userId = uuidtoid($uuid, 'users');
-        
-        if (!$userId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid user identifier.',
-            ], 400);
-        }
-
-        $user = $this->userService->findById($userId);
-        
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found.',
-            ], 404);
-        }
-
-        if ($request->isMethod('post')) {
-            DB::beginTransaction();
-            try {
-                // Validate required fields
-                $validator = Validator::make($request->all(), [
-                    'document_type' => 'required|string',
-                    'rc.front' => 'sometimes|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
-                    'rc.back' => 'sometimes|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
-                    'licence.front' => 'sometimes|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
-                    'licence.back' => 'sometimes|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
-                    'aadhar.front' => 'sometimes|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
-                    'aadhar.back' => 'sometimes|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
-                    'pan' => 'sometimes|file|mimes:jpeg,png,jpg,gif,pdf|max:5120',
-                    'noc' => 'sometimes|file|mimes:pdf|max:5120',
-                ]);
-
-                if ($validator->fails()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Validation failed.',
-                        'errors' => $validator->errors()
-                    ], 422);
-                }
-
-                $documentType = $request->input('document_type');
-                $documentUuid = $request->input('document_uuid');
-                
-                Log::info('Processing document', [
-                    'document_type' => $documentType,
-                    'document_uuid' => $documentUuid,
-                    'user_id' => $userId
-                ]);
-
-                // Handle document upload/update
-                $result = $this->userService->handleDocumentUpload(
-                    $request->except('_token'),
-                    $userId,
-                    $documentType,
-                    $documentUuid
-                );
-
-                if ($result['success']) {
-                    DB::commit();
-                    
-                    Log::info('Document upload successful', [
-                        'document_id' => $result['document']->id,
-                        'file' => $result['document']->file
-                    ]);
-
-                    return response()->json([
-                        'success' => true,
-                        'message' => $result['message'],
-                        'document' => [
-                            'uuid' => $result['document']->uuid,
-                            'file_url' => asset('storage/images/documents/' . $result['document']->file)
-                        ]
-                    ]);
-                } else {
-                    throw new \Exception($result['message'] ?? 'Failed to process document');
-                }
-
-            } catch (\Throwable $e) {
-                DB::rollBack();
-                Log::error('Document Upload Error', [
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine(),
-                    'trace' => $e->getTraceAsString()
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Upload failed: ' . $e->getMessage(),
-                ], 500);
-            }
-        }
-
-        return view('admin.user.index', compact('userType', 'user'));
-    }
-
-    /**
-     * Handle vehicle details update
-     */
-    public function vehicleDetailsUpdate(Request $request, $userType, $uuid, $tabtype)
-    {
-        Log::info('Vehicle Details Update', [
-            'userType' => $userType,
-            'uuid' => $uuid,
-            'tabtype' => $tabtype,
-            'data' => $request->except('_token')
-        ]);
-
-        $userId = uuidtoid($uuid, 'users');
-        $user = $this->userService->findById($userId);
-
-        if ($request->isMethod('post')) {
-            DB::beginTransaction();
-            try {
-                $validator = Validator::make($request->all(), [
-                    'vehicle_type' => 'required|exists:categories,id',
-                    'vehicle_sub_type' => 'required|exists:categories,id',
-                    'brand_id' => 'required|exists:brands,id',
-                    'vehicle_model' => 'required|exists:cars,id',
-                    'vehicle_color' => 'required|string|max:50',
-                    'vehicle_no' => 'required|string|max:20',
-                    'seating_capacity' => 'required|integer|min:1',
-                    'milage' => 'required|numeric|min:0'
-                ]);
-
-                if ($validator->fails()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Validation failed.',
-                        'errors' => $validator->errors()
-                    ], 422);
-                }
-
-                // Update vehicle details
-                $vehicleData = $request->only([
-                    'vehicle_type', 'vehicle_sub_type', 'brand_id', 
-                    'vehicle_model', 'vehicle_color', 'vehicle_no', 
-                    'seating_capacity', 'milage'
-                ]);
-
-                $vehicleData['user_id'] = $userId;
-                $vehicleData['vehicle_id'] = $request->input('vehicle_id');
-
-                if ($this->userService->updateVehicleDetails($vehicleData)) {
-                    DB::commit();
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Vehicle details updated successfully.'
-                    ]);
-                } else {
-                    throw new \Exception('Failed to update vehicle details.');
-                }
-
-            } catch (\Throwable $e) {
-                DB::rollBack();
-                Log::error('Vehicle Details Update Error', [
-                    'message' => $e->getMessage(),
-                    'file' => $e->getFile(),
-                    'line' => $e->getLine()
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Update failed: ' . $e->getMessage(),
-                ], 500);
-            }
-        }
-
-        return view('admin.user.index', compact('userType', 'user'));
-    }
-}
-
-
-
-2. Optimized Service/Repository Method
-<?php
-
-namespace App\Services;
-
-use App\Models\Document;
-use App\Models\User;
-use App\Models\Vehicle;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-
-class UserService
-{
-    // ... other methods ...
-
-    /**
-     * Handle document upload with proper file management
-     */
-    public function handleDocumentUpload(array $data, int $userId, string $documentType, ?string $documentUuid = null): array
+ public function getFareByLocation(Request $request)
     {
         try {
-            $user = User::find($userId);
-            if (!$user) {
-                return ['success' => false, 'message' => 'User not found.'];
+            // Fetch online drivers
+            $driversOnlineList = $this->userService->findUserByRole([
+                'is_online' => true,
+                'is_blocked' => false
+            ], 'driver');
+
+            // Extract driver IDs
+            $driverIds = $driversOnlineList->pluck('id')->toArray();
+            if (empty($driverIds)) {
+                return $this->responseJson(false, 200, __('No Online Drivers Available'), []);
             }
 
-            // Find or create document
-            if ($documentUuid) {
-                $document = Document::where('uuid', $documentUuid)
-                    ->where('user_id', $userId)
-                    ->first();
-            } else {
-                $document = Document::where('document_type', $documentType)
-                    ->where('user_id', $userId)
-                    ->first();
+            // Fetch drivers with ongoing bookings (status 1,2,3,4 and is_accept = 2)
+            $busyDriverIds = Booking::whereIn('status', [1, 2, 3, 4])
+                ->where('is_accepted', 2)
+                ->pluck('driver_id')
+                ->toArray();
+
+            // Exclude busy drivers
+            $availableDriverIds = array_diff($driverIds, $busyDriverIds);
+
+            if (empty($availableDriverIds)) {
+                return $this->responseJson(false, 200, __('No Available Drivers'), []);
             }
 
-            if (!$document) {
-                $document = new Document();
-                $document->user_id = $userId;
-                $document->document_type = $documentType;
-                $document->uuid = Str::uuid();
-                $document->title = $this->getDocumentTitle($documentType);
-                $document->status = 0; // Pending
+            // Fetch vehicles with active categories and fares
+            $vehicles = Vehicle::with([
+                'category.fares' => function ($query) {
+                    $query->where('is_active', 1);
+                },
+                'user:id,latitude,longitude'
+            ])
+                ->whereIn('user_id', $availableDriverIds)
+                ->where('is_primary', 1)
+                ->whereHas('category', function ($query) {
+                    $query->where('is_active', 1)->whereHas('fares', function ($fareQuery) {
+                        $fareQuery->where('is_active', 1);
+                    });
+                })
+                // ->select(['id', 'user_id', 'category_id'])
+                ->orderByDesc('id')
+                ->get();
+
+            if ($vehicles->isEmpty()) {
+                return $this->responseJson(false, 200, __('No Vehicles Available'), []);
             }
 
-            // Handle file upload based on document type
-            $fileField = $this->getFileFieldForDocumentType($documentType);
-            $file = $this->extractFileFromData($data, $fileField);
+            // Calculate trip distance and duration
+            $distances = calculateDistances($request->pickup, $request->drop);
+            $totalDistanceKm = $distances['distance'] ?? 0;
+            $totalDurationMin = round($distances['duration']) ?? 0;
 
-            if (!$file) {
-                return ['success' => false, 'message' => 'No file provided for upload.'];
-            }
+            // Get current location if provided
+            $currentLat = $request->input('lat');
+            $currentLng = $request->input('lng');
 
-            // Delete old file if exists
-            if ($document->file && Storage::exists('public/images/documents/' . $document->file)) {
-                Storage::delete('public/images/documents/' . $document->file);
-            }
-
-            // Upload new file
-            $fileName = $this->generateFileName($file, $documentType);
-            $path = $file->storeAs('public/images/documents', $fileName);
-
-            if ($path) {
-                $document->file = $fileName;
-                $document->save();
-
-                return [
-                    'success' => true,
-                    'message' => 'Document uploaded successfully.',
-                    'document' => $document
-                ];
-            } else {
-                return ['success' => false, 'message' => 'Failed to store file.'];
-            }
-
-        } catch (\Exception $e) {
-            return ['success' => false, 'message' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * Extract file from data based on document type
-     */
-    private function extractFileFromData(array $data, string $fileField): ?\Illuminate\Http\UploadedFile
-    {
-        $fieldParts = explode('.', $fileField);
-        
-        if (count($fieldParts) === 1) {
-            return $data[$fieldParts[0]] ?? null;
-        }
-        
-        if (count($fieldParts) === 2) {
-            return $data[$fieldParts[0]][$fieldParts[1]] ?? null;
-        }
-        
-        return null;
-    }
-
-    /**
-     * Get file field mapping for document types
-     */
-    private function getFileFieldForDocumentType(string $documentType): string
-    {
-        $mappings = [
-            'rc_front' => 'rc.front',
-            'rc_back' => 'rc.back',
-            'licence_front' => 'licence.front',
-            'licence_back' => 'licence.back',
-            'aadhar_front_image' => 'aadhar.front',
-            'aadhar_back_image' => 'aadhar.back',
-            'pan_card' => 'pan',
-            'noc' => 'noc',
-            'vehicle_front' => 'vehicle.front',
-            'vehicle_back' => 'vehicle.back'
-        ];
-
-        return $mappings[$documentType] ?? $documentType;
-    }
-
-    /**
-     * Get human-readable document title
-     */
-    private function getDocumentTitle(string $documentType): string
-    {
-        $titles = [
-            'rc_front' => 'RC Front Image',
-            'rc_back' => 'RC Back Image',
-            'licence_front' => 'Driving Licence Front',
-            'licence_back' => 'Driving Licence Back',
-            'aadhar_front_image' => 'Aadhaar Front Image',
-            'aadhar_back_image' => 'Aadhaar Back Image',
-            'pan_card' => 'PAN Card',
-            'noc' => 'NOC Document',
-            'vehicle_front' => 'Vehicle Front Image',
-            'vehicle_back' => 'Vehicle Back Image'
-        ];
-
-        return $titles[$documentType] ?? ucfirst(str_replace('_', ' ', $documentType));
-    }
-
-    /**
-     * Generate unique filename
-     */
-    private function generateFileName($file, string $documentType): string
-    {
-        $extension = $file->getClientOriginalExtension();
-        $timestamp = time();
-        $random = Str::random(10);
-        
-        return "{$documentType}_{$timestamp}_{$random}.{$extension}";
-    }
-
-    /**
-     * Update vehicle details
-     */
-    public function updateVehicleDetails(array $data): bool
-    {
-        try {
-            $vehicleId = $data['vehicle_id'] ?? null;
-            
-            if ($vehicleId) {
-                $vehicle = Vehicle::find($vehicleId);
-            } else {
-                $vehicle = new Vehicle();
-            }
-
-            $vehicle->user_id = $data['user_id'];
-            $vehicle->category_id = $data['vehicle_sub_type'];
-            $vehicle->brand_id = $data['brand_id'];
-            $vehicle->car_id = $data['vehicle_model'];
-            $vehicle->color = $data['vehicle_color'];
-            $vehicle->plate_no = $data['vehicle_no'];
-            $vehicle->seating_capacity = $data['seating_capacity'];
-            $vehicle->milage = $data['milage'];
-            
-            return $vehicle->save();
-            
-        } catch (\Exception $e) {
-            Log::error('Vehicle update error: ' . $e->getMessage());
-            return false;
-        }
-    }
-}
-3. Fixed Blade Template (RC Section Example)
-<!-- RC Image Details -->
-<fieldset class="border border-dark rounded mb-2">
-    <legend class="text-white text-bold bg-dark mx-auto rounded w-25 badge badge-lg">
-        RC Image Details
-    </legend>
-
-    @php
-        $rcDocuments = $user->documents->filter(function ($item) {
-            return in_array($item->document_type, ['rc_front', 'rc_back']);
-        });
-        
-        $rcFrontDoc = $rcDocuments->firstWhere('document_type', 'rc_front');
-        $rcBackDoc = $rcDocuments->firstWhere('document_type', 'rc_back');
-    @endphp
-
-    <div class="d-flex flex-wrap">
-        <!-- Existing RC Documents -->
-        @foreach($rcDocuments as $document)
-            <div class="card col-md-6 mb-3">
-                @if (str_contains($document->file ?? '', 'pdf'))
-                    <div class="card-body text-center">
-                        <a href="{{ asset('storage/images/documents/' . $document->file) }}" target="_blank" class="btn btn-outline-primary">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png"
-                                alt="PDF Icon" width="30" height="30" class="me-2">
-                            Download PDF
-                        </a>
-                    </div>
-                @else
-                    <div class="user-avatar-section">
-                        <div class="d-flex align-items-center flex-column p-3">
-                            <a href="{{ asset('storage/images/documents/' . $document->file) }}" 
-                               data-fancybox data-caption="{{ $document->title }}">
-                                <img src="{{ asset('storage/images/documents/' . $document->file) }}" 
-                                     class="img-fluid doc-img rounded" alt="{{ $document->title }}"
-                                     style="max-height: 200px; object-fit: contain;">
-                            </a>
-                            <div class="user-info text-center mt-2">
-                                <span class="badge bg-label-danger rounded-pill">{{ $document->title }}</span>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-
-                <div class="card-body">
-                    <h4 class="card-title {{ $document->status == 1 ? 'text-success' : ($document->status == 2 ? 'text-danger' : 'text-warning') }}">
-                        {{ $document->status == 1 ? 'Approved' : ($document->status == 2 ? 'Rejected' : 'Pending') }}
-                        @if ($document->status == 2 && $document->reject_reason)
-                            - <small class="text-muted">{{ $document->reject_reason }}</small>
-                        @endif
-                    </h4>
-                    
-                    <p class="card-text text-muted">{{ $document->title }}</p>
-
-                    @if (!$document->status)
-                        <div class="row approveRejectSection">
-                            <div class="col-6">
-                                <a href="javascript:void(0)" class="btn btn-success btn-sm changeDocumentStatus"
-                                    data-uuid="{{ $document->uuid }}" data-user-uuid="{{ $user->uuid }}"
-                                    data-table="documents" data-status="1">
-                                    <i class="fas fa-check me-1"></i>Accept
-                                </a>
-                            </div>
-                            <div class="col-6">
-                                <a href="javascript:void(0)" class="btn btn-danger btn-sm changeDocumentStatus"
-                                    data-user-uuid="{{ $user->uuid }}" data-uuid="{{ $document->uuid }}"
-                                    data-table="documents" data-status="2">
-                                    <i class="fas fa-times me-1"></i>Reject
-                                </a>
-                            </div>
-                        </div>
-                    @endif
-                </div>
-            </div>
-        @endforeach
-
-        <!-- RC Front Upload Form -->
-        <div class="card col-md-6 mb-3">
-            <div class="card-header">
-                <h6 class="card-title mb-0">Upload RC Front</h6>
-            </div>
-            <div class="card-body">
-                <form class="rc-upload-form" 
-                      action="{{ route('admin.users.document.update', ['usertype' => 'driver', 'uuid' => $user->uuid]) }}" 
-                      enctype="multipart/form-data" method="POST">
-                    @csrf
-                    
-                    <input type="hidden" name="document_type" value="rc_front">
-                    @if($rcFrontDoc)
-                        <input type="hidden" name="document_uuid" value="{{ $rcFrontDoc->uuid }}">
-                    @endif
-
-                    <div class="single_login form_group">
-                        <div class="imgupload_box">
-                            <div class="imgupload_btn">
-                                <label class="form-label mb-2">Front Side Image <span class="text-danger">*</span></label>
-                                <div class="upload-photo">
-                                    <input class="file-upload showOnUpload" 
-                                           id="rc-front-{{ $user->uuid }}" 
-                                           name="rc[front]" 
-                                           type="file" 
-                                           data-location="showrFrontSide-{{ $user->uuid }}"
-                                           accept="image/*,.pdf" required>
-                                    <label for="rc-front-{{ $user->uuid }}" class="btn btn-outline-primary w-100">
-                                        <i class="fas fa-upload me-2"></i>Choose File
-                                    </label>
-                                </div>
-                                <small class="form-text text-muted">Allowed: JPG, PNG, PDF. Max: 5MB</small>
-                            </div>
-                            <div class="img-uploadbox mt-3 text-center">
-                                <img id="showrFrontSide-{{ $user->uuid }}" 
-                                     src="{{ $rcFrontDoc && $rcFrontDoc->file ? asset('storage/images/documents/' . $rcFrontDoc->file) : 'https://via.placeholder.com/300x200?text=RC+Front+Preview' }}" 
-                                     class="img-fluid doc-img rounded border" 
-                                     alt="RC Front Preview"
-                                     style="max-height: 200px; object-fit: contain;">
-                            </div>
-                        </div>
-                        
-                        <div class="form-error text-danger small mt-1"></div>
-                        
-                        <button type="submit" class="btn btn-primary mt-3 w-100">
-                            <i class="fas fa-upload me-1"></i> 
-                            <span class="submit-text">Upload RC Front</span>
-                            <div class="spinner-border spinner-border-sm d-none ms-2" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- RC Back Upload Form -->
-        <div class="card col-md-6 mb-3">
-            <div class="card-header">
-                <h6 class="card-title mb-0">Upload RC Back</h6>
-            </div>
-            <div class="card-body">
-                <form class="rc-upload-form" 
-                      action="{{ route('admin.users.document.update', ['usertype' => 'driver', 'uuid' => $user->uuid]) }}" 
-                      enctype="multipart/form-data" method="POST">
-                    @csrf
-                    
-                    <input type="hidden" name="document_type" value="rc_back">
-                    @if($rcBackDoc)
-                        <input type="hidden" name="document_uuid" value="{{ $rcBackDoc->uuid }}">
-                    @endif
-
-                    <div class="single_login form_group">
-                        <div class="imgupload_box">
-                            <div class="imgupload_btn">
-                                <label class="form-label mb-2">Back Side Image <span class="text-danger">*</span></label>
-                                <div class="upload-photo">
-                                    <input class="file-upload showOnUpload" 
-                                           id="rc-back-{{ $user->uuid }}" 
-                                           name="rc[back]" 
-                                           type="file" 
-                                           data-location="showrBackSide-{{ $user->uuid }}"
-                                           accept="image/*,.pdf" required>
-                                    <label for="rc-back-{{ $user->uuid }}" class="btn btn-outline-primary w-100">
-                                        <i class="fas fa-upload me-2"></i>Choose File
-                                    </label>
-                                </div>
-                                <small class="form-text text-muted">Allowed: JPG, PNG, PDF. Max: 5MB</small>
-                            </div>
-                            <div class="img-uploadbox mt-3 text-center">
-                                <img id="showrBackSide-{{ $user->uuid }}" 
-                                     src="{{ $rcBackDoc && $rcBackDoc->file ? asset('storage/images/documents/' . $rcBackDoc->file) : 'https://via.placeholder.com/300x200?text=RC+Back+Preview' }}" 
-                                     class="img-fluid doc-img rounded border" 
-                                     alt="RC Back Preview"
-                                     style="max-height: 200px; object-fit: contain;">
-                            </div>
-                        </div>
-                        
-                        <div class="form-error text-danger small mt-1"></div>
-                        
-                        <button type="submit" class="btn btn-primary mt-3 w-100">
-                            <i class="fas fa-upload me-1"></i> 
-                            <span class="submit-text">Upload RC Back</span>
-                            <div class="spinner-border spinner-border-sm d-none ms-2" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        @if($rcDocuments->isEmpty())
-            <div class="col-12">
-                <p class="text-muted text-center py-4">No RC documents uploaded yet.</p>
-            </div>
-        @endif
-    </div>
-</fieldset>
-
-4. Optimized JavaScript
-$(document).ready(function() {
-    // Initialize all document upload functionality
-    initDocumentUploads();
-    
-    // Initialize vehicle details edit functionality
-    initVehicleDetailsEdit();
-    
-    // Initialize document status change functionality
-    initDocumentStatusChange();
-});
-
-/**
- * Initialize document upload functionality
- */
-function initDocumentUploads() {
-    // File upload preview with validation
-    $(document).on('change', '.file-upload', function() {
-        const input = this;
-        const imgId = $(this).data('location');
-        const imgElement = $('#' + imgId);
-        const form = $(this).closest('form');
-        const errorElement = form.find('.form-error');
-        
-        // Reset error
-        errorElement.text('').hide();
-        
-        if (input.files && input.files[0]) {
-            const file = input.files[0];
-            
-            // Validate file size (5MB)
-            if (file.size > 5 * 1024 * 1024) {
-                errorElement.text('File size must be less than 5MB').show();
-                input.value = '';
-                imgElement.attr('src', 'https://via.placeholder.com/300x200?text=Invalid+File');
-                return;
-            }
-            
-            // Validate file type
-            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
-            if (!validTypes.includes(file.type)) {
-                errorElement.text('Invalid file type. Please upload JPG, PNG, GIF, or PDF.').show();
-                input.value = '';
-                imgElement.attr('src', 'https://via.placeholder.com/300x200?text=Invalid+File');
-                return;
-            }
-            
-            // Preview image or show PDF icon
-            if (file.type.includes('image')) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    imgElement.attr('src', e.target.result);
-                };
-                reader.readAsDataURL(file);
-            } else if (file.type === 'application/pdf') {
-                imgElement.attr('src', 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/PDF_file_icon.svg/1667px-PDF_file_icon.svg.png');
-            }
-        } else {
-            imgElement.attr('src', 'https://via.placeholder.com/300x200?text=Preview');
-        }
-    });
-
-    // AJAX form submission for all document uploads
-    $(document).on('submit', '.rc-upload-form, .licence-upload-form, .aadhaar-upload-form, .pancard-form, .noc-form, .vehicle-upload-form', function(e) {
-        e.preventDefault();
-
-        const form = $(this);
-        const formData = new FormData(this);
-        const submitBtn = form.find('button[type="submit"]');
-        const submitText = form.find('.submit-text');
-        const spinner = form.find('.spinner-border');
-        const errorElement = form.find('.form-error');
-
-        // Reset error
-        errorElement.text('').hide();
-
-        // Validate file is selected
-        const fileInput = form.find('input[type="file"]')[0];
-        if (!fileInput.files || !fileInput.files[0]) {
-            errorElement.text('Please select a file to upload.').show();
-            return;
-        }
-
-        console.log('Starting document upload...', {
-            action: form.attr('action'),
-            documentType: form.find('input[name="document_type"]').val(),
-            fileName: fileInput.files[0].name,
-            fileSize: fileInput.files[0].size
-        });
-
-        // Show loading state
-        submitBtn.prop('disabled', true);
-        submitText.text('Uploading...');
-        spinner.removeClass('d-none');
-
-        $.ajax({
-            url: form.attr('action'),
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            },
-            success: function(response) {
-                console.log('Upload success:', response);
-                
-                if (response.success) {
-                    // Show success message
-                    showToast('Success', response.message, 'success');
-                    
-                    // Reload page after short delay to show updated content
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                } else {
-                    errorElement.text(response.message || 'Upload failed. Please try again.').show();
-                    showToast('Error', response.message || 'Upload failed', 'error');
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('Upload error:', xhr.responseJSON);
-                
-                let errorMessage = 'Upload failed. Please try again.';
-                
-                if (xhr.responseJSON) {
-                    errorMessage = xhr.responseJSON.message || errorMessage;
-                    
-                    // Handle validation errors
-                    if (xhr.responseJSON.errors) {
-                        const errors = Object.values(xhr.responseJSON.errors).flat();
-                        errorMessage = errors.join(', ');
+            // Calculate distance from current location to each vehicle
+            if ($currentLat && $currentLng) {
+                foreach ($vehicles as $vehicle) {
+                    if ($vehicle->user) {
+                        $vehicle->distance = getFareLocCulateDistance($currentLat, $currentLng, $vehicle->user->latitude, $vehicle->user->longitude);
                     }
-                } else if (xhr.status === 0) {
-                    errorMessage = 'Network error. Please check your connection.';
                 }
-                
-                errorElement.text(errorMessage).show();
-                showToast('Error', errorMessage, 'error');
-            },
-            complete: function() {
-                // Reset button state
-                submitBtn.prop('disabled', false);
-                submitText.text('Upload');
-                spinner.addClass('d-none');
             }
-        });
-    });
-}
 
-/**
- * Initialize vehicle details edit functionality
- */
-function initVehicleDetailsEdit() {
-    const editBtn = $('#vehicle_details_edit');
-    const editables = $('.editedinput-vehicle');
-    const displayValues = $('.editedinput-vehicle-value');
-    
-    let isEditing = false;
+            $groupedVehicles = $vehicles->groupBy('category_id');
+            $currentDate = Carbon::now()->format('Y-m-d');
 
-    editBtn.on('click', function() {
-        isEditing = !isEditing;
-        
-        if (isEditing) {
-            // Enter edit mode
-            editables.show();
-            displayValues.hide();
-            editBtn.text('Cancel').removeClass('btn-primary').addClass('btn-secondary');
-            
-            // Initialize select2 if needed
-            if ($.fn.select2) {
-                $('#vehicle_type, #vehicle_sub_type_select, #brand_id, #vehicle_model').select2({
-                    width: '100%',
-                    placeholder: 'Select option'
-                });
-            }
-        } else {
-            // Cancel edit mode
-            editables.hide();
-            displayValues.show();
-            editBtn.text('Edit').removeClass('btn-secondary').addClass('btn-primary');
-        }
-    });
+            $nearestVehicles = $groupedVehicles->map(function ($vehicles) use ($totalDistanceKm, $totalDurationMin, $distances, $currentDate) {
+                $nearestVehicle = $vehicles->sortBy('distance')->first();
 
-    // Vehicle details form submission
-    $('#vehicle-details-form').on('submit', function(e) {
-        e.preventDefault();
-        
-        const form = $(this);
-        const formData = form.serialize();
-        const submitBtn = form.find('button[type="submit"]');
-        
-        console.log('Updating vehicle details...', formData);
-
-        $.ajax({
-            url: form.attr('action'),
-            type: 'POST',
-            data: formData,
-            headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            },
-            beforeSend: function() {
-                submitBtn.prop('disabled', true).text('Updating...');
-            },
-            success: function(response) {
-                if (response.success) {
-                    showToast('Success', response.message, 'success');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
+                if (!$nearestVehicle || !$nearestVehicle->category) {
+                    return null;
+                }
+                $appliedFare = null;
+                // 1. Try special time slot fare (if any)
+                $fareSpecial = getBaseFareFromSpecialTimeSlot($nearestVehicle->category->faresDate);
+                if ($fareSpecial) {
+                    // dd($nearestVehicle->category->faresDate);
+                    if ($fareSpecial !== null) {
+                        $appliedFare = $fareSpecial;
+                        // dd($appliedFare);
+                    }
                 } else {
-                    showToast('Error', response.message || 'Update failed', 'error');
+                    // 2. Fallback to regular time slot fare
+                    // if ($appliedFare === null && $nearestVehicle->category->fares) {
+                    $fareRegular = getBaseFareFromTimeSlot($nearestVehicle->category->fares);
+                    if ($fareRegular !== null) {
+                        $appliedFare = $fareRegular;
+                    }
                 }
-            },
-            error: function(xhr) {
-                const errorMessage = xhr.responseJSON?.message || 'Update failed. Please try again.';
-                showToast('Error', errorMessage, 'error');
-            },
-            complete: function() {
-                submitBtn.prop('disabled', false).text('Submit');
-            }
-        });
-    });
-}
 
-/**
- * Initialize document status change functionality
- */
-function initDocumentStatusChange() {
-    $(document).on('click', '.changeDocumentStatus', function() {
-        const button = $(this);
-        const uuid = button.data('uuid');
-        const userUuid = button.data('user-uuid');
-        const status = button.data('status');
-        const table = button.data('table');
-        
-        const action = status == 1 ? 'approve' : 'reject';
-        const confirmMessage = `Are you sure you want to ${action} this document?`;
-        
-        if (!confirm(confirmMessage)) {
-            return;
+                //  If no valid fare (or fare has null/invalid days), EXCLUDE this vehicle
+                if ($appliedFare === null) {
+                    return null;
+                }
+
+                // Calculate fare
+                $totalFare = (float)($appliedFare->base_fare ?? 0)
+                    + ((float)($appliedFare->rate_per_km ?? 0) * $totalDistanceKm)
+                    + ((float)($appliedFare->rate_per_minute ?? 0) * $totalDurationMin);
+
+                $nearestVehicle->total_fare = round(calculateAmountWithGST($totalFare), 2);
+                $nearestVehicle->distance = $distances;
+
+                return $nearestVehicle;
+            })->filter(); // Removes null entries
+
+            // dd($nearestVehicles->toArray());
+            return $this->responseJson(true, 200, __('Vehicle Found Successfully'), VehicleNewResource::collection($nearestVehicles));
+        } catch (\Exception $e) {
+            logger()->error("Error: {$e->getMessage()} | File: {$e->getFile()} | Line: {$e->getLine()}");
+            return $this->responseJson(false, 500, __('Something Went Wrong'));
         }
-
-        console.log(`Changing document status:`, { uuid, userUuid, status, table });
-
-        // You'll need to implement this AJAX call based on your backend
-        // This is a placeholder for the status change functionality
-        $.ajax({
-            url: '/admin/documents/status-update', // Update this route
-            type: 'POST',
-            data: {
-                uuid: uuid,
-                user_uuid: userUuid,
-                status: status,
-                table: table,
-                _token: $('meta[name="csrf-token"]').attr('content')
-            },
-            beforeSend: function() {
-                button.prop('disabled', true).text('Processing...');
-            },
-            success: function(response) {
-                if (response.success) {
-                    showToast('Success', `Document ${action}d successfully`, 'success');
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
-                } else {
-                    showToast('Error', response.message || `Failed to ${action} document`, 'error');
-                }
-            },
-            error: function(xhr) {
-                const errorMessage = xhr.responseJSON?.message || `Failed to ${action} document`;
-                showToast('Error', errorMessage, 'error');
-            },
-            complete: function() {
-                button.prop('disabled', false).text(status == 1 ? 'Accept' : 'Reject');
-            }
-        });
-    });
-}
-
-/**
- * Utility function to show toast notifications
- */
-function showToast(title, message, type = 'info') {
-    // You can use any toast library here
-    // This is a basic implementation using Bootstrap toast
-    const toastId = 'toast-' + Date.now();
-    const bgClass = type === 'success' ? 'bg-success' : 
-                   type === 'error' ? 'bg-danger' : 
-                   type === 'warning' ? 'bg-warning' : 'bg-info';
-    
-    const toastHtml = `
-        <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
-            <div class="d-flex">
-                <div class="toast-body">
-                    <strong>${title}:</strong> ${message}
-                </div>
-                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        </div>
-    `;
-    
-    $('#toast-container').append(toastHtml);
-    new bootstrap.Toast(document.getElementById(toastId)).show();
-    
-    // Remove toast after hide
-    $('#' + toastId).on('hidden.bs.toast', function() {
-        $(this).remove();
-    });
-}
-
-// Add this to your layout file for toast container
-// <div id="toast-container" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 11"></div>
-5. Route Definitions
-// routes/web.php (Admin routes)
-Route::prefix('admin')->group(function() {
-    // Document upload routes
-    Route::post('/users/{usertype}/{uuid}/documents', [UserDocumentController::class, 'documentUpdate'])
-        ->name('admin.users.document.update');
-    
-    // Vehicle details update route
-    Route::post('/users/{usertype}/{uuid}/vehicle-details/{tabtype}', [UserDocumentController::class, 'vehicleDetailsUpdate'])
-        ->name('admin.users.vehicle.details');
-    
-    // Document status update route
-    Route::post('/documents/status-update', [UserDocumentController::class, 'updateDocumentStatus'])
-        ->name('admin.documents.status.update');
-});
+    }
