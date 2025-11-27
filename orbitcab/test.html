@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Geofence Polygon Drawing</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Leaflet Draw CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+        
+        .controls {
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        #polygonData {
+            margin-top: 20px;
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #ddd;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h2>Geofence Polygon Drawing</h2>
+        <p>Draw a main polygon first, then draw multiple inner polygons inside it.</p>
+        <button onclick="clearAllPolygons()">Clear All</button>
+        <button onclick="savePolygons()">Save Polygons</button>
+        <div id="polygonData"></div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- Leaflet Draw JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([28.7041, 77.1025], 12);
+        
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Create a feature group to store all drawn polygons
+        var drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+        
+        // Array to store all polygons
+        var allPolygons = [];
+        var mainPolygon = null;
+        
+        // Initialize the draw control
+        var drawControl = new L.Control.Draw({
+            position: 'topright',
+            draw: {
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true,
+                    drawError: {
+                        color: '#e74c3c',
+                        message: '<strong>Error:</strong> Shape edges cannot cross!'
+                    },
+                    shapeOptions: {
+                        color: '#3388ff'
+                    }
+                },
+                polyline: false,
+                rectangle: false,
+                circle: false,
+                marker: false,
+                circlemarker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: true
+            }
+        });
+        map.addControl(drawControl);
+        
+        // Event: When a polygon is created
+        map.on(L.Draw.Event.CREATED, function (event) {
+            var layer = event.layer;
+            var type = event.layerType;
+            
+            if (type === 'polygon') {
+                var coordinates = layer.getLatLngs()[0];
+                var coordsArray = coordinates.map(function(latlng) {
+                    return [latlng.lat, latlng.lng];
+                });
+                
+                // Check if this is the first polygon (main polygon)
+                if (allPolygons.length === 0) {
+                    mainPolygon = layer;
+                    layer.setStyle({ color: '#ff0000', fillColor: '#ff0000', fillOpacity: 0.2 });
+                    allPolygons.push({
+                        type: 'main',
+                        coordinates: coordsArray
+                    });
+                    drawnItems.addLayer(layer);
+                    updatePolygonDisplay();
+                } else {
+                    // Check if all points are inside the main polygon
+                    var allInside = coordinates.every(function(latlng) {
+                        return isPointInPolygon(latlng, mainPolygon.getLatLngs()[0]);
+                    });
+                    
+                    if (allInside) {
+                        layer.setStyle({ color: '#00ff00', fillColor: '#00ff00', fillOpacity: 0.3 });
+                        allPolygons.push({
+                            type: 'inner',
+                            coordinates: coordsArray
+                        });
+                        drawnItems.addLayer(layer);
+                        updatePolygonDisplay();
+                    } else {
+                        alert('Inner polygon must be completely inside the main polygon!');
+                    }
+                }
+            }
+        });
+        
+        // Event: When a polygon is edited
+        map.on(L.Draw.Event.EDITED, function (event) {
+            var layers = event.layers;
+            layers.eachLayer(function (layer) {
+                var coordinates = layer.getLatLngs()[0];
+                var coordsArray = coordinates.map(function(latlng) {
+                    return [latlng.lat, latlng.lng];
+                });
+                
+                // Update the polygon in the array
+                var index = allPolygons.findIndex(function(p) {
+                    return JSON.stringify(p.coordinates) === JSON.stringify(layer._originalCoords);
+                });
+                
+                if (index !== -1) {
+                    allPolygons[index].coordinates = coordsArray;
+                }
+            });
+            updatePolygonDisplay();
+        });
+        
+        // Event: When polygons are deleted
+        map.on(L.Draw.Event.DELETED, function (event) {
+            var layers = event.layers;
+            layers.eachLayer(function (layer) {
+                var coordinates = layer.getLatLngs()[0];
+                var coordsArray = coordinates.map(function(latlng) {
+                    return [latlng.lat, latlng.lng];
+                });
+                
+                // Remove from allPolygons array
+                allPolygons = allPolygons.filter(function(p) {
+                    return JSON.stringify(p.coordinates) !== JSON.stringify(coordsArray);
+                });
+                
+                // If main polygon is deleted, clear everything
+                if (layer === mainPolygon) {
+                    clearAllPolygons();
+                }
+            });
+            updatePolygonDisplay();
+        });
+        
+        // Point in polygon check (Ray Casting Algorithm)
+        function isPointInPolygon(point, polygon) {
+            var x = point.lat, y = point.lng;
+            var inside = false;
+            
+            for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                var xi = polygon[i].lat, yi = polygon[i].lng;
+                var xj = polygon[j].lat, yj = polygon[j].lng;
+                
+                var intersect = ((yi > y) !== (yj > y))
+                    && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+                if (intersect) inside = !inside;
+            }
+            
+            return inside;
+        }
+        
+        // Update polygon data display
+        function updatePolygonDisplay() {
+            var display = document.getElementById('polygonData');
+            display.innerHTML = '<h3>Stored Polygons: ' + allPolygons.length + '</h3>';
+            display.innerHTML += '<pre>' + JSON.stringify(allPolygons, null, 2) + '</pre>';
+        }
+        
+        // Clear all polygons
+        function clearAllPolygons() {
+            drawnItems.clearLayers();
+            allPolygons = [];
+            mainPolygon = null;
+            updatePolygonDisplay();
+        }
+        
+        // Save polygons to Laravel
+        function savePolygons() {
+            if (allPolygons.length === 0) {
+                alert('No polygons to save!');
+                return;
+            }
+            
+            // Send data to Laravel via AJAX
+            fetch('{{ route("geofence.save") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({
+                    polygons: allPolygons
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Polygons saved successfully!');
+                } else {
+                    alert('Error saving polygons!');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error saving polygons!');
+            });
+        }
+    </script>
+</body>
+</html>

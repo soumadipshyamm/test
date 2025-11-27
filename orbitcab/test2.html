@@ -1,0 +1,2178 @@
+{{-- resources/views/geofence.blade.php --}}
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>City-scoped Area Draw — Geofence</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif
+        }
+
+        #app {
+            display: flex;
+            height: 100vh
+        }
+
+        #map {
+            flex: 1;
+            position: relative
+        }
+
+        #sidebar {
+            width: 360px;
+            padding: 12px;
+            border-left: 1px solid #ddd;
+            background: #fafafa;
+            overflow: auto
+        }
+
+        .controls label {
+            display: block;
+            font-size: 13px;
+            margin: 6px 0
+        }
+
+        select,
+        input,
+        button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0
+        }
+
+        .zone-item {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(2, 6, 23, 0.04)
+        }
+
+        .invalid-note {
+            color: #7c2d12;
+            background: #fff1f0;
+            padding: 6px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 8px
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div id="map"></div>
+
+        <div id="sidebar">
+            <h3>City-scoped Areas</h3>
+
+            <div class="controls">
+                <label for="stateSelect">State</label>
+                <select id="stateSelect">
+                    <option value="">-- Select state --</option>
+                    <option value="West Bengal">West Bengal</option>
+                    <option value="Bihar">Bihar</option>
+                </select>
+
+                <label for="citySelect">City</label>
+                <select id="citySelect" disabled>
+                    <option value="">-- Select city --</option>
+                    <option value="Kolkata">Kolkata</option>
+                    <option value="New Town">New Town</option>
+                    <option value="Patna">Patna</option>
+                </select>
+
+                <button id="loadCityBtn">Load city boundary</button>
+
+                <label for="areaSearch">Search areas</label>
+                <input id="areaSearch" type="text" placeholder="Filter by name or id" />
+            </div>
+
+            <div id="invalidNotice" style="display:none" class="invalid-note"></div>
+
+            <div id="zonesList"></div>
+
+            <hr />
+            <form id="saveForm" method="POST" action="{{ route('geofence.save') }}">
+                @csrf
+                <input type="hidden" name="polygons_json" id="polygons_json" />
+                <button type="submit">Save polygons to server</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+    <script>
+        // MAP
+        const map = L.map('map').setView([22.57, 88.36], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19, attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // DRAW
+        const drawnItems = new L.FeatureGroup().addTo(map);
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polyline: false, rectangle: false, circle: false, marker: false, circlemarker: false,
+                polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#3388ff' } }
+            },
+            edit: { featureGroup: drawnItems, remove: true }
+        });
+        map.addControl(drawControl);
+
+        // STATE
+        const polygonsMap = new Map();
+        let nextTempId = 100000;
+        let currentCityBoundaryGeoJSON = null;
+        let cityBoundaryLayer = null;
+
+        // UI
+        const stateSelect = document.getElementById('stateSelect');
+        const citySelect = document.getElementById('citySelect');
+        const loadCityBtn = document.getElementById('loadCityBtn');
+        const zonesList = document.getElementById('zonesList');
+        const polygonsJsonField = document.getElementById('polygons_json');
+        const areaSearch = document.getElementById('areaSearch');
+        const invalidNotice = document.getElementById('invalidNotice');
+
+        // HELPERS
+        function leafletToGeoJSONFeature(layer) {
+            const latlngs = (layer.getLatLngs && layer.getLatLngs()[0]) || [];
+            const coords = latlngs.map(ll => [ll.lng, ll.lat]);
+            if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]);
+            return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
+        }
+
+        function refreshZonesList(filter = '') {
+            zonesList.innerHTML = '';
+            const q = (filter || '').toLowerCase();
+            polygonsMap.forEach((val, key) => {
+                const selState = stateSelect.value, selCity = citySelect.value;
+                if (selCity && (val.meta.city !== selCity || val.meta.state !== selState)) return;
+                const name = val.meta.name || ('Area ' + key);
+                if (q && !(name.toLowerCase().includes(q) || String(key).includes(q))) return;
+                const item = document.createElement('div'); item.className = 'zone-item';
+                const left = document.createElement('div');
+                left.innerHTML = `<div style="font-weight:600">${name}${val.meta.valid === false ? '<span style="color:#7c2d12;font-size:12px;margin-left:8px">(invalid)</span>' : ''}</div>
+                      <div style="font-size:12px;color:#556">${val.meta.city || ''}${val.meta.state ? (', ' + val.meta.state) : ''}</div>`;
+                const actions = document.createElement('div');
+                actions.innerHTML = `<button data-id="${key}" class="zoomBtn">Zoom</button> <button data-id="${key}" class="deleteBtn">Delete</button>`;
+                item.appendChild(left); item.appendChild(actions);
+                zonesList.appendChild(item);
+            });
+
+            document.querySelectorAll('.zoomBtn').forEach(b => b.onclick = e => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id);
+                if (o) map.fitBounds(o.layer.getBounds(), { padding: [20, 20] });
+            });
+            document.querySelectorAll('.deleteBtn').forEach(b => b.onclick = e => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id); if (!o) return;
+                drawnItems.removeLayer(o.layer); polygonsMap.delete(id); syncHiddenInput();
+            });
+        }
+
+        function syncHiddenInput() {
+            const out = [];
+            polygonsMap.forEach((val, key) => {
+                out.push({
+                    id: val.meta.id,
+                    name: val.meta.name,
+                    source: val.meta.source,
+                    state: val.meta.state || null,
+                    city: val.meta.city || null,
+                    valid: val.meta.valid === false ? false : true,
+                    geojson: leafletToGeoJSONFeature(val.layer).geometry
+                });
+            });
+            polygonsJsonField.value = JSON.stringify(out);
+            const invalids = [];
+            polygonsMap.forEach((v, k) => {
+                if (v.meta.valid === false && v.meta.city === citySelect.value && v.meta.state === stateSelect.value) invalids.push(v.meta.name || k);
+            });
+            if (invalids.length) {
+                invalidNotice.style.display = 'block';
+                invalidNotice.textContent = 'Invalid areas (outside city): ' + invalids.join(', ');
+            } else {
+                invalidNotice.style.display = 'none';
+            }
+        }
+
+        function clearMapPolygons() {
+            polygonsMap.forEach((v, k) => { drawnItems.removeLayer(v.layer); });
+            polygonsMap.clear();
+            if (cityBoundaryLayer) { map.removeLayer(cityBoundaryLayer); cityBoundaryLayer = null; }
+            currentCityBoundaryGeoJSON = null;
+            refreshZonesList('');
+            syncHiddenInput();
+        }
+
+        // LOAD CITY BOUNDARY FROM LARAVEL
+        function loadCityBoundary(state, city) {
+            clearMapPolygons();
+            fetch(`/geofence/boundary/${encodeURIComponent(state)}/${encodeURIComponent(city)}`)
+                .then(r => r.json())
+                .then(geo => {
+                    currentCityBoundaryGeoJSON = geo;
+                    cityBoundaryLayer = L.geoJSON(geo, {
+                        style: { color: '#d43d3d', dashArray: '6 6', weight: 2, fill: false }
+                    }).addTo(map);
+                    const b = cityBoundaryLayer.getBounds();
+                    if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+                    refreshZonesList('');
+                    syncHiddenInput();
+                })
+                .catch(() => { alert('City boundary not available'); });
+        }
+
+        // DRAW EVENTS
+        map.on(L.Draw.Event.CREATED, function (e) {
+            const layer = e.layer;
+            const selState = stateSelect.value, selCity = citySelect.value;
+            if (!selState || !selCity) {
+                setTimeout(() => {
+                    drawnItems.removeLayer(layer);
+                    alert('Please select a State and City before drawing an area. Area not created.');
+                }, 50);
+                return;
+            }
+
+            const id = nextTempId++;
+            drawnItems.addLayer(layer);
+            layer.setStyle({ color: '#3388ff', weight: 2 });
+            polygonsMap.set(id, { layer: layer, meta: { id: id, name: 'Drawn Area ' + id, source: 'drawn', state: selState, city: selCity, valid: true } });
+
+            if (currentCityBoundaryGeoJSON) {
+                try {
+                    const featureA = leafletToGeoJSONFeature(layer);
+                    const within = turf.booleanWithin(featureA, currentCityBoundaryGeoJSON);
+                    const entry = polygonsMap.get(id);
+                    if (!within) {
+                        entry.meta.valid = false;
+                        entry.layer.setStyle({ color: '#ff9900', dashArray: '4 4' });
+                        entry.layer.bindPopup('<strong>Warning:</strong> This area is not fully inside the selected city.').openPopup();
+                    } else {
+                        entry.meta.valid = true;
+                        entry.layer.bindPopup('Drawn area inside city').openPopup();
+                    }
+                } catch (err) { console.warn(err); }
+            }
+
+            layer.on('click', () => { layer.openPopup(); });
+            refreshZonesList(areaSearch.value.trim());
+            syncHiddenInput();
+        });
+
+        map.on('draw:edited', function (e) {
+            const edited = e.layers;
+            edited.eachLayer(layer => {
+                for (const [id, entry] of polygonsMap.entries()) {
+                    if (entry.layer === layer) {
+                        if (currentCityBoundaryGeoJSON) {
+                            try {
+                                const featureA = leafletToGeoJSONFeature(layer);
+                                const within = turf.booleanWithin(featureA, currentCityBoundaryGeoJSON);
+                                entry.meta.valid = !!within;
+                                entry.layer.setStyle({ color: within ? '#3388ff' : '#ff9900', dashArray: within ? null : '4 4' });
+                                if (!within) entry.layer.bindPopup('<strong>Warning:</strong> Not inside city').openPopup();
+                            } catch (err) { console.warn(err); }
+                        }
+                        break;
+                    }
+                }
+            });
+            syncHiddenInput();
+        });
+
+        map.on('draw:deleted', function (e) {
+            const removed = e.layers;
+            removed.eachLayer(layer => {
+                for (const [id, entry] of polygonsMap.entries()) {
+                    if (entry.layer === layer) { polygonsMap.delete(id); break; }
+                }
+            });
+            refreshZonesList(areaSearch.value.trim());
+            syncHiddenInput();
+        });
+
+        // UI EVENTS
+        stateSelect.addEventListener('change', () => {
+            if (!stateSelect.value) {
+                citySelect.disabled = true;
+                citySelect.value = '';
+                clearMapPolygons();
+            } else {
+                citySelect.disabled = false;
+            }
+        });
+
+        loadCityBtn.addEventListener('click', () => {
+            const state = stateSelect.value, city = citySelect.value;
+            if (!state || !city) return alert('Select state and city first');
+            loadCityBoundary(state, city);
+        });
+
+        areaSearch.addEventListener('input', () => refreshZonesList(areaSearch.value.trim()));
+
+        // FORM VALIDATION
+        document.getElementById('saveForm').addEventListener('submit', function (e) {
+            const payload = polygonsJsonField.value ? JSON.parse(polygonsJsonField.value) : [];
+            const invalid = payload.filter(p => p.valid === false);
+            if (invalid.length) {
+                e.preventDefault();
+                alert('Cannot save. There are ' + invalid.length + ' area(s) outside the selected city. Please edit or delete them before saving.');
+                return;
+            }
+        });
+
+        // INIT
+        syncHiddenInput();
+        refreshZonesList('');
+    </script>
+</body>
+
+</html>
+
+
+
+
+<!-- <!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>City-scoped Area Draw — Geofence</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif
+        }
+
+        #app {
+            display: flex;
+            height: 100vh
+        }
+
+        #map {
+            flex: 1;
+            position: relative
+        }
+
+        #sidebar {
+            width: 360px;
+            padding: 12px;
+            border-left: 1px solid #ddd;
+            background: #fafafa;
+            overflow: auto
+        }
+
+        .controls label {
+            display: block;
+            font-size: 13px;
+            margin: 6px 0
+        }
+
+        select,
+        input,
+        button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0
+        }
+
+        .zone-item {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(2, 6, 23, 0.04)
+        }
+
+        .invalid-note {
+            color: #7c2d12;
+            background: #fff1f0;
+            padding: 6px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 8px
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div id="map"></div>
+
+        <div id="sidebar">
+            <h3>City-scoped Areas</h3>
+
+            <div class="controls">
+                <label for="stateSelect">State</label>
+                <select id="stateSelect">
+                    <option value="">-- Select state --</option>
+                    <option value="West Bengal">West Bengal</option>
+                    <option value="Bihar">Bihar</option>
+                </select>
+
+                <label for="citySelect">City</label>
+                <select id="citySelect" disabled>
+                    <option value="">-- Select city --</option>
+                    <option value="Kolkata">Kolkata</option>
+                    <option value="New Town">New Town</option>
+                    <option value="Patna">Patna</option>
+                </select>
+
+                <button id="loadCityBtn">Load city boundary</button>
+
+                <label for="areaSearch">Search areas</label>
+                <input id="areaSearch" type="text" placeholder="Filter by name or id" />
+            </div>
+
+            <div id="invalidNotice" style="display:none" class="invalid-note"></div>
+
+            <div id="zonesList"></div>
+
+            <hr />
+            <form id="saveForm" method="POST" action="{{ route('geofence.save') }}">
+                @csrf
+                <input type="hidden" name="polygons_json" id="polygons_json" />
+                <button type="submit">Save polygons to server</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+    <script>
+        // MAP
+        const map = L.map('map').setView([22.57, 88.36], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19, attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // DRAW
+        const drawnItems = new L.FeatureGroup().addTo(map);
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polyline: false, rectangle: false, circle: false, marker: false, circlemarker: false,
+                polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#3388ff' } }
+            },
+            edit: { featureGroup: drawnItems, remove: true }
+        });
+        map.addControl(drawControl);
+
+        // STATE
+        const polygonsMap = new Map();
+        let nextTempId = 100000;
+        let currentCityBoundaryGeoJSON = null;
+        let cityBoundaryLayer = null;
+
+        // UI
+        const stateSelect = document.getElementById('stateSelect');
+        const citySelect = document.getElementById('citySelect');
+        const loadCityBtn = document.getElementById('loadCityBtn');
+        const zonesList = document.getElementById('zonesList');
+        const polygonsJsonField = document.getElementById('polygons_json');
+        const areaSearch = document.getElementById('areaSearch');
+        const invalidNotice = document.getElementById('invalidNotice');
+
+        // HELPERS
+        function leafletToGeoJSONFeature(layer) {
+            const latlngs = (layer.getLatLngs && layer.getLatLngs()[0]) || [];
+            const coords = latlngs.map(ll => [ll.lng, ll.lat]);
+            if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]);
+            return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
+        }
+
+        function refreshZonesList(filter = '') {
+            zonesList.innerHTML = '';
+            const q = (filter || '').toLowerCase();
+            polygonsMap.forEach((val, key) => {
+                const selState = stateSelect.value, selCity = citySelect.value;
+                if (selCity && (val.meta.city !== selCity || val.meta.state !== selState)) return;
+                const name = val.meta.name || ('Area ' + key);
+                if (q && !(name.toLowerCase().includes(q) || String(key).includes(q))) return;
+                const item = document.createElement('div'); item.className = 'zone-item';
+                const left = document.createElement('div');
+                left.innerHTML = `<div style="font-weight:600">${name}${val.meta.valid === false ? '<span style="color:#7c2d12;font-size:12px;margin-left:8px">(invalid)</span>' : ''}</div>
+                      <div style="font-size:12px;color:#556">${val.meta.city || ''}${val.meta.state ? (', ' + val.meta.state) : ''}</div>`;
+                const actions = document.createElement('div');
+                actions.innerHTML = `<button data-id="${key}" class="zoomBtn">Zoom</button> <button data-id="${key}" class="deleteBtn">Delete</button>`;
+                item.appendChild(left); item.appendChild(actions);
+                zonesList.appendChild(item);
+            });
+
+            document.querySelectorAll('.zoomBtn').forEach(b => b.onclick = e => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id);
+                if (o) map.fitBounds(o.layer.getBounds(), { padding: [20, 20] });
+            });
+            document.querySelectorAll('.deleteBtn').forEach(b => b.onclick = e => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id); if (!o) return;
+                drawnItems.removeLayer(o.layer); polygonsMap.delete(id); syncHiddenInput();
+            });
+        }
+
+        function syncHiddenInput() {
+            const out = [];
+            polygonsMap.forEach((val, key) => {
+                out.push({
+                    id: val.meta.id,
+                    name: val.meta.name,
+                    source: val.meta.source,
+                    state: val.meta.state || null,
+                    city: val.meta.city || null,
+                    valid: val.meta.valid === false ? false : true,
+                    geojson: leafletToGeoJSONFeature(val.layer).geometry
+                });
+            });
+            polygonsJsonField.value = JSON.stringify(out);
+            const invalids = [];
+            polygonsMap.forEach((v, k) => {
+                if (v.meta.valid === false && v.meta.city === citySelect.value && v.meta.state === stateSelect.value) invalids.push(v.meta.name || k);
+            });
+            if (invalids.length) {
+                invalidNotice.style.display = 'block';
+                invalidNotice.textContent = 'Invalid areas (outside city): ' + invalids.join(', ');
+            } else {
+                invalidNotice.style.display = 'none';
+            }
+        }
+
+        function clearMapPolygons() {
+            polygonsMap.forEach((v, k) => { drawnItems.removeLayer(v.layer); });
+            polygonsMap.clear();
+            if (cityBoundaryLayer) { map.removeLayer(cityBoundaryLayer); cityBoundaryLayer = null; }
+            currentCityBoundaryGeoJSON = null;
+            refreshZonesList('');
+            syncHiddenInput();
+        }
+
+        // LOAD CITY BOUNDARY FROM LARAVEL
+        function loadCityBoundary(state, city) {
+            clearMapPolygons();
+            fetch(`/geofence/boundary/${encodeURIComponent(state)}/${encodeURIComponent(city)}`)
+                .then(r => r.json())
+                .then(geo => {
+                    currentCityBoundaryGeoJSON = geo;
+                    cityBoundaryLayer = L.geoJSON(geo, {
+                        style: { color: '#d43d3d', dashArray: '6 6', weight: 2, fill: false }
+                    }).addTo(map);
+                    const b = cityBoundaryLayer.getBounds();
+                    if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+                    refreshZonesList('');
+                    syncHiddenInput();
+                })
+                .catch(() => { alert('City boundary not available'); });
+        }
+
+        // DRAW EVENTS
+        map.on(L.Draw.Event.CREATED, function (e) {
+            const layer = e.layer;
+            const selState = stateSelect.value, selCity = citySelect.value;
+            if (!selState || !selCity) {
+                setTimeout(() => {
+                    drawnItems.removeLayer(layer);
+                    alert('Please select a State and City before drawing an area. Area not created.');
+                }, 50);
+                return;
+            }
+
+            const id = nextTempId++;
+            drawnItems.addLayer(layer);
+            layer.setStyle({ color: '#3388ff', weight: 2 });
+            polygonsMap.set(id, { layer: layer, meta: { id: id, name: 'Drawn Area ' + id, source: 'drawn', state: selState, city: selCity, valid: true } });
+
+            if (currentCityBoundaryGeoJSON) {
+                try {
+                    const featureA = leafletToGeoJSONFeature(layer);
+                    const within = turf.booleanWithin(featureA, currentCityBoundaryGeoJSON);
+                    const entry = polygonsMap.get(id);
+                    if (!within) {
+                        entry.meta.valid = false;
+                        entry.layer.setStyle({ color: '#ff9900', dashArray: '4 4' });
+                        entry.layer.bindPopup('<strong>Warning:</strong> This area is not fully inside the selected city.').openPopup();
+                    } else {
+                        entry.meta.valid = true;
+                        entry.layer.bindPopup('Drawn area inside city').openPopup();
+                    }
+                } catch (err) { console.warn(err); }
+            }
+
+            layer.on('click', () => { layer.openPopup(); });
+            refreshZonesList(areaSearch.value.trim());
+            syncHiddenInput();
+        });
+
+        map.on('draw:edited', function (e) {
+            const edited = e.layers;
+            edited.eachLayer(layer => {
+                for (const [id, entry] of polygonsMap.entries()) {
+                    if (entry.layer === layer) {
+                        if (currentCityBoundaryGeoJSON) {
+                            try {
+                                const featureA = leafletToGeoJSONFeature(layer);
+                                const within = turf.booleanWithin(featureA, currentCityBoundaryGeoJSON);
+                                entry.meta.valid = !!within;
+                                entry.layer.setStyle({ color: within ? '#3388ff' : '#ff9900', dashArray: within ? null : '4 4' });
+                                if (!within) entry.layer.bindPopup('<strong>Warning:</strong> Not inside city').openPopup();
+                            } catch (err) { console.warn(err); }
+                        }
+                        break;
+                    }
+                }
+            });
+            syncHiddenInput();
+        });
+
+        map.on('draw:deleted', function (e) {
+            const removed = e.layers;
+            removed.eachLayer(layer => {
+                for (const [id, entry] of polygonsMap.entries()) {
+                    if (entry.layer === layer) { polygonsMap.delete(id); break; }
+                }
+            });
+            refreshZonesList(areaSearch.value.trim());
+            syncHiddenInput();
+        });
+
+        // UI EVENTS
+        stateSelect.addEventListener('change', () => {
+            if (!stateSelect.value) {
+                citySelect.disabled = true;
+                citySelect.value = '';
+                clearMapPolygons();
+            } else {
+                citySelect.disabled = false;
+            }
+        });
+
+        loadCityBtn.addEventListener('click', () => {
+            const state = stateSelect.value, city = citySelect.value;
+            if (!state || !city) return alert('Select state and city first');
+            loadCityBoundary(state, city);
+        });
+
+        areaSearch.addEventListener('input', () => refreshZonesList(areaSearch.value.trim()));
+
+        // FORM VALIDATION
+        document.getElementById('saveForm').addEventListener('submit', function (e) {
+            const payload = polygonsJsonField.value ? JSON.parse(polygonsJsonField.value) : [];
+            const invalid = payload.filter(p => p.valid === false);
+            if (invalid.length) {
+                e.preventDefault();
+                alert('Cannot save. There are ' + invalid.length + ' area(s) outside the selected city. Please edit or delete them before saving.');
+                return;
+            }
+        });
+
+        // INIT
+        syncHiddenInput();
+        refreshZonesList('');
+    </script>
+</body>
+
+</html> -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- <!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>City-scoped Area Draw — Geofence</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif
+        }
+
+        #app {
+            display: flex;
+            height: 100vh
+        }
+
+        #map {
+            flex: 1;
+            position: relative
+        }
+
+        #sidebar {
+            width: 360px;
+            padding: 12px;
+            border-left: 1px solid #ddd;
+            background: #fafafa;
+            overflow: auto
+        }
+
+        .controls label {
+            display: block;
+            font-size: 13px;
+            margin: 6px 0
+        }
+
+        select,
+        input,
+        button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0
+        }
+
+        .zone-item {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(2, 6, 23, 0.04)
+        }
+
+        .invalid-note {
+            color: #7c2d12;
+            background: #fff1f0;
+            padding: 6px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 8px
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div id="map"></div>
+
+        <div id="sidebar">
+            <h3>City-scoped Areas</h3>
+
+            <div class="controls">
+                <label for="stateSelect">State</label>
+                <select id="stateSelect">
+                    <option value="">-- Select state --</option>
+                </select>
+
+                <label for="citySelect">City</label>
+                <select id="citySelect" disabled>
+                    <option value="">-- Select city --</option>
+                </select>
+
+                <button id="loadCityBtn">Load city areas</button>
+
+                <label for="areaSearch">Search areas</label>
+                <input id="areaSearch" type="text" placeholder="Filter by name or id" />
+            </div>
+
+            <div id="invalidNotice" style="display:none" class="invalid-note"></div>
+
+            <div id="zonesList"></div>
+
+            <hr />
+            <form id="saveForm" method="POST" action="{{ route('geofence.save') }}">
+                @csrf
+                <input type="hidden" name="polygons_json" id="polygons_json" />
+                <button type="submit">Save polygons to server</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+    <script>
+        /* ---------- STATIC: replace with AJAX if required ---------- */
+        const statesData = {
+            "West Bengal": {
+                "Kolkata": [
+                    { id: 1, name: "Kolkata Main Zone", coords: [[22.5726, 88.3639], [22.5726, 88.3739], [22.5626, 88.3739], [22.5626, 88.3639]], color: '#ff6666' },
+                    { id: 2, name: "Kolkata Inner A", coords: [[22.569, 88.366], [22.569, 88.369], [22.566, 88.369], [22.566, 88.366]], color: '#66b3ff' }
+                ],
+                "Howrah": [
+                    { id: 10, name: "Howrah Dock Area", coords: [[22.590, 88.310], [22.590, 88.320], [22.580, 88.320], [22.580, 88.310]], color: '#99e699' }
+                ]
+            },
+            "Bihar": {
+                "Patna": [
+                    { id: 20, name: "Patna Old City", coords: [[25.610, 85.141], [25.610, 85.151], [25.600, 85.151], [25.600, 85.141]], color: '#d1a3ff' }
+                ]
+            }
+        };
+
+        /* ---------- MAP + DRAW ---------- */
+        const map = L.map('map').setView([22.57, 88.36], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+
+        const drawnItems = new L.FeatureGroup().addTo(map);
+        const drawControl = new L.Control.Draw({
+            draw: { polyline: false, rectangle: false, circle: false, marker: false, circlemarker: false, polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#3388ff' } } },
+            edit: { featureGroup: drawnItems, remove: true }
+        });
+        map.addControl(drawControl);
+
+        /* ---------- bookkeeping ---------- */
+        const polygonsMap = new Map(); // id -> { layer, meta {id,name,source,state,city,valid} }
+        let nextTempId = 100000;
+        let currentCityBoundaryGeoJSON = null; // GeoJSON Feature (MultiPolygon or Polygon) representing city extents
+
+        /* ---------- UI elems ---------- */
+        const stateSelect = document.getElementById('stateSelect');
+        const citySelect = document.getElementById('citySelect');
+        const loadCityBtn = document.getElementById('loadCityBtn');
+        const zonesList = document.getElementById('zonesList');
+        const polygonsJsonField = document.getElementById('polygons_json');
+        const areaSearch = document.getElementById('areaSearch');
+        const invalidNotice = document.getElementById('invalidNotice');
+
+        /* ---------- helpers ---------- */
+        function latLngsFromArray(arr) { return arr.map(p => L.latLng(p[0], p[1])); }
+        function leafletToGeoJSONFeature(layer) {
+            const latlngs = (layer.getLatLngs && layer.getLatLngs()[0]) || [];
+            const coords = latlngs.map(ll => [ll.lng, ll.lat]);
+            if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]);
+            return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
+        }
+        function buildCityBoundaryFromPolygons(state, city) {
+            // gather all city polygons (from static data and existing polygonsMap with same city)
+            const areas = (statesData[state] && statesData[state][city]) || [];
+            const features = areas.map(a => {
+                const coords = a.coords.map(p => [p[1], p[0]]); // turf uses [lng,lat]
+                // ensure closed ring
+                if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]);
+                return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
+            });
+            // also include any already-loaded polygons in polygonsMap for the city
+            polygonsMap.forEach((val, key) => {
+                if (val.meta.state === state && val.meta.city === city && val.meta.source === 'drawn') {
+                    features.push(leafletToGeoJSONFeature(val.layer));
+                }
+            });
+            if (features.length === 0) { currentCityBoundaryGeoJSON = null; return; }
+            try {
+                // union all polygons — turf.union works pairwise, so we merge iteratively
+                let unioned = features[0];
+                for (let i = 1; i < features.length; i++) {
+                    // turf.union expects polygons; handle failure gracefully
+                    unioned = turf.union(unioned, features[i]) || unioned;
+                }
+                currentCityBoundaryGeoJSON = unioned;
+            } catch (err) {
+                console.warn('city union failed', err);
+                currentCityBoundaryGeoJSON = { type: 'FeatureCollection', features: features };
+            }
+        }
+
+        /* ---------- UI list & sync ---------- */
+        function refreshZonesList(filter = '') {
+            zonesList.innerHTML = '';
+            const q = (filter || '').toLowerCase();
+            polygonsMap.forEach((val, key) => {
+                // only list polygons for current selected city (if any)
+                const selState = stateSelect.value, selCity = citySelect.value;
+                if (selCity && (val.meta.city !== selCity || val.meta.state !== selState)) return;
+                const name = val.meta.name || ('Area ' + key);
+                if (q && !(name.toLowerCase().includes(q) || String(key).includes(q))) return;
+                const item = document.createElement('div'); item.className = 'zone-item';
+                const left = document.createElement('div');
+                left.innerHTML = `<div style="font-weight:600">${name}${val.meta.valid === false ? '<span style="color:#7c2d12;font-size:12px;margin-left:8px">(invalid)</span>' : ''}</div>
+                      <div style="font-size:12px;color:#556">${val.meta.city || ''}${val.meta.state ? (', ' + val.meta.state) : ''}</div>`;
+                const actions = document.createElement('div');
+                actions.innerHTML = `<button data-id="${key}" class="zoomBtn">Zoom</button> <button data-id="${key}" class="deleteBtn">Delete</button>`;
+                item.appendChild(left); item.appendChild(actions);
+                zonesList.appendChild(item);
+            });
+
+            document.querySelectorAll('.zoomBtn').forEach(b => b.onclick = e => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id);
+                if (o) map.fitBounds(o.layer.getBounds(), { padding: [20, 20] });
+            });
+            document.querySelectorAll('.deleteBtn').forEach(b => b.onclick = e => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id); if (!o) return;
+                drawnItems.removeLayer(o.layer); polygonsMap.delete(id); postLoadCityState(); syncHiddenInput();
+            });
+        }
+
+        function syncHiddenInput() {
+            const out = [];
+            polygonsMap.forEach((val, key) => {
+                out.push({
+                    id: val.meta.id,
+                    name: val.meta.name,
+                    source: val.meta.source,
+                    state: val.meta.state || null,
+                    city: val.meta.city || null,
+                    valid: val.meta.valid === false ? false : true,
+                    geojson: leafletToGeoJSONFeature(val.layer).geometry
+                });
+            });
+            polygonsJsonField.value = JSON.stringify(out);
+            // show invalid notice if any invalid zones exist in current city
+            const invalids = [];
+            polygonsMap.forEach((v, k) => {
+                if (v.meta.valid === false && v.meta.city === citySelect.value && v.meta.state === stateSelect.value) invalids.push(v.meta.name || k);
+            });
+            if (invalids.length) {
+                invalidNotice.style.display = 'block';
+                invalidNotice.textContent = 'Invalid areas (outside city): ' + invalids.join(', ');
+            } else {
+                invalidNotice.style.display = 'none';
+            }
+        }
+
+        /* ---------- load city polygons ---------- */
+        function loadCityAreas(state, city) {
+            // clear old city polygons
+            clearMapPolygons();
+            const areas = (statesData[state] && statesData[state][city]) || [];
+            areas.forEach(a => {
+                const layer = L.polygon(latLngsFromArray(a.coords), { color: a.color || '#3388ff', weight: 2 }).addTo(drawnItems);
+                layer.bindPopup(`<strong>${a.name}</strong><br/>${city}, ${state}`);
+                polygonsMap.set(a.id, { layer: layer, meta: { id: a.id, name: a.name, source: 'static', state, city, valid: true } });
+                // click to open popup already bound
+            });
+
+            // after loading, compute city boundary union
+            buildCityBoundaryFromPolygons(state, city);
+
+            // if city boundary exists, add a hidden layer for visual (optional)
+            if (currentCityBoundaryGeoJSON) {
+                // convert GeoJSON to Leaflet layer and style lightly (dashed)
+                try {
+                    const gj = currentCityBoundaryGeoJSON;
+                    // remove any previous cityBoundaryLayer if present
+                    if (window._cityBoundaryLayer) { map.removeLayer(window._cityBoundaryLayer); window._cityBoundaryLayer = null; }
+                    const layer = L.geoJSON(gj, { style: { color: '#d43d3d', dashArray: '6 6', weight: 2, fill: false } }).addTo(map);
+                    window._cityBoundaryLayer = layer;
+                    // fit bounds to city
+                    const b = layer.getBounds();
+                    if (b.isValid()) map.fitBounds(b, { padding: [20, 20] });
+                } catch (err) { console.warn('boundary draw failed', err); }
+            }
+
+            refreshZonesList('');
+            syncHiddenInput();
+        }
+
+        /* ---------- clear ---------- */
+        function clearMapPolygons() {
+            polygonsMap.forEach((v, k) => { drawnItems.removeLayer(v.layer); });
+            polygonsMap.clear();
+            if (window._cityBoundaryLayer) { map.removeLayer(window._cityBoundaryLayer); window._cityBoundaryLayer = null; }
+            currentCityBoundaryGeoJSON = null;
+            refreshZonesList('');
+            syncHiddenInput();
+        }
+
+        /* ---------- draw events ---------- */
+        map.on(L.Draw.Event.CREATED, function (e) {
+            const layer = e.layer;
+            const selState = stateSelect.value, selCity = citySelect.value;
+            if (!selState || !selCity) {
+                // enforce city selection before draw: remove layer and notify user
+                setTimeout(() => { // slight delay so draw UI finishes
+                    drawnItems.removeLayer(layer);
+                    alert('Please select a State and City before drawing an area. Area not created.');
+                }, 50);
+                return;
+            }
+
+            // add to map and assign meta
+            const id = nextTempId++;
+            drawnItems.addLayer(layer);
+            layer.setStyle({ color: '#3388ff', weight: 2 });
+            polygonsMap.set(id, { layer: layer, meta: { id: id, name: 'Drawn Area ' + id, source: 'drawn', state: selState, city: selCity, valid: true } });
+
+            // validate: if city boundary exists, require containment
+            if (currentCityBoundaryGeoJSON) {
+                try {
+                    const featureA = leafletToGeoJSONFeature(layer);
+                    const within = turf.booleanWithin(featureA, currentCityBoundaryGeoJSON);
+                    if (!within) {
+                        // mark invalid, style warning, show popup
+                        const entry = polygonsMap.get(id);
+                        entry.meta.valid = false;
+                        entry.layer.setStyle({ color: '#ff9900', dashArray: '4 4' });
+                        entry.layer.bindPopup('<strong>Warning:</strong> This area is not fully inside the selected city.').openPopup();
+                    } else {
+                        // valid
+                        polygonsMap.get(id).meta.valid = true;
+                        polygonsMap.get(id).layer.bindPopup('Drawn area inside city').openPopup();
+                    }
+                } catch (err) {
+                    console.warn('turf check failed', err);
+                }
+            } else {
+                // no city boundary defined (no static polygons); optionally compute a bbox using provided city polygon or accept and mark valid
+                polygonsMap.get(id).meta.valid = true;
+            }
+
+            // click handler for each layer to open popup and select entry
+            layer.on('click', () => {
+                layer.openPopup();
+            });
+
+            // after drawing, recompute city boundary to include drawn polygon (so subsequent draws use it)
+            buildCityBoundaryFromPolygons(selState, selCity);
+
+            // update visual boundary layer
+            if (window._cityBoundaryLayer) { map.removeLayer(window._cityBoundaryLayer); window._cityBoundaryLayer = null; }
+            if (currentCityBoundaryGeoJSON) {
+                window._cityBoundaryLayer = L.geoJSON(currentCityBoundaryGeoJSON, { style: { color: '#d43d3d', dashArray: '6 6', weight: 2, fill: false } }).addTo(map);
+            }
+
+            refreshZonesList(areaSearch.value.trim());
+            syncHiddenInput();
+        });
+
+        map.on('draw:edited', function (e) {
+            // re-validate edited polygons (if in current city)
+            const edited = e.layers;
+            edited.eachLayer(layer => {
+                for (const [id, entry] of polygonsMap.entries()) {
+                    if (entry.layer === layer) {
+                        // recheck containment
+                        if (currentCityBoundaryGeoJSON) {
+                            try {
+                                const featureA = leafletToGeoJSONFeature(layer);
+                                const within = turf.booleanWithin(featureA, currentCityBoundaryGeoJSON);
+                                entry.meta.valid = !!within;
+                                entry.layer.setStyle({ color: within ? '#3388ff' : '#ff9900', dashArray: within ? null : '4 4' });
+                                if (!within) entry.layer.bindPopup('<strong>Warning:</strong> Not inside city').openPopup();
+                            } catch (err) { console.warn(err); }
+                        }
+                        break;
+                    }
+                }
+            });
+            // rebuild boundary to include edited polygons
+            const selState = stateSelect.value, selCity = citySelect.value;
+            buildCityBoundaryFromPolygons(selState, selCity);
+            if (window._cityBoundaryLayer) { map.removeLayer(window._cityBoundaryLayer); window._cityBoundaryLayer = null; }
+            if (currentCityBoundaryGeoJSON) window._cityBoundaryLayer = L.geoJSON(currentCityBoundaryGeoJSON, { style: { color: '#d43d3d', dashArray: '6 6', weight: 2, fill: false } }).addTo(map);
+
+            syncHiddenInput();
+        });
+
+        map.on('draw:deleted', function (e) {
+            const removed = e.layers;
+            removed.eachLayer(layer => {
+                for (const [id, entry] of polygonsMap.entries()) {
+                    if (entry.layer === layer) { polygonsMap.delete(id); break; }
+                }
+            });
+            // rebuild boundary (some drawn polygons may have been part of it)
+            const selState = stateSelect.value, selCity = citySelect.value;
+            buildCityBoundaryFromPolygons(selState, selCity);
+            if (window._cityBoundaryLayer) { map.removeLayer(window._cityBoundaryLayer); window._cityBoundaryLayer = null; }
+            if (currentCityBoundaryGeoJSON) window._cityBoundaryLayer = L.geoJSON(currentCityBoundaryGeoJSON, { style: { color: '#d43d3d', dashArray: '6 6', weight: 2, fill: false } }).addTo(map);
+
+            refreshZonesList(areaSearch.value.trim());
+            syncHiddenInput();
+        });
+
+        /* ---------- populate selects & events ---------- */
+        function populateStates() {
+            for (const st of Object.keys(statesData)) {
+                const opt = document.createElement('option'); opt.value = st; opt.textContent = st; stateSelect.appendChild(opt);
+            }
+        }
+        stateSelect.addEventListener('change', () => {
+            const st = stateSelect.value;
+            citySelect.innerHTML = '<option value="">-- Select city --</option>';
+            citySelect.disabled = true;
+            clearMapPolygons();
+            if (!st) return;
+            const cities = Object.keys(statesData[st] || {});
+            cities.forEach(c => { const opt = document.createElement('option'); opt.value = c; opt.textContent = c; citySelect.appendChild(opt); });
+            citySelect.disabled = false;
+        });
+
+        loadCityBtn.addEventListener('click', () => {
+            const state = stateSelect.value, city = citySelect.value;
+            if (!state || !city) return alert('Select state and city first');
+            loadCityAreas(state, city);
+        });
+
+        areaSearch.addEventListener('input', () => refreshZonesList(areaSearch.value.trim()));
+
+        /* ---------- post-load helper to recompute boundary after manual map modifications ---------- */
+        function postLoadCityState() {
+            const st = stateSelect.value, city = citySelect.value;
+            buildCityBoundaryFromPolygons(st, city);
+            if (window._cityBoundaryLayer) { map.removeLayer(window._cityBoundaryLayer); window._cityBoundaryLayer = null; }
+            if (currentCityBoundaryGeoJSON) window._cityBoundaryLayer = L.geoJSON(currentCityBoundaryGeoJSON, { style: { color: '#d43d3d', dashArray: '6 6', weight: 2, fill: false } }).addTo(map);
+            refreshZonesList('');
+            syncHiddenInput();
+        }
+
+        /* ---------- form submit validation (blocks saving if any invalid) ---------- */
+        document.getElementById('saveForm').addEventListener('submit', function (e) {
+            // parse polygons_json to find invalid entries
+            const payload = polygonsJsonField.value ? JSON.parse(polygonsJsonField.value) : [];
+            const invalid = payload.filter(p => p.valid === false);
+            if (invalid.length) {
+                e.preventDefault();
+                alert('Cannot save. There are ' + invalid.length + ' area(s) outside the selected city. Please edit or delete them before saving.');
+                return;
+            }
+            // else allow submit; server receives polygons_json
+        });
+
+        /* ---------- init ---------- */
+        populateStates();
+        syncHiddenInput();
+        refreshZonesList('');
+    </script>
+</body>
+
+</html>
+
+ -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- <!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Geofence — Polygons with Info Card</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            font-family: Inter, Arial, sans-serif;
+        }
+
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+
+        #map {
+            flex: 1;
+            position: relative;
+        }
+
+        #sidebar {
+            width: 360px;
+            border-left: 1px solid #ddd;
+            padding: 12px;
+            box-sizing: border-box;
+            overflow: auto;
+            background: #f9f9f9;
+        }
+
+        .zone-item {
+            padding: 8px;
+            background: white;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 6px 18px rgba(16, 24, 40, 0.04);
+        }
+
+        .badge {
+            font-size: 12px;
+            padding: 4px 6px;
+            border-radius: 6px;
+            background: #f1f5f9;
+            color: #334155;
+        }
+
+        .controls {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        select,
+        input[type="text"],
+        button {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Info card (floating) */
+        .info-card {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            width: 360px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(2, 6, 23, 0.08);
+            padding: 14px;
+            display: none;
+            z-index: 1000;
+        }
+
+        .card-head {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .thumb {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 2px 8px rgba(2, 6, 23, 0.08);
+            flex-shrink: 0;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.05;
+        }
+
+        .card-sub {
+            font-size: 13px;
+            color: #475569;
+            margin-top: 6px;
+        }
+
+        .card-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background: #f1f5f9;
+        }
+
+        .icon-btn.active {
+            background: #0ea5a4;
+            color: white;
+        }
+
+        .card-body {
+            margin-top: 12px;
+        }
+
+        .line {
+            height: 10px;
+            background: #eef2ff;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            width: 100%;
+            opacity: 0.7;
+        }
+
+        .line.short {
+            width: 70%;
+        }
+
+        .bookmarked-badge {
+            display: inline-block;
+            background: #ffedd5;
+            color: #7c2d12;
+            padding: 4px 8px;
+            border-radius: 999px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        /* small map popup pointer */
+        .info-card::after {
+            content: "";
+            position: absolute;
+            left: 26px;
+            top: 100%;
+            width: 14px;
+            height: 14px;
+            transform: translateY(-50%) rotate(45deg);
+            background: white;
+            box-shadow: 0 8px 30px rgba(2, 6, 23, 0.04);
+            z-index: -1;
+            display: none;
+            /* keep hidden so card looks like overlay */
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div id="map">
+            <div id="infoCard" class="info-card" role="dialog" aria-hidden="true">
+                <div class="card-head">
+                    <div id="cardThumb" class="thumb"
+                        style="background-image: url('https://images.unsplash.com/photo-1558980394-0c3f16f1d7a1?auto=format&fit=crop&w=200&q=60');">
+                    </div>
+                    <div>
+                        <div id="cardTitle" class="card-title">Area name</div>
+                        <div id="cardSubtitle" class="card-sub">sub title / Bengali name</div>
+                    </div>
+                    <div class="card-actions">
+                        <div id="centerBtn" title="Center on area" class="icon-btn" role="button" aria-label="Center">
+                            &#9889;</div>
+                        <div id="bookmarkBtn" title="Bookmark area" class="icon-btn" role="button"
+                            aria-label="Bookmark">&#9733;</div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="line"></div>
+                    <div class="line short"></div>
+                    <div class="line"></div>
+                    <div style="margin-top:8px; display:flex; align-items:center;">
+                        <div id="bookmarkBadge" class="bookmarked-badge" style="display:none;">Bookmarked</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="sidebar">
+            <h3>Polygons</h3>
+
+            <div class="controls">
+                <label for="stateSelect">State</label>
+                <select id="stateSelect">
+                    <option value="">-- Select state --</option>
+                </select>
+                <label for="citySelect">City</label>
+                <select id="citySelect" disabled>
+                    <option value="">-- Select city --</option>
+                </select>
+                <label for="areaSearch">Search</label>
+                <input id="areaSearch" type="text" placeholder="Search areas by name or id" />
+                <button id="loadCityBtn">Load city areas</button>
+            </div>
+
+            <div id="zonesList"></div>
+
+            <hr />
+            <form id="saveForm" method="POST" action="{{ route('geofence.save') }}">
+                @csrf
+                <input type="hidden" name="polygons_json" id="polygons_json" />
+                <button type="submit">Save polygons to server</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+    <script>
+        /* ---------- static states/cities/areas ---------- */
+        const statesData = {
+            "West Bengal": {
+                "Kolkata": [
+                    {
+                        id: 1,
+                        name: "ISKCON Newtown, Kolkata",
+                        name_bn: "ইস্কন নিউটাউন, কলকাতা",
+                        coords: [
+                            [22.5887, 88.3921],
+                            [22.5887, 88.4040],
+                            [22.5750, 88.4040],
+                            [22.5750, 88.3921]
+                        ],
+                        color: '#ff6666',
+                        adminBoundary: true,
+                        thumb: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=200&q=60"
+                    },
+                    {
+                        id: 2,
+                        name: "Newtown Park Surround",
+                        name_bn: "নিউটাউন পার্ক",
+                        coords: [
+                            [22.587, 88.383],
+                            [22.587, 88.392],
+                            [22.579, 88.392],
+                            [22.579, 88.383]
+                        ],
+                        color: '#66b3ff',
+                        adminBoundary: false,
+                        thumb: "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c0?auto=format&fit=crop&w=200&q=60"
+                    }
+                ]
+            }
+        };
+
+        /* ---------- map setup ---------- */
+        let map = L.map('map').setView([22.5825, 88.394], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polyline: false, rectangle: false, circle: false, marker: false, circlemarker: false,
+                polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#3388ff' } }
+            },
+            edit: { featureGroup: drawnItems, remove: true }
+        });
+        map.addControl(drawControl);
+
+        const polygonsMap = new Map(); // id => { layer, meta }
+        let nextTempId = 100000;
+
+        /* ---------- UI elements (floating card) ---------- */
+        const infoCard = document.getElementById('infoCard');
+        const cardTitle = document.getElementById('cardTitle');
+        const cardSubtitle = document.getElementById('cardSubtitle');
+        const cardThumb = document.getElementById('cardThumb');
+        const centerBtn = document.getElementById('centerBtn');
+        const bookmarkBtn = document.getElementById('bookmarkBtn');
+        const bookmarkBadge = document.getElementById('bookmarkBadge');
+
+        let currentSelectedId = null;
+
+        /* ---------- helper functions ---------- */
+        function latLngsFromArray(arr) { return arr.map(p => L.latLng(p[0], p[1])); }
+        function leafletToGeoJSONFeature(layer) {
+            const latlngs = layer.getLatLngs()[0];
+            const coords = latlngs.map(ll => [ll.lng, ll.lat]);
+            if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]);
+            return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
+        }
+        function syncHiddenInput() {
+            const out = [];
+            polygonsMap.forEach((val, key) => {
+                out.push({
+                    id: val.meta.id,
+                    name: val.meta.name,
+                    name_bn: val.meta.name_bn || null,
+                    source: val.meta.source,
+                    state: val.meta.state || null,
+                    city: val.meta.city || null,
+                    geojson: leafletToGeoJSONFeature(val.layer).geometry
+                });
+            });
+            document.getElementById('polygons_json').value = JSON.stringify(out);
+        }
+
+        /* ---------- bookmarking (persist in localStorage) ---------- */
+        function loadBookmarks() {
+            try { return JSON.parse(localStorage.getItem('geo_bookmarks') || '[]'); } catch (e) { return []; }
+        }
+        function saveBookmarks(arr) { localStorage.setItem('geo_bookmarks', JSON.stringify(arr)); }
+        function isBookmarked(id) { return loadBookmarks().includes(String(id)); }
+        function toggleBookmark(id) {
+            const list = loadBookmarks();
+            const sid = String(id);
+            const idx = list.indexOf(sid);
+            if (idx === -1) { list.push(sid); } else { list.splice(idx, 1); }
+            saveBookmarks(list);
+        }
+
+        /* ---------- render static polygons ---------- */
+        function loadCityAreas(state, city) {
+            clearMapPolygons();
+            const areas = (statesData[state] && statesData[state][city]) || [];
+            areas.forEach(a => {
+                // dashed red for adminBoundary
+                const opts = a.adminBoundary ? { color: '#d43d3d', dashArray: '8 6', weight: 3 } : { color: a.color || '#3388ff' };
+                const layer = L.polygon(latLngsFromArray(a.coords), opts).addTo(drawnItems);
+                layer.metaId = a.id;
+                layer.bindTooltip(a.name, { sticky: true });
+                polygonsMap.set(a.id, { layer: layer, meta: { id: a.id, name: a.name, name_bn: a.name_bn, source: 'static', state, city, thumb: a.thumb } });
+                // click open info card
+                layer.on('click', () => openInfoCard(a.id));
+            });
+            refreshZonesList('');
+            if (areas.length) {
+                const first = polygonsMap.get(areas[0].id).layer;
+                map.fitBounds(first.getBounds(), { padding: [20, 20] });
+            }
+            syncHiddenInput();
+        }
+
+        /* ---------- clear & list refresh ---------- */
+        function clearMapPolygons() {
+            polygonsMap.forEach(v => drawnItems.removeLayer(v.layer));
+            polygonsMap.clear();
+            refreshZonesList('');
+            syncHiddenInput();
+        }
+
+        function refreshZonesList(filter = '') {
+            const container = document.getElementById('zonesList');
+            container.innerHTML = '';
+            const q = (filter || '').toLowerCase();
+            polygonsMap.forEach((val, key) => {
+                const name = val.meta.name || ('Zone ' + key);
+                if (q && !(name.toLowerCase().includes(q) || String(key).includes(q))) return;
+                const row = document.createElement('div'); row.className = 'zone-item';
+                row.innerHTML = `<div>
+                       <div style="font-weight:600">${name}</div>
+                       <div style="font-size:12px;color:#475569">${val.meta.city || ''} ${val.meta.state ? ', ' + val.meta.state : ''}</div>
+                     </div>
+                     <div style="display:flex;flex-direction:column;gap:6px;">
+                       <button data-id="${key}" class="zoomBtn" style="padding:6px;border-radius:6px;">Zoom</button>
+                       <button data-id="${key}" class="openBtn" style="padding:6px;border-radius:6px;">Open</button>
+                     </div>`;
+                container.appendChild(row);
+            });
+
+            container.querySelectorAll('.zoomBtn').forEach(b => b.onclick = (e) => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id); if (o) map.fitBounds(o.layer.getBounds(), { padding: [20, 20] });
+            });
+            container.querySelectorAll('.openBtn').forEach(b => b.onclick = (e) => openInfoCard(+e.target.dataset.id));
+        }
+
+        /* ---------- floating info card behavior ---------- */
+        function openInfoCard(id) {
+            const entry = polygonsMap.get(id);
+            if (!entry) return;
+            currentSelectedId = id;
+            // set content
+            cardTitle.textContent = entry.meta.name || 'Area ' + id;
+            cardSubtitle.textContent = entry.meta.name_bn ? entry.meta.name_bn : (entry.meta.city ? `${entry.meta.city}, ${entry.meta.state || ''}` : '');
+            if (entry.meta.thumb) cardThumb.style.backgroundImage = `url(${entry.meta.thumb})`;
+            else cardThumb.style.backgroundImage = `url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=200&q=60')`;
+
+            // bookmark state
+            const bookmarked = isBookmarked(id);
+            if (bookmarked) { bookmarkBtn.classList.add('active'); bookmarkBadge.style.display = 'inline-block'; }
+            else { bookmarkBtn.classList.remove('active'); bookmarkBadge.style.display = 'none'; }
+
+            // show card (position it near top-left of map container)
+            infoCard.style.display = 'block';
+            infoCard.setAttribute('aria-hidden', 'false');
+
+            // attach center action
+            centerBtn.onclick = () => {
+                map.fitBounds(entry.layer.getBounds(), { padding: [20, 20] });
+            };
+
+            // bookmark toggle
+            bookmarkBtn.onclick = () => {
+                toggleBookmark(id);
+                const now = isBookmarked(id);
+                if (now) { bookmarkBtn.classList.add('active'); bookmarkBadge.style.display = 'inline-block'; }
+                else { bookmarkBtn.classList.remove('active'); bookmarkBadge.style.display = 'none'; }
+            };
+
+            // highlight selected polygon
+            highlightSelectedPolygon(id);
+        }
+
+        /* highlight selected polygon visually */
+        function highlightSelectedPolygon(id) {
+            polygonsMap.forEach((v, k) => {
+                if (k === id) v.layer.setStyle({ weight: 4, opacity: 1 });
+                else v.layer.setStyle({ weight: 2, opacity: 0.9 });
+            });
+        }
+
+        /* close info card on map click (outside polygons) */
+        map.on('click', function (e) {
+            // if clicked layer is not a polygon (we don't get layer info here), hide card
+            // Only hide if clicked empty map area
+            const target = e.originalEvent.target;
+            // simple heuristic: if the clicked element is map pane (tiles) close
+            if (target && (target.classList.contains('leaflet-tile') || target.tagName === 'CANVAS')) {
+                infoCard.style.display = 'none';
+                infoCard.setAttribute('aria-hidden', 'true');
+                currentSelectedId = null;
+                // reset styles
+                polygonsMap.forEach((v, k) => v.layer.setStyle({ weight: 2 }));
+            }
+        });
+
+        /* ---------- draw events ---------- */
+        map.on(L.Draw.Event.CREATED, function (event) {
+            const layer = event.layer;
+            const id = nextTempId++;
+            drawnItems.addLayer(layer);
+
+            // default style for drawn polygons
+            layer.setStyle({ color: '#3388ff' });
+            layer.on('click', () => openInfoCard(id));
+
+            polygonsMap.set(id, { layer: layer, meta: { id: id, name: 'Drawn Area ' + id, source: 'drawn', thumb: null } });
+            refreshZonesList(document.getElementById('areaSearch').value.trim());
+            syncHiddenInput();
+        });
+        map.on('draw:edited', function () { syncHiddenInput(); });
+        map.on('draw:deleted', function (e) {
+            const removed = e.layers;
+            removed.eachLayer(function (layer) {
+                for (const [id, val] of polygonsMap.entries()) {
+                    if (val.layer === layer) { polygonsMap.delete(id); break; }
+                }
+            });
+            refreshZonesList(document.getElementById('areaSearch').value.trim());
+            syncHiddenInput();
+        });
+
+        /* ---------- populate state/city selects ---------- */
+        const stateSelect = document.getElementById('stateSelect');
+        const citySelect = document.getElementById('citySelect');
+        const loadCityBtn = document.getElementById('loadCityBtn');
+        const areaSearch = document.getElementById('areaSearch');
+
+        function populateStates() {
+            for (const st of Object.keys(statesData)) {
+                const opt = document.createElement('option'); opt.value = st; opt.textContent = st; stateSelect.appendChild(opt);
+            }
+        }
+        stateSelect.addEventListener('change', () => {
+            const state = stateSelect.value;
+            citySelect.innerHTML = '<option value="">-- Select city --</option>';
+            citySelect.disabled = true; clearMapPolygons();
+            if (!state) return;
+            const cities = Object.keys(statesData[state] || {});
+            cities.forEach(c => { const opt = document.createElement('option'); opt.value = c; opt.textContent = c; citySelect.appendChild(opt); });
+            citySelect.disabled = false;
+        });
+        loadCityBtn.addEventListener('click', () => {
+            const state = stateSelect.value, city = citySelect.value;
+            if (!state || !city) return alert('Select state and city first');
+            loadCityAreas(state, city);
+        });
+        areaSearch.addEventListener('input', () => refreshZonesList(areaSearch.value.trim()));
+
+        /* ---------- helper: open card when clicking layer from polygonsMap (wired when loading) ---------- */
+        /* already wired in loadCityAreas and draw created */
+
+        populateStates();
+        syncHiddenInput();
+        refreshZonesList('');
+    </script>
+</body>
+
+</html> -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- {{-- resources/views/geofence.blade.php --}}
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Geofence — State/City Search + Dynamic Polygons</title>
+
+    {{-- Leaflet CSS --}}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    {{-- Leaflet Draw CSS --}}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+
+        #map {
+            flex: 1;
+        }
+
+        #sidebar {
+            width: 360px;
+            border-left: 1px solid #ddd;
+            padding: 12px;
+            box-sizing: border-box;
+            overflow: auto;
+            background: #f9f9f9;
+        }
+
+        .zone-item {
+            padding: 8px;
+            background: white;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .zone-item button {
+            margin-left: 6px;
+        }
+
+        .badge {
+            font-size: 12px;
+            padding: 4px 6px;
+            border-radius: 4px;
+            background: #eee;
+        }
+
+        .controls {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        select,
+        input[type="text"] {
+            width: 100%;
+            padding: 6px;
+            box-sizing: border-box;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div id="map"></div>
+
+        <div id="sidebar">
+            <h3>Polygons (by State → City)</h3>
+
+            <div class="controls">
+                <label for="stateSelect">State</label>
+                <select id="stateSelect">
+                    <option value="">-- Select state --</option>
+                </select>
+
+                <label for="citySelect">City</label>
+                <select id="citySelect" disabled>
+                    <option value="">-- Select city --</option>
+                </select>
+
+                <label for="areaSearch">Search areas</label>
+                <input id="areaSearch" type="text" placeholder="Search by area name or id" />
+                <button id="loadCityBtn" style="width:100%;">Load city areas</button>
+            </div>
+
+            <hr />
+            <div id="zonesList"></div>
+
+            <hr />
+            <h4>Selected</h4>
+            <div id="selectedInfo">None</div>
+
+            <hr />
+            <form id="saveForm" method="POST" action="{{ route('geofence.save') }}">
+                @csrf
+                <input type="hidden" name="polygons_json" id="polygons_json" />
+                <button type="submit" style="width:100%;">Save polygons to server</button>
+            </form>
+        </div>
+    </div>
+
+    {{-- Leaflet JS --}}
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    {{-- Leaflet Draw --}}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    {{-- Turf for geometry checks --}}
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+    <script>
+        /*
+          STATIC DATA: states -> cities -> areas (you can replace this with AJAX from server)
+          Each area has: id, name, coords (array of [lat,lng]), color
+        */
+        const statesData = {
+            "West Bengal": {
+                "Kolkata": [
+                    {
+                        id: 1,
+                        name: "Kolkata Main Zone",
+                        coords: [
+                            [22.5726, 88.3639],
+                            [22.5726, 88.3739],
+                            [22.5626, 88.3739],
+                            [22.5626, 88.3639]
+                        ],
+                        color: '#ff6666'
+                    },
+                    {
+                        id: 2,
+                        name: "Kolkata Inner A",
+                        coords: [
+                            [22.569, 88.366],
+                            [22.569, 88.369],
+                            [22.566, 88.369],
+                            [22.566, 88.366]
+                        ],
+                        color: '#66b3ff'
+                    }
+                ],
+                "Howrah": [
+                    {
+                        id: 10,
+                        name: "Howrah Dock Area",
+                        coords: [
+                            [22.590, 88.310],
+                            [22.590, 88.320],
+                            [22.580, 88.320],
+                            [22.580, 88.310]
+                        ],
+                        color: '#99e699'
+                    }
+                ]
+            },
+            "Bihar": {
+                "Patna": [
+                    {
+                        id: 20,
+                        name: "Patna Old City",
+                        coords: [
+                            [25.610, 85.141],
+                            [25.610, 85.151],
+                            [25.600, 85.151],
+                            [25.600, 85.141]
+                        ],
+                        color: '#d1a3ff'
+                    }
+                ]
+            }
+        };
+
+        // Map and drawing setup (same as before)
+        let map = L.map('map').setView([22.568, 88.369], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+
+        const drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        const drawControl = new L.Control.Draw({
+            draw: {
+                polyline: false,
+                rectangle: false,
+                circle: false,
+                marker: false,
+                circlemarker: false,
+                polygon: {
+                    allowIntersection: false,
+                    showArea: true,
+                    shapeOptions: { color: '#3388ff' }
+                }
+            },
+            edit: { featureGroup: drawnItems, remove: true }
+        });
+        map.addControl(drawControl);
+
+        // Polygons bookkeeping
+        const polygonsMap = new Map(); // id -> { layer, meta }
+        let nextTempId = 100000;
+
+        // Utilities
+        function latLngsFromArray(arr) { return arr.map(p => L.latLng(p[0], p[1])); }
+        function leafletToGeoJSONFeature(layer) {
+            const latlngs = layer.getLatLngs()[0];
+            const coords = latlngs.map(ll => [ll.lng, ll.lat]);
+            if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]);
+            return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} };
+        }
+
+        // UI elements
+        const stateSelect = document.getElementById('stateSelect');
+        const citySelect = document.getElementById('citySelect');
+        const loadCityBtn = document.getElementById('loadCityBtn');
+        const zonesList = document.getElementById('zonesList');
+        const areaSearch = document.getElementById('areaSearch');
+        const selectedInfo = document.getElementById('selectedInfo');
+        const polygonsJsonField = document.getElementById('polygons_json');
+
+        // populate state dropdown
+        function populateStates() {
+            for (const state of Object.keys(statesData)) {
+                const opt = document.createElement('option');
+                opt.value = state;
+                opt.textContent = state;
+                stateSelect.appendChild(opt);
+            }
+        }
+
+        // when state changes, populate cities
+        stateSelect.addEventListener('change', () => {
+            const state = stateSelect.value;
+            citySelect.innerHTML = '<option value="">-- Select city --</option>';
+            citySelect.disabled = true;
+            clearMapPolygons();
+            if (!state) return;
+            const cities = Object.keys(statesData[state] || {});
+            cities.forEach(city => {
+                const opt = document.createElement('option');
+                opt.value = city;
+                opt.textContent = city;
+                citySelect.appendChild(opt);
+            });
+            citySelect.disabled = false;
+        });
+
+        // load city areas into map (from static data)
+        loadCityBtn.addEventListener('click', () => {
+            const state = stateSelect.value;
+            const city = citySelect.value;
+            if (!state || !city) return alert('Select both state and city before loading areas.');
+            loadCityAreas(state, city);
+        });
+
+        // filter list by search
+        areaSearch.addEventListener('input', () => {
+            refreshZonesList(areaSearch.value.trim());
+        });
+
+        // load a city's areas
+        function loadCityAreas(state, city) {
+            clearMapPolygons();
+            const areas = (statesData[state] && statesData[state][city]) || [];
+            areas.forEach(a => {
+                const layer = L.polygon(latLngsFromArray(a.coords), { color: a.color || '#3388ff' }).addTo(drawnItems);
+                layer.bindPopup(`<strong>${a.name}</strong><br/>id: ${a.id}<br/>${city}, ${state}`);
+                polygonsMap.set(a.id, { layer: layer, meta: { id: a.id, name: a.name, source: 'static', state: state, city: city } });
+            });
+            refreshZonesList('');
+            // fit to bounds if present
+            if (areas.length) {
+                const first = polygonsMap.get(areas[0].id).layer;
+                map.fitBounds(first.getBounds(), { padding: [20, 20] });
+            }
+            syncHiddenInput();
+        }
+
+        // clear polygons from map and map model (keeps drawnItems empty)
+        function clearMapPolygons() {
+            polygonsMap.forEach(val => {
+                drawnItems.removeLayer(val.layer);
+            });
+            polygonsMap.clear();
+            refreshZonesList('');
+            syncHiddenInput();
+        }
+
+        // dynamic UI list
+        function refreshZonesList(filter = '') {
+            zonesList.innerHTML = '';
+            const q = filter.toLowerCase();
+            for (const [key, value] of polygonsMap.entries()) {
+                const name = value.meta.name || ('Zone ' + key);
+                if (q && !(name.toLowerCase().includes(q) || String(key).includes(q))) continue;
+                const item = document.createElement('div');
+                item.className = 'zone-item';
+                item.innerHTML = `<div>
+                        <div><strong>${name}</strong></div>
+                        <div style="font-size:12px;color:#666">${value.meta.city || ''}, ${value.meta.state || ''}</div>
+                        <div class="badge">id: ${key}</div>
+                      </div>
+                      <div>
+                        <button data-id="${key}" class="zoomBtn">Zoom</button>
+                        <button data-id="${key}" class="selectBtn">Select</button>
+                        <button data-id="${key}" class="deleteBtn">Delete</button>
+                      </div>`;
+                zonesList.appendChild(item);
+            }
+            // wire actions
+            document.querySelectorAll('.zoomBtn').forEach(b => b.onclick = (e) => { const id = +e.target.dataset.id; const o = polygonsMap.get(id); if (o) map.fitBounds(o.layer.getBounds(), { padding: [20, 20] }); });
+            document.querySelectorAll('.selectBtn').forEach(b => b.onclick = (e) => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id); if (!o) return alert('Not found');
+                selectedInfo.innerText = `Selected: ${o.meta.name} (${o.meta.city || ''}, ${o.meta.state || ''}) id:${id}`;
+                o.layer.openPopup();
+            });
+            document.querySelectorAll('.deleteBtn').forEach(b => b.onclick = (e) => {
+                const id = +e.target.dataset.id; const o = polygonsMap.get(id); if (!o) return;
+                drawnItems.removeLayer(o.layer); polygonsMap.delete(id); refreshZonesList(areaSearch.value.trim()); syncHiddenInput();
+            });
+        }
+
+        // drawing behavior: when user draws, attach state&city and prevent drawing if none selected
+        map.on(L.Draw.Event.CREATED, function (event) {
+            const layer = event.layer;
+            const state = stateSelect.value;
+            const city = citySelect.value;
+            if (!state || !city) {
+                // require city selected to create an area inside it
+                if (!confirm('No state/city selected. Do you want to create a global area (not tied to state/city)?')) {
+                    // remove the layer and exit
+                    return;
+                }
+            }
+
+            const id = nextTempId++;
+            drawnItems.addLayer(layer);
+
+            const meta = { id: id, name: 'Drawn Area ' + id, source: 'drawn', state: state || null, city: city || null };
+            polygonsMap.set(id, { layer: layer, meta: meta });
+
+            layer.bindPopup(`<strong>${meta.name}</strong><br/>id: ${id}<br/>${city || 'No city'}, ${state || 'No state'}`).openPopup();
+
+            // Optional: check if new polygon lies within first static polygon of current city (if any)
+            let firstStatic;
+            if (state && city) {
+                const cityAreas = statesData[state] && statesData[state][city];
+                if (cityAreas && cityAreas.length) firstStatic = polygonsMap.get(cityAreas[0].id);
+            }
+            if (firstStatic) {
+                const featureA = leafletToGeoJSONFeature(layer);
+                const featureB = leafletToGeoJSONFeature(firstStatic.layer);
+                try {
+                    const within = turf.booleanWithin(featureA, featureB);
+                    if (!within) { layer.setStyle({ color: '#ff9900' }); layer.bindPopup(`<strong>Warning:</strong> Not fully inside "${firstStatic.meta.name}".`).openPopup(); }
+                    else { layer.setStyle({ color: '#33cc66' }); layer.bindPopup(`<strong>OK:</strong> Inside "${firstStatic.meta.name}".`).openPopup(); }
+                } catch (err) { console.error(err); }
+            }
+
+            refreshZonesList(areaSearch.value.trim());
+            syncHiddenInput();
+        });
+
+        // edit/delete events
+        map.on('draw:edited', function (e) { syncHiddenInput(); });
+        map.on('draw:deleted', function (e) {
+            const removed = e.layers;
+            removed.eachLayer(function (layer) {
+                for (const [id, val] of polygonsMap.entries()) {
+                    if (val.layer === layer) { polygonsMap.delete(id); break; }
+                }
+            });
+            refreshZonesList(areaSearch.value.trim());
+            syncHiddenInput();
+        });
+
+        // collect polygons for server
+        function collectPolygonsForSave() {
+            const out = [];
+            polygonsMap.forEach((val, key) => {
+                const feature = leafletToGeoJSONFeature(val.layer);
+                out.push({
+                    id: val.meta.id,
+                    name: val.meta.name,
+                    source: val.meta.source,
+                    state: val.meta.state,
+                    city: val.meta.city,
+                    geojson: feature.geometry
+                });
+            });
+            return out;
+        }
+        function syncHiddenInput() {
+            polygonsJsonField.value = JSON.stringify(collectPolygonsForSave());
+        }
+
+        // Initialize UI
+        populateStates();
+        refreshZonesList('');
+        syncHiddenInput();
+
+        // Form submit validation
+        document.getElementById('saveForm').addEventListener('submit', function (e) {
+            const payload = polygonsJsonField.value;
+            if (!payload || payload === '[]') {
+                if (!confirm('No polygons to save. Submit empty?')) { e.preventDefault(); return; }
+            }
+            // server will receive polygons_json; ensure controller handles state/city fields per area
+        });
+    </script>
+</body>
+
+</html> -->
