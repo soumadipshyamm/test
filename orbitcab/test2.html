@@ -1,4 +1,421 @@
-{{-- resources/views/geofence.blade.php --}}
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>City Boundary + City-scoped Draw (One page)</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+
+        #controls {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            z-index: 1200;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 6px 16px rgba(2, 6, 23, 0.08);
+            width: 360px;
+        }
+
+        #citySearch {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 8px;
+            margin-top: 8px;
+            border-radius: 6px;
+            border: 0;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+        }
+
+        .note {
+            font-size: 13px;
+            color: #475569;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="controls" role="region" aria-label="controls">
+        <input id="citySearch" placeholder="Search city (type & select from suggestions)" aria-label="city search" />
+        <button id="loadBtn">Load city boundary</button>
+        <div class="note" id="status">Select a city using autocomplete, then click <strong>Load city boundary</strong>.
+        </div>
+        <div class="note" id="help" style="margin-top:8px">After boundary loads: draws boundary (red dashed), then use
+            the draw tool (polygon) to create areas. Drawn areas will be validated to be inside the boundary.</div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Google Places (replace KEY) -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_API_KEY&libraries=places"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+    <script>
+        /* ===========================
+           Simple one-page implementation
+           - Google Places autocomplete input
+           - Try Nominatim polygon (polygon_geojson=1)
+           - If not found, try Overpass relation by name (POST)
+           - If still not found, fallback to bbox polygon from Nominatim
+           - Draw boundary on Leaflet and allow city-scoped drawing
+           =========================== */
+
+        const statusEl = document.getElementById('status');
+        const cityInput = document.getElementById('citySearch');
+        const loadBtn = document.getElementById('loadBtn');
+
+        let map = L.map('map').setView([22.57, 88.36], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
+
+        const drawnItems = new L.FeatureGroup().addTo(map);
+        const drawControl = new L.Control.Draw({
+            draw: { polyline: false, rectangle: false, circle: false, marker: false, polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#3388ff' } } },
+            edit: { featureGroup: drawnItems, remove: true }
+        });
+        map.addControl(drawControl);
+
+        let boundaryLayer = null;
+        let currentBoundaryGeoJSON = null; // GeoJSON Feature or FeatureCollection
+
+        // initialize Google Places Autocomplete
+        const autocomplete = new google.maps.places.Autocomplete(cityInput, { types: ['(cities)'] });
+        let lastPlace = null;
+        autocomplete.addListener('place_changed', () => {
+            lastPlace = autocomplete.getPlace();
+            statusEl.textContent = 'Selected: ' + (lastPlace.formatted_address || lastPlace.name || '') + '. Click Load city boundary.';
+        });
+
+        // helper: draw boundary geojson on map
+        function showBoundary(geojson, label) {
+            if (boundaryLayer) { try { map.removeLayer(boundaryLayer); } catch (e) { } boundaryLayer = null; }
+            if (!geojson) { currentBoundaryGeoJSON = null; statusEl.textContent = 'No boundary available'; return; }
+            boundaryLayer = L.geoJSON(geojson, { style: { color: '#d43d3d', dashArray: '6 6', weight: 2, fill: false } }).addTo(map);
+            currentBoundaryGeoJSON = geojson;
+            try {
+                const b = boundaryLayer.getBounds();
+                if (b && b.isValid) map.fitBounds(b, { padding: [20, 20] });
+            } catch (e) { }
+            statusEl.textContent = (label ? label + ' - ' : '') + 'Boundary loaded.';
+        }
+
+        // helper: fetch Nominatim search with polygon_geojson
+        async function fetchNominatimPolygon(query) {
+            // encode query
+            const url = `https://nominatim.openstreetmap.org/search.php?q=${encodeURIComponent(query)}&polygon_geojson=1&format=jsonv2&limit=5`;
+            const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!resp.ok) throw new Error('Nominatim failed: ' + resp.status);
+            const data = await resp.json();
+            // find first result with geojson
+            if (!data || !data.length) return null;
+            // Try to pick the best candidate: prefer osm_type relation and type city/town
+            let chosen = null;
+            for (const d of data) {
+                if (d.osm_type === 'relation' && (d.type === 'city' || d.type === 'town' || d.type === 'administrative')) { chosen = d; break; }
+            }
+            if (!chosen) chosen = data[0];
+            if (chosen && chosen.geojson) return chosen.geojson;
+            return null;
+        }
+
+        // helper: try Overpass by name + admin_level (best-effort)
+        async function fetchOverpassByName(name, countryCode = null) {
+            // build a flexible overpass query to find relation by name
+            // prefer admin_level 8|6 (cities/county), but this depends on country.
+            // caution: Overpass public instance has rate limits
+            const escaped = name.replace(/"/g, '\\"');
+            // We'll search relation with name equal or name:en equal (loose)
+            // Query may return ways/relations; we'll request geometry
+            const q = `
+[out:json][timeout:25];
+(
+  relation["name"="${escaped}"]["boundary"="administrative"];
+  relation["name:en"="${escaped}"]["boundary"="administrative"];
+  relation["name"~"${escaped}",i]["boundary"="administrative"];
+);
+out geom;
+`;
+            const url = 'https://overpass-api.de/api/interpreter';
+            const resp = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' } });
+            if (!resp.ok) throw new Error('Overpass failed: ' + resp.status);
+            const json = await resp.json();
+            if (!json || !json.elements) return null;
+            // convert way elements with geometry into polygons features
+            const features = [];
+            for (const el of json.elements) {
+                if (el.type === 'way' && el.geometry) {
+                    const coords = el.geometry.map(p => [p.lon, p.lat]);
+                    if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]);
+                    features.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: el.tags || {} });
+                }
+                if (el.type === 'relation' && el.members) {
+                    // some relation elements include 'members' and geometry; Overpass sometimes embeds ways as members without separate way entries
+                    // If relation has 'geometry' (rare), use it
+                    if (el.geometry) {
+                        const coords = el.geometry.map(p => [p.lon, p.lat]);
+                        if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]);
+                        features.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: el.tags || {} });
+                    }
+                }
+            }
+            if (features.length === 1) return features[0];
+            if (features.length > 1) return { type: 'FeatureCollection', features: features };
+            return null;
+        }
+
+        // fallback: simple bbox polygon from nominatim result (without geojson)
+        async function fetchNominatimBbox(query) {
+            const url = `https://nominatim.openstreetmap.org/search.php?q=${encodeURIComponent(query)}&format=jsonv2&limit=1`;
+            const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            if (!resp.ok) throw new Error('Nominatim bbox failed');
+            const data = await resp.json();
+            if (!data || !data.length) return null;
+            const bb = data[0].boundingbox; // [south, north, west, east]
+            if (!bb) return null;
+            const south = parseFloat(bb[0]), north = parseFloat(bb[1]), west = parseFloat(bb[2]), east = parseFloat(bb[3]);
+            const latlngs = [
+                [south, west],
+                [south, east],
+                [north, east],
+                [north, west],
+                [south, west]
+            ];
+            // convert to geojson [lng,lat]
+            const coords = latlngs.map(p => [p[1], p[0]]);
+            return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: { source: 'nominatim-bbox' } };
+        }
+
+        // main flow: try Nominatim geojson -> Overpass -> bbox fallback
+        async function resolveCityBoundary(query) {
+            statusEl.textContent = 'Resolving boundary for: ' + query + ' ...';
+            try {
+                // 1) try Nominatim geojson
+                try {
+                    const g = await fetchNominatimPolygon(query);
+                    if (g) { statusEl.textContent = 'Boundary found from Nominatim (geojson)'; return g; }
+                } catch (e) {
+                    console.warn('nominatim polygon error', e);
+                }
+
+                // 2) try Overpass by name (only if Nominatim didn't give geojson)
+                try {
+                    const g2 = await fetchOverpassByName(query);
+                    if (g2) { statusEl.textContent = 'Boundary found from Overpass'; return g2; }
+                } catch (e) {
+                    console.warn('overpass error', e);
+                }
+
+                // 3) fallback to bbox
+                try {
+                    const bboxPoly = await fetchNominatimBbox(query);
+                    if (bboxPoly) { statusEl.textContent = 'Using bbox fallback (approximate)'; return bboxPoly; }
+                } catch (e) {
+                    console.warn('bbox fallback error', e);
+                }
+
+                statusEl.textContent = 'No boundary found (try a different city name or use server-side Overpass caching).';
+                return null;
+            } catch (err) {
+                console.error(err);
+                statusEl.textContent = 'Boundary resolution failed: ' + err.message;
+                return null;
+            }
+        }
+
+        /* ---------- draw validation: require city selected to draw ---------- */
+        map.on(L.Draw.Event.CREATED, async function (e) {
+            const layer = e.layer;
+            if (!currentBoundaryGeoJSON) {
+                // no boundary: remove layer and warn
+                setTimeout(() => {
+                    alert('City boundary is not loaded. Please load boundary for a city first. The drawn area was discarded.');
+                    // do not add this layer
+                }, 50);
+                return;
+            }
+
+            // validate containment (use turf booleanWithin or booleanContains)
+            const feature = (function () { const latlngs = layer.getLatLngs()[0]; const coords = latlngs.map(ll => [ll.lng, ll.lat]); if (coords.length && (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1])) coords.push(coords[0]); return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: {} }; })();
+
+            let within = false;
+            try {
+                within = turf.booleanWithin(feature, currentBoundaryGeoJSON);
+            } catch (err) {
+                console.warn('turf booleanWithin failed, trying booleanContains/fallback', err);
+                try { within = turf.booleanContains(currentBoundaryGeoJSON, feature); } catch (e) { within = false; }
+            }
+
+            if (!within) {
+                layer.setStyle({ color: '#ff9900', dashArray: '4 4' });
+                layer.bindPopup('Warning: this area is not fully inside the selected city boundary. Edit or delete to proceed.').openPopup();
+            } else {
+                layer.setStyle({ color: '#3388ff' });
+                layer.bindPopup('Area valid (inside city)').openPopup();
+            }
+
+            drawnItems.addLayer(layer);
+        });
+
+        /* ---------- wire Load button ---------- */
+        loadBtn.addEventListener('click', async () => {
+            const place = lastPlace;
+            if (!place || (!place.name && !place.formatted_address)) {
+                alert('Please select a city from the autocomplete suggestions first.');
+                return;
+            }
+            // build a search query: prefer formatted_address if available else name + country if present
+            let query = place.formatted_address || place.name;
+            // append administrative component if available (to be safer)
+            if (place.address_components && place.address_components.length) {
+                // try to find country long_name
+                const country = place.address_components.find(c => c.types && c.types.indexOf('country') !== -1);
+                if (country) query += ', ' + country.long_name;
+            }
+
+            // resolve boundary
+            showBoundary(null);
+            currentBoundaryGeoJSON = null;
+            statusEl.textContent = 'Resolving boundary for "' + query + '" ... (may take a few seconds)';
+            try {
+                const geo = await resolveCityBoundary(query);
+                if (!geo) {
+                    alert('No boundary found for "' + query + '". Try a different search or use server-side Overpass.');
+                    return;
+                }
+                // show on map
+                showBoundary(geo, place.name || place.formatted_address || 'City');
+            } catch (err) {
+                console.error(err);
+                alert('Failed to load boundary: ' + err.message);
+            }
+        });
+
+        /* ---------- optional: zoom out / clear ---------- */
+        map.on('click', function (e) { /* optionally close popups, etc. */ });
+
+    </script>
+</body>
+
+</html>
+
+
+
+
+
+<!-- <!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>City Boundary Drawing</title>
+
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<style>
+  body, html { margin:0; padding:0; height:100%; }
+  #map { width:100%; height:100vh; }
+</style>
+</head>
+
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ------------------------------------
+// 1) Create MAP
+// ------------------------------------
+const map = L.map('map').setView([22.63, 88.47], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+// ------------------------------------
+// 2) CITY BOUNDARY COORDINATES
+//    (You can replace with your area)
+//    NewTown / Rajarhat / Hatisala Example
+// ------------------------------------
+const cityBoundaryCoords = [
+  [22.6544, 88.4370],
+  [22.6523, 88.4541],
+  [22.6479, 88.4715],
+  [22.6390, 88.4816],
+  [22.6267, 88.4842],
+  [22.6170, 88.4825],
+  [22.6102, 88.4710],
+  [22.6125, 88.4547],
+  [22.6225, 88.4402],
+  [22.6340, 88.4354],
+  [22.6456, 88.4338],
+  [22.6544, 88.4370]  // close shape
+];
+
+// ------------------------------------
+// 3) Draw Red-Dotted Polygon Boundary
+// ------------------------------------
+const boundary = L.polygon(cityBoundaryCoords, {
+  color: '#d43d3d',
+  weight: 2,
+  dashArray: '6 4',
+  fill: false     // NO FILL – just outline
+}).addTo(map);
+
+// zoom map to full boundary
+map.fitBounds(boundary.getBounds(), { padding: [20,20] });
+
+</script>
+
+</body>
+</html> -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 <!doctype html>
 <html lang="en">
 
@@ -2174,5 +2591,6 @@
         });
     </script>
 </body>
+
 
 </html> -->
