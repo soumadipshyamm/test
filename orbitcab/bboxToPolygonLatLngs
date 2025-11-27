@@ -1,0 +1,262 @@
+<script>
+/*
+  New functions:
+  - fetchCityBoundaryFromOSM(state, city): tries Nominatim -> Overpass to get real admin polygon
+  - buildCityBoundaryWithFallback(state, city): uses static polygons + fetched OSM boundary or bbox fallback
+  - showCityBoundaryLayer(geojson): draws the boundary on the map
+*/
+
+/* Globals used by rest of app */
+window.currentCityBoundaryGeoJSON = null;
+window._cityBoundaryLayer = null;
+
+/** Utility: convert bbox array [south, north, west, east] or Nominatim bbox [south, north, west, east] to a Leaflet-style polygon in [lat,lng] */
+function bboxToPolygonLatLngs(bbox) {
+  // some APIs return [south, north, west, east], some return [south, west, north, east]
+  // we'll assume Nominatim returns [south, north, west, east] (it returns bbox as "south, north, west, east")
+  const south = parseFloat(bbox[0]);
+  const north = parseFloat(bbox[1]);
+  const west  = parseFloat(bbox[2]);
+  const east  = parseFloat(bbox[3]);
+  return [
+    [south, west],
+    [south, east],
+    [north, east],
+    [north, west],
+    [south, west]
+  ];
+}
+
+/** Draw or replace the city boundary layer on the map */
+function showCityBoundaryLayer(geojson) {
+  if (window._cityBoundaryLayer) {
+    try { map.removeLayer(window._cityBoundaryLayer); } catch (e) {}
+    window._cityBoundaryLayer = null;
+  }
+  if (!geojson) return;
+  try {
+    window._cityBoundaryLayer = L.geoJSON(geojson, {
+      style: { color:'#d43d3d', dashArray:'6 6', weight:2, fill:false }
+    }).addTo(map);
+
+    // fit map to boundary nicely
+    const b = window._cityBoundaryLayer.getBounds();
+    if (b && b.isValid()) map.fitBounds(b, { padding:[20,20] });
+  } catch (err) { console.warn('Failed to draw city boundary', err); }
+}
+
+/** Primary: get a good city boundary OR fallback to bbox-based polygon
+ *  - state, city: strings
+ *  - returns a Promise that resolves to a GeoJSON Feature (Polygon/MultiPolygon) or null
+ */
+async function fetchCityBoundaryWithFallback(state, city) {
+  // first try to get an OSM place using Nominatim
+  try {
+    const q = encodeURIComponent(`${city}, ${state}`);
+    const nomUrl = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=5&polygon_geojson=0`;
+    const nomResp = await fetch(nomUrl, { headers: { 'Accept': 'application/json' } });
+    if (!nomResp.ok) throw new Error('Nominatim request failed');
+    const nomData = await nomResp.json();
+    if (nomData && nomData.length) {
+      // prefer results with class 'boundary' or type 'administrative' or place rank; try to find relation type
+      // prefer the first `type=city` or `class=boundary` or `osm_type = 'relation'`
+      let chosen = null;
+      for (const r of nomData) {
+        if ((r.osm_type && r.osm_type.toLowerCase() === 'relation') && (r.class === 'boundary' || r.type === 'administrative' || r.type === 'city' || r.type === 'town')) {
+          chosen = r; break;
+        }
+      }
+      if (!chosen) {
+        // otherwise take best match heuristics: place_rank high or first result
+        chosen = nomData[0];
+      }
+
+      // If chosen has osm_type=relation and osm_id, query Overpass for geometry
+      if (chosen && chosen.osm_type && chosen.osm_id && chosen.osm_type.toLowerCase() === 'relation') {
+        const relId = chosen.osm_id;
+        try {
+          // Overpass query: get the relation with geometry
+          // We ask for the 'relation(id); out geom;' response (this returns all member polygons)
+          const overpassQuery = `[out:json][timeout:25];relation(${relId});out geom;`;
+          const overpassUrl = 'https://overpass-api.de/api/interpreter';
+          const overpassResp = await fetch(overpassUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: `data=${encodeURIComponent(overpassQuery)}`
+          });
+          if (!overpassResp.ok) throw new Error('Overpass request failed');
+          const overData = await overpassResp.json();
+          if (overData && overData.elements && overData.elements.length) {
+            // convert Overpass elements to GeoJSON FeatureCollection (works for relation polygons)
+            const features = [];
+            // Overpass returns nodes/ways/members; best practice is to convert 'members' that have geometry
+            // Many relations in Overpass return elements with 'geometry' arrays; we convert those to polygon coords
+            for (const el of overData.elements) {
+              if (el.type === 'relation' && el.members) {
+                // relation element may contain members that are ways - Overpass sometimes includes geometry on ways separately
+                // skip, relation may not directly have geometry
+              }
+              if (el.type === 'way' && el.geometry) {
+                // build ring from way geometry: geometry is array of {lat,lng}
+                const coords = el.geometry.map(pt => [pt.lon, pt.lat]);
+                // ensure closed
+                if (coords.length && (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1])) coords.push(coords[0]);
+                features.push({ type:'Feature', geometry:{ type:'Polygon', coordinates:[coords] }, properties: el.tags || {} });
+              }
+              if (el.type === 'relation' && el.geometry) {
+                // some Overpass responses include geometry for relation (rare)
+                const coords = el.geometry.map(pt => [pt.lon, pt.lat]);
+                if (coords.length && (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1])) coords.push(coords[0]);
+                features.push({ type:'Feature', geometry:{ type:'Polygon', coordinates:[coords] }, properties: el.tags || {} });
+              }
+            }
+
+            if (features.length) {
+              // If there is more than one polygon, wrap in a MultiPolygon (or keep as FeatureCollection)
+              // We'll return a FeatureCollection (Leaflet geoJSON can handle it)
+              const fc = { type:'FeatureCollection', features: features };
+              return fc;
+            }
+          }
+        } catch (err) {
+          console.warn('Overpass fetch failed', err);
+          // continue to fallback to bbox
+        }
+      }
+
+      // If we didn't get a relation polygon, fallback to bbox from chosen nominatim result
+      if (chosen && chosen.boundingbox) {
+        const bbox = chosen.boundingbox; // [south, north, west, east] as strings
+        const latlngs = bboxToPolygonLatLngs(bbox);
+        // convert latlng polygon to GeoJSON [lng,lat]
+        const coords = latlngs.map(p => [p[1], p[0]]);
+        // we can expand / buffer bbox slightly to avoid tight edge issues
+        const poly = { type:'Feature', geometry: { type:'Polygon', coordinates: [coords] }, properties: { source: 'nominatim-bbox' } };
+        try {
+          // create a circular buffer (in meters) around the bbox centroid to make it smoother
+          const centroid = turf.centroid(poly);
+          // radius: choose 2000m or based on bbox size
+          const bboxPolygon = turf.bbox(poly); // gives [minX,minY,maxX,maxY] but here not necessary
+          // determine approximate radius based on bbox diagonal
+          const sw = [coords[0][1], coords[0][0]]; // lat,lng? we avoid complexity; use 2000m default
+          const buffered = turf.buffer(centroid, 2000, { units: 'meters' });
+          // Merge bbox polygon + buffered circle using union (best-effort)
+          let merged = turf.union(poly, buffered) || poly;
+          return merged;
+        } catch (err) {
+          // if turf operations fail, just return simple bbox polygon
+          return poly;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Nominatim failed', err);
+  }
+
+  // final fallback: nothing found => return null
+  return null;
+}
+
+/** Build final city boundary from either:
+ *  1) OSM-fetched geometry (preferred)
+ *  2) Union of static city polygons + any drawn polygons
+ *  3) bbox fallback created above
+ *
+ * After resolving, set window.currentCityBoundaryGeoJSON and draw it on map
+ */
+async function buildCityBoundaryWithFetchFallback(state, city) {
+  // 1. Try to fetch OSM/Overpass geometry
+  const fetched = await fetchCityBoundaryWithFallback(state, city);
+  if (fetched) {
+    window.currentCityBoundaryGeoJSON = fetched;
+    showCityBoundaryLayer(window.currentCityBoundaryGeoJSON);
+    return;
+  }
+
+  // 2. If not found, try to union static polygons + drawn polygons that belong to the city (similar to original approach)
+  try {
+    const features = [];
+    // static polygons from statesData (if present)
+    if (window.statesData && statesData[state] && statesData[state][city]) {
+      statesData[state][city].forEach(a => {
+        const coords = a.coords.map(pt => [pt[1], pt[0]]);
+        if (coords.length && (coords[0][0] !== coords[coords.length-1][0] || coords[0][1] !== coords[coords.length-1][1])) coords.push(coords[0]);
+        features.push({ type:'Feature', geometry:{ type:'Polygon', coordinates:[coords] }, properties: {} });
+      });
+    }
+    // also include already drawn polygons in polygonsMap for this city
+    polygonsMap.forEach((val, key) => {
+      if (val.meta && val.meta.state === state && val.meta.city === city) {
+        const f = leafletToGeoJSONFeature(val.layer);
+        features.push(f);
+      }
+    });
+
+    if (features.length > 0) {
+      // union pairwise
+      let unioned = features[0];
+      for (let i=1;i<features.length;i++){
+        try { unioned = turf.union(unioned, features[i]) || unioned; } catch(e) { /* ignore failed unions */ }
+      }
+      if (unioned) {
+        window.currentCityBoundaryGeoJSON = unioned;
+        showCityBoundaryLayer(window.currentCityBoundaryGeoJSON);
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn('union fallback failed', err);
+  }
+
+  // 3. Final fallback: try to get bounding box from Nominatim without expecting relation geometry
+  try {
+    const q = encodeURIComponent(`${city}, ${state}`);
+    const nomUrl = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`;
+    const nomResp = await fetch(nomUrl);
+    if (nomResp.ok) {
+      const nomData = await nomResp.json();
+      if (nomData && nomData.length && nomData[0].boundingbox) {
+        const bbox = nomData[0].boundingbox;
+        const latlngs = bboxToPolygonLatLngs(bbox);
+        const coords = latlngs.map(p => [p[1], p[0]]);
+        const poly = { type:'Feature', geometry: { type:'Polygon', coordinates: [coords] }, properties: { source: 'bbox-fallback' } };
+        // optional buffer to make it less boxy
+        try {
+          const centroid = turf.centroid(poly);
+          const buffered = turf.buffer(centroid, 2000, { units: 'meters' });
+          const merged = turf.union(poly, buffered) || poly;
+          window.currentCityBoundaryGeoJSON = merged;
+          showCityBoundaryLayer(window.currentCityBoundaryGeoJSON);
+          return;
+        } catch (err) {
+          window.currentCityBoundaryGeoJSON = poly;
+          showCityBoundaryLayer(window.currentCityBoundaryGeoJSON);
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('secondary nominatim failed', err);
+  }
+
+  // nothing found - ensure boundary layer cleared
+  window.currentCityBoundaryGeoJSON = null;
+  showCityBoundaryLayer(null);
+  return;
+}
+
+/* ---------- Example: hook into your loadCityAreas flow ----------
+ Replace earlier call to `buildCityBoundaryFromPolygons(state, city)` with:
+ await buildCityBoundaryWithFetchFallback(state, city);
+ Then continue with your validation logic that checks `window.currentCityBoundaryGeoJSON`.
+---------- */
+
+/* Usage example (inside existing loadCityAreas function):
+  (async () => {
+     await buildCityBoundaryWithFetchFallback(state, city);
+     // now window.currentCityBoundaryGeoJSON is either the fetched/approximate boundary or null
+     // then draw static polygons and validate drawn items against it
+  })();
+*/
+
+</script>
