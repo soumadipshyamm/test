@@ -66,3 +66,180 @@
             }
         }
     }
+public function bookinglist(Request $request)
+{
+    $driver = auth()->user();
+    if (empty($driver->vehicle->category_id)) {
+        return $this->responseJson(false, 400, __('Driver vehicle/category not found'), []);
+    }
+
+    $driverCategoryId = $driver->vehicle->category_id;
+    $radiusMeters = (int) (getSiteSetting('search_radius') ?? 5000);
+    $radiusKm = $radiusMeters / 1000; // Haversine uses kilometers
+    $maxDriversToNotify = 3; // change to notify more/fewer
+
+    // Check ongoing booking
+    $ongoingStatuses = [1,2,3,8,4];
+    $findDriver = Booking::where('driver_id', $driver->id)
+        ->where('is_accepted', 2)
+        ->whereIn('status', $ongoingStatuses)
+        ->first();
+
+    if ($findDriver) {
+        return $this->responseJson(true, 200, __('You have an ongoing booking'), new BookingResource($findDriver));
+    }
+
+    // Candidate bookings - last 10 minutes, accepted, no driver assigned
+    $bookings = Booking::whereIn('status', [0,1])
+        ->where('is_accepted', 1)
+        ->whereNull('driver_id')
+        ->whereBetween('created_at', [now()->subMinutes(10), now()])
+        ->orderBy('id', 'desc')
+        ->get();
+
+    $sentCount = 0;
+    $sentBookings = [];
+
+    foreach ($bookings as $booking) {
+        // Only consider bookings with same category as driver's vehicle
+        if ((int)$booking->category_id !== (int)$driverCategoryId) {
+            continue;
+        }
+
+        // pickup coords - replace with your actual column names if different
+        $pickupLat = $booking->from_lat ?? $booking->pickup_lat ?? $booking->pickup_latitude ?? null;
+        $pickupLng = $booking->from_long ?? $booking->pickup_lng ?? $booking->pickup_longitude ?? null;
+
+        if (empty($pickupLat) || empty($pickupLng)) {
+            // skip bookings without coordinates (safer than falling back)
+            continue;
+        }
+
+        // Find nearby drivers who have same vehicle category (exclude current driver)
+        $nearbyDrivers = User::where('id', '!=', $driver->id)
+            ->where('is_online', 1) // optional - require online drivers
+            ->whereHas('vehicle', function ($q) use ($booking) {
+                $q->where('category_id', $booking->category_id);
+            })
+            ->selectRaw(
+                "id, latitude, longitude, (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance",
+                [$pickupLat, $pickupLng, $pickupLat]
+            )
+            ->having('distance', '<=', $radiusKm)
+            ->orderBy('distance')
+            ->limit($maxDriversToNotify)
+            ->get();
+
+        if ($nearbyDrivers->isEmpty()) {
+            continue;
+        }
+
+        // Notify each selected driver (or change to only the first if desired)
+        foreach ($nearbyDrivers as $nearDriver) {
+            // Ensure helper signature: here we pass booking then driver
+            addBookingRequestDriver($booking, $nearDriver);
+            $sentCount++;
+        }
+
+        $sentBookings[] = [
+            'booking_id' => $booking->id,
+            'notified_drivers' => $nearbyDrivers->pluck('id')->toArray(),
+        ];
+
+        // If you want to stop after sending one matching booking, uncomment next line:
+        // break;
+    }
+
+    if ($sentCount > 0) {
+        return $this->responseJson(true, 200, __('Booking requests sent'), ['sent_count' => $sentCount, 'details' => $sentBookings]);
+    }
+
+    return $this->responseJson(true, 200, __('No matching bookings found'), []);
+}
+
+
+
+
+
+public function bookinglist(Request $request)
+{
+    $driver = auth()->user();
+    $driverLat = $driver->latitude;
+    $driverLng = $driver->longitude;
+
+    // radius from site setting (assumed meters). convert to kilometers for Haversine (6371 km).
+    $radiusMeters = (int) (getSiteSetting("search_radius") ?? 5000);
+    $radiusKm = $radiusMeters / 1000;
+
+    $ongoingStatuses = [1, 2, 3, 8, 4];
+
+    // Check if driver already has an ongoing booking
+    $findDriver = Booking::where('driver_id', $driver->id)
+        ->where('is_accepted', 2)
+        ->whereIn('status', $ongoingStatuses)
+        ->first();
+
+    if (!empty($findDriver)) {
+        return $this->responseJson(true, 200, __('You have an ongoing booking'), new BookingResource($findDriver));
+    }
+
+    // candidate bookings - created in last 10 minutes, accepted, no driver assigned, statuses 0 or 1
+    $bookings = Booking::whereIn('status', [0, 1])
+        ->where('is_accepted', 1)
+        ->whereNull('driver_id')
+        ->whereBetween('created_at', [now()->subMinutes(10), now()])
+        ->orderBy('id', 'desc')
+        ->get();
+
+    foreach ($bookings as $booking) {
+        // only match bookings of same category as driver's vehicle
+        if (!isset($driver->vehicle->category_id) || $driver->vehicle->category_id != $booking->category_id) {
+            continue;
+        }
+
+        // Determine pickup coordinates for this booking - try common field names, fallback to driver's coords
+        $pickupLat = $booking->from_lat ?? $booking->pickup_lat ?? $booking->pickup_latitude ?? $booking->latitude ?? null;
+        $pickupLng = $booking->from_long ?? $booking->pickup_lng ?? $booking->pickup_longitude ?? $booking->longitude ?? null;
+
+        if (empty($pickupLat) || empty($pickupLng)) {
+            // fallback to driver's location if booking doesn't have coordinates (not ideal)
+            $pickupLat = $driverLat;
+            $pickupLng = $driverLng;
+        }
+
+        // Find nearby drivers (exclude current driver) with matching vehicle category, online and approved (optional)
+        $nearbyDrivers = User::where('id', '!=', $driver->id)
+            ->where('is_online', 1) // ensure driver is online (optional - uncomment if you want)
+            ->whereHas('vehicle', function ($q) use ($booking) {
+                $q->where('category_id', $booking->category_id);
+            })
+            ->selectRaw(
+                "id, latitude, longitude, ( 6371 * acos( cos( radians(?) ) * cos( radians( latitude ) ) * cos( radians( longitude ) - radians(?) ) + sin( radians(?) ) * sin( radians( latitude ) ) ) ) AS distance",
+                [$pickupLat, $pickupLng, $pickupLat]
+            )
+            ->having('distance', '<=', $radiusKm)
+            ->orderBy('distance')
+            ->get();
+
+        if ($nearbyDrivers->isNotEmpty()) {
+            // pick nearest driver (you may prefer to notify multiple drivers instead).
+            $nearestDriver = $nearbyDrivers->first();
+
+            // Call your helper to add booking request for the driver.
+            // adjust addBookingRequestDriver signature if it expects different params
+            addBookingRequestDriver($booking, $nearestDriver); // I suggest passing booking then driver
+
+            // Optionally attach distance information to booking resource
+            $booking->distance_to_pickup_km = (float) $nearestDriver->distance;
+
+            return $this->responseJson(true, 200, __('New Booking Fetched Successfully'), new BookingResource($booking));
+        }
+
+        // no drivers for this booking -> continue to next booking
+    }
+
+    // no eligible bookings found after checking all
+    return $this->responseJson(true, 200, __('No Data Found !!'), []);
+}
+
+
