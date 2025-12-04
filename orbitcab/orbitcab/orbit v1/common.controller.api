@@ -1,4 +1,227 @@
- public function getFareByLocation(Request $request)
+use GuzzleHttp\Client;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+
+/**
+ * Optimized fetch: use DB-side haversine filtering then batch Google DM only for top candidates.
+ *
+ * $pickup = ['lat' => float, 'lng' => float] or null
+ * $drop   = ['lat' => float, 'lng' => float] or null
+ * $currentLatLng = ['lat' => float, 'lng' => float] or null
+ *
+ * Options:
+ *  - $maxCandidates: max rows to return from DB (e.g. 150)
+ *  - $matrixLimit: number of nearest to call Google for (e.g. 20-50)
+ *  - $searchRadiusKm: initial bounding radius (e.g. 5 or site setting)
+ */
+private function fetchAndComputeNearestVehicles(array $availableDriverIds, ?array $currentLatLng, $pickup, $drop, $maxCandidates = 150, $matrixLimit = 30, $searchRadiusKm = 5.0)
+{
+    // 1) If coordinates available, compute DB-level haversine and limit rows.
+    $vehiclesQuery = Vehicle::query()
+        ->select(['id', 'user_id', 'category_id'])
+        ->with(['user:id,latitude,longitude', 'category' => function($q) {
+            $q->select('id','name','is_active');
+        }, 'category.fares' => function($q){ $q->where('is_active',1); }, 'category.faresDate' => function($q){ $q->where('is_active',1); }])
+        ->whereIn('user_id', $availableDriverIds)
+        ->where('is_primary', 1)
+        ->whereHas('category', function ($q) {
+            $q->where('is_active', 1)->whereHas('fares', fn($f) => $f->where('is_active',1));
+        });
+
+    if ($currentLatLng && isset($currentLatLng['lat']) && isset($currentLatLng['lng'])) {
+        $lat = (float) $currentLatLng['lat'];
+        $lng = (float) $currentLatLng['lng'];
+
+        // Haversine - compute distance_km in SQL, filter by radius and order by it
+        $haversine = "(6371 * acos( cos( radians(?) ) * cos( radians(user_latitude) ) * cos( radians(user_longitude) - radians(?) ) + sin( radians(?) ) * sin( radians(user_latitude) ) ) )";
+        // But our user lat/lng are on user table via relationship. We'll join or select raw from users table fields.
+        // Simpler: join users table to access lat/lng as columns named 'latitude' and 'longitude'
+        $vehiclesQuery = Vehicle::join('users as u', 'u.id', '=', 'vehicles.user_id')
+            ->whereIn('vehicles.user_id', $availableDriverIds)
+            ->where('vehicles.is_primary', 1)
+            ->whereHas('category', function ($q) {
+                $q->where('is_active', 1)->whereHas('fares', fn($f) => $f->where('is_active',1));
+            })
+            ->selectRaw("vehicles.id, vehicles.user_id, vehicles.category_id, u.latitude AS user_latitude, u.longitude AS user_longitude, {$haversine} AS distance_km", [$lat, $lng, $lat])
+            ->whereRaw("{$haversine} <= ?", [$lat, $lng, $lat, $searchRadiusKm]) // bounding radius filter
+            ->orderBy('distance_km', 'asc')
+            ->limit($maxCandidates);
+    } else {
+        // no current position => fallback: compute haversine from pickup if present (same approach) OR just limit by most-recent vehicles
+        if ($pickup && isset($pickup['lat']) && isset($pickup['lng'])) {
+            $lat = (float)$pickup['lat']; $lng = (float)$pickup['lng'];
+            $haversine = "(6371 * acos( cos( radians(?) ) * cos( radians(u.latitude) ) * cos( radians(u.longitude) - radians(?) ) + sin( radians(?) ) * sin( radians(u.latitude) ) ) )";
+            $vehiclesQuery = Vehicle::join('users as u', 'u.id', '=', 'vehicles.user_id')
+                ->whereIn('vehicles.user_id', $availableDriverIds)
+                ->where('vehicles.is_primary', 1)
+                ->whereHas('category', function ($q) {
+                    $q->where('is_active', 1)->whereHas('fares', fn($f) => $f->where('is_active',1));
+                })
+                ->selectRaw("vehicles.id, vehicles.user_id, vehicles.category_id, u.latitude AS user_latitude, u.longitude AS user_longitude, {$haversine} AS distance_km", [$lat, $lng, $lat])
+                ->orderBy('distance_km','asc')
+                ->limit($maxCandidates);
+        } else {
+            // last-resort: don't compute distances in DB; limit by updated_at (cheap)
+            $vehiclesQuery = $vehiclesQuery->orderByDesc('vehicles.id')->limit($maxCandidates);
+        }
+    }
+
+    $vehicles = $vehiclesQuery->get();
+
+    // if we used join above, hydrates won't populate relations automatically — rehydrate necessary relations:
+    $vehicleIds = $vehicles->pluck('id')->toArray();
+    $vehicles = Vehicle::with(['user:id,latitude,longitude','category','category.fares','category.faresDate'])
+                ->whereIn('id', $vehicleIds)
+                ->get()
+                // preserve db distance_km if available on the earlier result
+                ->map(function($v) use ($vehicles){
+                    $match = $vehicles->firstWhere('id', $v->id);
+                    if ($match && isset($match->distance_km)) $v->distance_km = (float)$match->distance_km;
+                    else $v->distance_km = INF;
+                    return $v;
+                });
+
+    // 2) Now we have an ordered short-list. Call Google Distance Matrix only for top $matrixLimit
+    if ($currentLatLng && $vehicles->count() > 0) {
+        $top = $vehicles->sortBy('distance_km')->values()->take($matrixLimit);
+        $topWithMatrix = $this->batchDistanceMatrixForVehicles($top, $currentLatLng);
+        // replace updated top entries in vehicles list
+        $topIds = $topWithMatrix->pluck('id')->toArray();
+        $vehicles = $vehicles->map(function($v) use ($topWithMatrix, $topIds) {
+            if (in_array($v->id, $topIds)) {
+                $found = $topWithMatrix->firstWhere('id', $v->id);
+                $v->distance_km = $found->distance_km;
+                $v->distance_text = $found->distance_text ?? null;
+                $v->duration_text = $found->duration_text ?? null;
+            } else {
+                // keep DB haversine as approximation
+                $v->distance_text = $v->distance_text ?? null;
+                $v->duration_text = $v->duration_text ?? null;
+            }
+            return $v;
+        });
+    } else {
+        // No current coords -> rely on DB haversine or INF
+    }
+
+    // 3) compute trip distance/duration (use your existing calculateDistances wrapper)
+    $trip = $this->calculateTripDistanceDuration($pickup, $drop); // returns ['distance'=>kmFloat,'duration'=>minFloat]
+
+    // 4) For each category pick the nearest vehicle (by numeric distance_km) and compute fare (with caching)
+    $currentDate = Carbon::now()->format('Y-m-d');
+    $nearestVehicles = $vehicles->groupBy('category_id')->map(function($group) use ($trip, $currentDate) {
+        $nearest = $group->sortBy('distance_km')->first();
+        if (!$nearest || !$nearest->category) return null;
+
+        $appliedFare = $this->getApplicableFareForVehicle($nearest, $currentDate);
+        if ($appliedFare === null) return null;
+
+        // Try caching computed fare for this combination (bucket distance to nearest 0.5 km)
+        $distanceBucket = round(max(0, $trip['distance']) * 2) / 2.0; // e.g., 2.3 -> 2.5
+        $cacheKey = "fare:cat:{$nearest->category_id}:dist:{$distanceBucket}:slot:{$appliedFare->id}:date:{$currentDate}";
+        $totalFareBeforeGst = Cache::remember($cacheKey, now()->addMinutes(3), function() use ($appliedFare, $trip) {
+            return $this->computeTotalFare($appliedFare, $trip['distance'], $trip['duration']);
+        });
+
+        $nearest->total_fare = round($this->applyGST($totalFareBeforeGst), 2);
+        $nearest->trip = $trip;
+        return $nearest;
+    })->filter();
+
+    return $nearestVehicles;
+}
+
+/**
+ * Single batched call to Google Distance Matrix for a collection of vehicles.
+ * Expects $vehicles to have ->user->latitude & ->user->longitude.
+ * Returns vehicles collection with distance_km, distance_text, duration_text set.
+ */
+private function batchDistanceMatrixForVehicles($vehicles, array $originLatLng)
+{
+    $apiKey = env('GOOGLE_MAP_API_KEY');
+    $mapIndexToVehicle = [];
+    $destinations = [];
+
+    foreach ($vehicles as $v) {
+        if ($v->user && $v->user->latitude !== null && $v->user->longitude !== null) {
+            $destinations[] = $v->user->latitude . ',' . $v->user->longitude;
+            $mapIndexToVehicle[] = $v;
+        } else {
+            $v->distance_km = INF;
+        }
+    }
+
+    if (empty($destinations) || !$apiKey) {
+        // Use haversine for all if no API key
+        foreach ($mapIndexToVehicle as $v) {
+            $v->distance_km = $this->haversineDistance($originLatLng['lat'], $originLatLng['lng'], $v->user->latitude, $v->user->longitude);
+            $v->distance_text = null; $v->duration_text = null;
+        }
+        return collect($mapIndexToVehicle);
+    }
+
+    $origin = $originLatLng['lat'] . ',' . $originLatLng['lng'];
+    $destStr = implode('|', $destinations);
+    $url = "https://maps.googleapis.com/maps/api/distancematrix/json?origins={$origin}&destinations={$destStr}&key={$apiKey}&mode=driving";
+
+    try {
+        $client = new Client(['timeout' => 5]);
+        $res = $client->request('GET', $url);
+        $data = json_decode($res->getBody(), true);
+
+        if (isset($data['status']) && $data['status'] === 'OK') {
+            $elements = $data['rows'][0]['elements'] ?? [];
+            foreach ($elements as $idx => $el) {
+                $v = $mapIndexToVehicle[$idx] ?? null;
+                if (!$v) continue;
+                if (isset($el['status']) && $el['status'] === 'OK') {
+                    $v->distance_text = $el['distance']['text'] ?? null;
+                    $v->duration_text = $el['duration']['text'] ?? null;
+                    $v->distance_km = isset($el['distance']['value']) ? ($el['distance']['value'] / 1000.0) : $this->haversineDistance($originLatLng['lat'], $originLatLng['lng'], $v->user->latitude, $v->user->longitude);
+                } else {
+                    $v->distance_km = $this->haversineDistance($originLatLng['lat'], $originLatLng['lng'], $v->user->latitude, $v->user->longitude);
+                    $v->distance_text = null; $v->duration_text = null;
+                }
+            }
+        } else {
+            // Google error -> fallback to haversine
+            foreach ($mapIndexToVehicle as $v) {
+                $v->distance_km = $this->haversineDistance($originLatLng['lat'], $originLatLng['lng'], $v->user->latitude, $v->user->longitude);
+                $v->distance_text = null; $v->duration_text = null;
+            }
+        }
+    } catch (\Exception $e) {
+        // On exception fallback to haversine
+        foreach ($mapIndexToVehicle as $v) {
+            $v->distance_km = $this->haversineDistance($originLatLng['lat'], $originLatLng['lng'], $v->user->latitude, $v->user->longitude);
+            $v->distance_text = null; $v->duration_text = null;
+        }
+    }
+
+    return collect($mapIndexToVehicle);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+public function getFareByLocation(Request $request)
     {
         try {
             // Fetch online drivers
