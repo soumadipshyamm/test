@@ -1,0 +1,745 @@
+
+Skip to content
+Open sidebar
+
+ChatGPT 5.1
+You said:
+How can i check zone  with multiple array of arrays lat, long  in laravel  in api send lat, long in controller checking a which zone [[{} ,{}][{}{}][{}{}{}]]like this 
+ChatGPT said:
+
+Thought for 5s
+Nice — you want to send a point (lat,long) to a Laravel API and check which zone (one of many polygons) contains that point. Below are two practical approaches you can use right away:
+
+In-PHP point-in-polygon (works with arrays sent in the request) — no DB spatial extensions needed.
+
+Database spatial query (recommended if zones are stored in DB as polygons) — uses MySQL/PostGIS spatial functions for fast queries.
+
+I'll give you working code examples for both.
+
+1) PHP solution — Ray casting (point-in-polygon)
+Assumes your API receives JSON like:
+
+{
+  "lat": 22.5726,
+  "lng": 88.3639,
+  "zones": [
+    [ {"lat":22.57,"lng":88.36}, {"lat":22.58,"lng":88.36}, {"lat":22.58,"lng":88.37} ],
+    [ {"lat":22.56,"lng":88.34}, {"lat":22.57,"lng":88.34}, {"lat":22.57,"lng":88.35} ]
+  ]
+}
+Controller example (app/Http/Controllers/Api/ZoneController.php):
+
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+
+class ZoneController extends Controller
+{
+    public function checkZone(Request $request)
+    {
+        $data = $request->validate([
+            'lat' => 'required|numeric',
+            'lng' => 'required|numeric',
+            'zones' => 'required|array' // array of polygons (each polygon = array of points)
+        ]);
+
+        $point = ['lat' => (float)$data['lat'], 'lng' => (float)$data['lng']];
+        $zones = $data['zones'];
+
+        foreach ($zones as $index => $polygon) {
+            // polygon may be array of objects {lat,lng} or array of arrays [lat,lng]
+            $normalized = $this->normalizePolygon($polygon);
+
+            if ($this->pointInPolygon($point, $normalized)) {
+                return response()->json([
+                    'found' => true,
+                    'zone_index' => $index,
+                    'message' => "Point is inside zone #$index"
+                ]);
+            }
+        }
+
+        return response()->json(['found' => false, 'message' => 'Point is not inside any zone']);
+    }
+
+    // Normalize polygon to array of [lat, lng] pairs
+    private function normalizePolygon($polygon)
+    {
+        $out = [];
+        foreach ($polygon as $p) {
+            if (is_array($p) && count($p) === 2 && isset($p[0])) {
+                // format [lat, lng] or [lng, lat] — assume [lat,lng]
+                $out[] = ['lat' => (float)$p[0], 'lng' => (float)$p[1]];
+            } elseif (is_object($p) || is_array($p)) {
+                // object: {lat:..., lng:...} or associative array
+                $lat = $p['lat'] ?? $p->lat ?? null;
+                $lng = $p['lng'] ?? $p->lng ?? null;
+                if ($lat === null || $lng === null) continue;
+                $out[] = ['lat' => (float)$lat, 'lng' => (float)$lng];
+            }
+        }
+        return $out;
+    }
+
+    // Ray-casting algorithm
+    private function pointInPolygon(array $point, array $polygon): bool
+    {
+        $x = $point['lng']; // treat x as longitude
+        $y = $point['lat']; // treat y as latitude
+
+        $inside = false;
+        $n = count($polygon);
+        if ($n < 3) return false;
+
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            $xi = $polygon[$i]['lng']; $yi = $polygon[$i]['lat'];
+            $xj = $polygon[$j]['lng']; $yj = $polygon[$j]['lat'];
+
+            $intersect = (($yi > $y) != ($yj > $y)) &&
+                ($x < ($xj - $xi) * ($y - $yi) / ($yj - $yi + 0.0) + $xi);
+
+            if ($intersect) $inside = !$inside;
+        }
+
+        return $inside;
+    }
+}
+Notes:
+
+The function expects polygon points in [lat,lng] or {lat,lng} form. If you use [lng,lat] change normalization accordingly.
+
+The algorithm handles most cases. Points exactly on the edge may behave inconsistently; handle edge-case logic if needed.
+
+2) Database spatial test (MySQL / PostGIS) — best for many zones and production
+If you store zones as POLYGON in DB, let the DB do the heavy lifting:
+
+Migration example (MySQL with spatial support):
+
+Schema::create('zones', function (Blueprint $table) {
+    $table->id();
+    $table->string('name')->nullable();
+    $table->point('center')->nullable(); // optional
+    $table->polygon('geom'); // requires MySQL spatial or PostGIS
+    $table->timestamps();
+});
+Eloquent query to find first zone containing the point (MySQL ST_Contains):
+
+$lng = 88.3639;
+$lat = 22.5726;
+$wkt = "POINT($lng $lat)"; // NOTE: WKT uses lon lat order
+
+$zone = \DB::table('zones')
+    ->select('*')
+    ->whereRaw("ST_Contains(geom, ST_GeomFromText(? , ST_SRID(geom)))", [$wkt])
+    ->first();
+Or with PostGIS:
+
+$zone = \DB::table('zones')
+    ->whereRaw("ST_Contains(geom, ST_SetSRID(ST_Point(?, ?), 4326))", [$lng, $lat])
+    ->first();
+Benefits:
+
+Uses spatial index -> very fast for many polygons.
+
+Handles complex polygons, multipolygons, and edge cases well.
+
+Extra tips & pitfalls
+Coordinate order: WKT and many spatial DB functions use longitude,latitude ordering. But many frontends send latitude,longitude. Be consistent and document it.
+
+Closed polygons: Some algorithms expect the polygon's first and last point to be the same. Ray-casting above does not require that.
+
+Polygons with holes / multipolygons: If you have holes or multipolygons, prefer DB spatial functions or a robust library.
+
+Precision / EPS: For points on edges, decide whether "on the boundary" counts as inside and implement accordingly.
+
+Performance: If zones are static and many, store them in DB and index them. If you get an array of many polygons every request, it's heavier.
+
+If you want, I can:
+
+adapt the PHP code to accept zones in the exact shape you currently have (share a sample payload), or
+
+give a ready-to-use Eloquent Zone model + migration + sample seed for DB spatial usage.
+
+Which one would you like next?
+
+You said:
+More functionality and dynamic 
+ChatGPT said:
+
+Thought for a few seconds
+Nice — below I’ll give you a full-featured, dynamic and production-ready approach you can drop into a Laravel API. It includes:
+
+Two runtime strategies (DB spatial + dynamic in-request arrays) and automatic fallback.
+
+Admin endpoints to create/update/delete zones.
+
+Caching + cache invalidation on updates.
+
+Batch/stream checking (many points at once).
+
+Queueable precomputation (bounding boxes) for speed.
+
+A clean Service class to keep controller logic tiny.
+
+Example routes, migration, model, controller, service, events/listeners, and a PHPUnit-style test snippet.
+
+If you want, I can paste these files into your repo layout or make a canvas file for easier editing. For now — the code and explanation.
+
+Design summary (high level)
+Store zones in DB as geom (POLYGON / MULTIPOLYGON) — best for many zones. Add spatial index.
+
+Provide admin CRUD endpoints for zones; every update emits ZoneUpdated event -> clears cache / triggers precompute job.
+
+Provide a ZoneService that:
+
+Tries DB spatial query first (fast, indexed).
+
+Falls back to in-memory ray-casting when request supplies zones array or DB isn't available.
+
+Exposes batch check, nearest-zone calculation (by centroid distance), and returns metadata.
+
+Cache zone geometries (eg. Redis) as GeoJSON/WKT to avoid DB reads at runtime for in-memory checks.
+
+Precompute bounding boxes for quick rejection tests (fast cheap test before point-in-polygon).
+
+If checks are heavy, run them in a queue job and return job id / results; or stream synchronous results for normal requests.
+
+1) Migration & Model (MySQL with spatial support)
+Migration:
+
+// database/migrations/2025_01_01_000000_create_zones_table.php
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateZonesTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('zones', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->nullable();
+            $table->json('meta')->nullable(); // any extra metadata you need
+            // geom column: store as MULTIPOLYGON for generality (can store polygon as multipolygon)
+            $table->geometry('geom'); // requires MySQL with spatial extensions / PostGIS for Postgres
+            $table->polygon('bbox')->nullable(); // optional: store bbox as polygon/geometry if you like
+            $table->timestamps();
+        });
+
+        // Add spatial index (raw statement — depends on DB)
+        \DB::statement('CREATE SPATIAL INDEX zones_geom_index ON zones (geom)');
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('zones');
+    }
+}
+Eloquent Model:
+
+// app/Models/Zone.php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Zone extends Model
+{
+    protected $guarded = [];
+    protected $casts = [
+        'meta' => 'array'
+    ];
+
+    // helper to get WKT or GeoJSON if needed
+    public function getGeoJsonAttribute()
+    {
+        // if you want to fetch GeoJSON, use DB ST_AsGeoJSON(...) in queries or a DB helper
+        return null;
+    }
+}
+Note: Blueprint::geometry() and Blueprint::polygon() are not standard in older Laravel versions — if your DB driver or Laravel doesn't support them, create the geometry column using raw SQL in migration. Also ensure your DB user has permission for spatial functions.
+
+2) Admin CRUD controller (basic)
+// app/Http/Controllers/Api/ZoneAdminController.php
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Jobs\PrecomputeZoneCache;
+use App\Models\Zone;
+use App\Events\ZoneUpdated;
+use Illuminate\Http\Request;
+
+class ZoneAdminController extends Controller
+{
+    public function store(Request $request)
+    {
+        $data = $request->validate([
+            'name' => 'required|string',
+            'geom' => 'required|array', // expect GeoJSON Polygon/MultiPolygon or array of points
+            'meta' => 'nullable|array'
+        ]);
+
+        // Convert incoming geom to WKT or store as GeoJSON depending on DB usage
+        $wkt = $this->geomArrayToWkt($data['geom']);
+
+        $zone = Zone::create([
+            'name' => $data['name'],
+            'meta' => $data['meta'] ?? [],
+            // raw expression to store geometry - adjust SQL for your DB
+            'geom' => \DB::raw("ST_GeomFromText('{$wkt}', 4326)"),
+        ]);
+
+        event(new ZoneUpdated($zone->id));
+
+        // dispatch background precompute
+        PrecomputeZoneCache::dispatch($zone->id);
+
+        return response()->json($zone, 201);
+    }
+
+    public function update(Request $request, Zone $zone)
+    {
+        $data = $request->validate([
+            'name' => 'sometimes|string',
+            'geom' => 'nullable|array',
+            'meta' => 'nullable|array'
+        ]);
+
+        if (isset($data['geom'])) {
+            $wkt = $this->geomArrayToWkt($data['geom']);
+            $zone->geom = \DB::raw("ST_GeomFromText('{$wkt}', 4326)");
+        }
+
+        $zone->fill($data);
+        $zone->save();
+
+        event(new ZoneUpdated($zone->id));
+        PrecomputeZoneCache::dispatch($zone->id);
+
+        return response()->json($zone);
+    }
+
+    public function destroy(Zone $zone)
+    {
+        $zone->delete();
+        event(new ZoneUpdated($zone->id));
+        return response()->json(['deleted' => true]);
+    }
+
+    private function geomArrayToWkt(array $geom)
+    {
+        // Implement conversion from your input format (GeoJSON-like array) to WKT POLYGON/MULTIPOLYGON
+        // Example: if $geom is GeoJSON Feature->geometry, use json_encode and call ST_GeomFromGeoJSON in SQL
+        return ''; // implement per your input
+    }
+}
+3) ZoneService — the core logic (DB first, fallback to memory)
+// app/Services/ZoneService.php
+namespace App\Services;
+
+use App\Models\Zone;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+
+class ZoneService
+{
+    protected $cacheTtl = 3600; // seconds
+
+    /**
+     * Check a single point and return zone info or null.
+     * $point = ['lat' => float, 'lng' => float]
+     * $options = ['force_in_memory' => bool, 'zonesArray' => array] 
+     */
+    public function findZoneForPoint(array $point, array $options = [])
+    {
+        // prefer DB spatial if available and not forced to memory
+        if (!($options['force_in_memory'] ?? false) && $this->dbSupportsSpatial()) {
+            $zone = $this->findZoneUsingDB($point);
+            if ($zone) return $zone;
+        }
+
+        // fallback to memory check using either provided zones array or cached DB polygons
+        $zones = $options['zonesArray'] ?? $this->getCachedZones();
+        return $this->findZoneInMemory($point, $zones);
+    }
+
+    public function findZonesForPoints(array $points, array $options = [])
+    {
+        // if DB, do a single query using ST_Contains for each point or ST_Within
+        if (!($options['force_in_memory'] ?? false) && $this->dbSupportsSpatial()) {
+            // batching: build union of points or loop and query (optimize as needed)
+            $results = [];
+            foreach ($points as $p) {
+                $results[] = $this->findZoneUsingDB($p);
+            }
+            return $results;
+        }
+
+        // memory fallback:
+        $zones = $options['zonesArray'] ?? $this->getCachedZones();
+        return array_map(fn($p) => $this->findZoneInMemory($p, $zones), $points);
+    }
+
+    protected function dbSupportsSpatial()
+    {
+        // basic check; or config flag
+        try {
+            DB::selectOne('select 1');
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    protected function findZoneUsingDB(array $point)
+    {
+        $lng = $point['lng'];
+        $lat = $point['lat'];
+
+        // Adjust SQL depending on your DB (MySQL/PostGIS)
+        $row = DB::table('zones')
+            ->select('id', 'name', 'meta')
+            ->whereRaw("ST_Contains(geom, ST_SetSRID(ST_Point(?, ?), 4326))", [$lng, $lat])
+            ->limit(1)
+            ->first();
+
+        return $row ? (array)$row : null;
+    }
+
+    protected function findZoneInMemory(array $point, array $zones)
+    {
+        // zones: array of ['id'=>..,'name'=>..,'coords'=>[[lat,lng],...],'meta'=>...,'bbox'=>[minLat,maxLat,minLng,maxLng]]
+        foreach ($zones as $zone) {
+            // quick bbox reject
+            if (isset($zone['bbox']) && !$this->pointInBbox($point, $zone['bbox'])) continue;
+
+            if ($this->pointInPolygon($point, $zone['coords'])) {
+                return $zone;
+            }
+        }
+        return null;
+    }
+
+    protected function getCachedZones()
+    {
+        return Cache::remember('zones_geojson', $this->cacheTtl, function() {
+            $zones = Zone::select('id','name','meta', DB::raw("ST_AsGeoJSON(geom) as geojson"))->get();
+            $out = [];
+            foreach ($zones as $z) {
+                // parse geojson into coords, compute bbox
+                $geo = json_decode($z->geojson, true);
+                $coords = $this->geojsonToPointArray($geo);
+                $bbox = $this->computeBbox($coords);
+                $out[] = [
+                    'id' => $z->id,
+                    'name' => $z->name,
+                    'meta' => $z->meta,
+                    'coords' => $coords,
+                    'bbox' => $bbox
+                ];
+            }
+            return $out;
+        });
+    }
+
+    // geometry helpers below
+
+    protected function geojsonToPointArray($geo)
+    {
+        // support Polygon and MultiPolygon
+        $points = [];
+        if ($geo['type'] === 'Polygon') {
+            // geo['coordinates'] => [ [ [lng, lat], ... ], [ring2], ... ] -> take first ring
+            $ring = $geo['coordinates'][0] ?? [];
+            foreach ($ring as $pt) $points[] = ['lat' => $pt[1], 'lng' => $pt[0]];
+        } elseif ($geo['type'] === 'MultiPolygon') {
+            // flatten polygons (take first polygon's first ring as the main polygon)
+            $ring = $geo['coordinates'][0][0] ?? [];
+            foreach ($ring as $pt) $points[] = ['lat' => $pt[1], 'lng' => $pt[0]];
+        }
+        return $points;
+    }
+
+    protected function computeBbox(array $coords)
+    {
+        $minLat = $maxLat = null;
+        $minLng = $maxLng = null;
+        foreach ($coords as $p) {
+            $lat = $p['lat']; $lng = $p['lng'];
+            $minLat = $minLat === null ? $lat : min($minLat, $lat);
+            $maxLat = $maxLat === null ? $lat : max($maxLat, $lat);
+            $minLng = $minLng === null ? $lng : min($minLng, $lng);
+            $maxLng = $maxLng === null ? $lng : max($maxLng, $lng);
+        }
+        return [$minLat, $maxLat, $minLng, $maxLng];
+    }
+
+    protected function pointInBbox(array $p, array $bbox)
+    {
+        [$minLat, $maxLat, $minLng, $maxLng] = $bbox;
+        return $p['lat'] >= $minLat && $p['lat'] <= $maxLat && $p['lng'] >= $minLng && $p['lng'] <= $maxLng;
+    }
+
+    // ray-casting algorithm, robust version
+    protected function pointInPolygon(array $point, array $polygon): bool
+    {
+        $x = $point['lng'];
+        $y = $point['lat'];
+        $inside = false;
+        $n = count($polygon);
+        if ($n < 3) return false;
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            $xi = $polygon[$i]['lng']; $yi = $polygon[$i]['lat'];
+            $xj = $polygon[$j]['lng']; $yj = $polygon[$j]['lat'];
+
+            // check if point is exactly on vertex or edge (optional: treat as inside)
+            if (($yi == $y && $xi == $x) || ($yj == $y && $xj == $x)) return true;
+
+            $intersects = (($yi > $y) !== ($yj > $y)) &&
+                ($x < ($xj - $xi) * ($y - $yi) / ($yj - $yi + 0.0) + $xi);
+
+            if ($intersects) $inside = !$inside;
+        }
+
+        return $inside;
+    }
+}
+4) Precompute job & event to keep cache fresh
+Event:
+
+// app/Events/ZoneUpdated.php
+namespace App\Events;
+use Illuminate\Foundation\Events\Dispatchable;
+
+class ZoneUpdated
+{
+    use Dispatchable;
+    public $zoneId;
+    public function __construct($zoneId) { $this->zoneId = $zoneId; }
+}
+Job to precompute and cache GeoJSON + bbox:
+
+// app/Jobs/PrecomputeZoneCache.php
+namespace App\Jobs;
+
+use App\Models\Zone;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+
+class PrecomputeZoneCache implements ShouldQueue
+{
+    use Queueable;
+
+    protected $zoneId;
+    public function __construct($zoneId = null) { $this->zoneId = $zoneId; }
+
+    public function handle()
+    {
+        // naive: refresh full cache (or only for single zone)
+        $zones = Zone::select('id','name','meta', DB::raw("ST_AsGeoJSON(geom) as geojson"))->get();
+        $out = [];
+        foreach ($zones as $z) {
+            $geo = json_decode($z->geojson, true);
+            // compute coords & bbox similar to service
+            // ...
+            $out[] = [
+                'id' => $z->id, 'name' => $z->name, 'meta' => $z->meta,
+                // fill coords and bbox
+            ];
+        }
+        Cache::put('zones_geojson', $out, 3600);
+    }
+}
+Listener to clear/update cache on ZoneUpdated:
+
+// app/Listeners/ClearZoneCache.php
+namespace App\Listeners;
+use App\Jobs\PrecomputeZoneCache;
+use Illuminate\Support\Facades\Cache;
+
+class ClearZoneCache
+{
+    public function handle($event)
+    {
+        Cache::forget('zones_geojson');
+        PrecomputeZoneCache::dispatch(); // full refresh async
+    }
+}
+Register listener in EventServiceProvider.
+
+5) Routes (api.php)
+Route::prefix('admin')->group(function () {
+    Route::apiResource('zones', 'Api\ZoneAdminController');
+});
+
+Route::post('zones/check', 'Api\ZoneLookupController@check'); // single point or batch
+ZoneLookupController uses ZoneService to answer queries:
+
+// body: { lat, lng } OR { points: [{lat,lng},...] } OR { zones: [...] , lat, lng } for dynamic arrays
+6) Example API payloads
+Single point, DB mode:
+
+{ "lat": 22.57, "lng": 88.36 }
+Batch:
+
+{ "points": [{"lat":22.57,"lng":88.36}, {"lat":22.56,"lng":88.35}] }
+Dynamic zones in-request (force in-memory):
+
+{
+  "lat": 22.57,
+  "lng": 88.36,
+  "zones": [
+    [ {"lat":22.57,"lng":88.36}, {"lat":22.58,"lng":88.36}, {"lat":22.58,"lng":88.37} ],
+    [ {"lat":22.56,"lng":88.34}, {"lat":22.57,"lng":88.34}, {"lat":22.57,"lng":88.35} ]
+  ],
+  "force_in_memory": true
+}
+7) Tests (basic PHPUnit)
+public function test_point_inside_zone()
+{
+    $service = new \App\Services\ZoneService();
+    $polygon = [
+        ['lat'=>0,'lng'=>0], ['lat'=>0,'lng'=>1], ['lat'=>1,'lng'=>1], ['lat'=>1,'lng'=>0]
+    ];
+    $point = ['lat'=>0.5,'lng'=>0.5];
+
+    $this->assertTrue(method_exists($service, 'pointInPolygon')); // or call via reflection
+    $result = $service->findZoneInMemory($point, [
+        ['id'=>1, 'coords'=>$polygon, 'bbox'=>[0,1,0,1],'name'=>'box']
+    ]);
+    $this->assertNotNull($result);
+    $this->assertEquals('box', $result['name']);
+}
+8) Performance & production tips (practical)
+Use spatial index (MySQL SPATIAL or PostGIS GiST) — crucial for large datasets.
+
+Pre-filter by bounding box (cheap) before PIP test. Bbox test is O(1), PIP is O(n).
+
+Cache polygon geometries and bboxes in Redis. Invalidate on updates.
+
+For huge volumes, use an R-tree or third-party spatial index library.
+
+Decide how to treat points on boundary (inside or outside) and apply consistently.
+
+Use GeoJSON as canonical transfer format in API (easy to parse both client & DB side).
+
+Keep long-running or large batch checks in queue jobs and return job progress for UX.
+
+If you expect lots of small checks per second, add a rate limit or pre-warm cache.
+
+9) Extra features you may want (I can add these):
+Return distance to nearest zone (compute centroid and haversine distance).
+
+Return distanceToEdge (closest distance from point to polygon boundary).
+
+Support for polygons with holes and multipolygons robustly.
+
+Webhook or broadcast (via Pusher/Socket.IO) on zone updates so clients can refresh local copy.
+
+CLI command to bulk-import shapefiles / GeoJSON into DB with SRID handling.
+
+If you want, I can now:
+
+provide the full ZoneService file with the missing helper implementations filled in (geojson parsing, bbox computation), or
+
+produce a ready-to-run ZoneLookupController + unit tests, or
+
+show the exact raw SQL snippets for MySQL vs PostGIS to store / query polygons, or
+
+generate a small seed + sample curl requests so you can test locally.
+
+Which one should I produce next? (I’ll assume you want the complete ZoneService with all helpers if you don’t pick — and I’ll include the DB/PostGIS SQL flavors.)
+
+You said:
+Driver distance radius 4000metar
+ChatGPT said:
+Below is the exact logic you need to filter drivers within 4000 meters (4 km) radius using Haversine formula in Laravel.
+This works for MySQL + Laravel Eloquent and will give perfect accurate distance + you can sort by nearest.
+
+✅ 1. Get drivers within 4000 meters
+Use this inside your Controller or Service:
+
+$lat = $request->lat;
+$lng = $request->lng;
+$radius = 4000; // meters
+
+$drivers = User::select(
+        'id',
+        'name',
+        'latitude',
+        'longitude',
+        DB::raw("(
+            6371000 * acos(
+                cos(radians($lat)) *
+                cos(radians(latitude)) *
+                cos(radians(longitude) - radians($lng)) +
+                sin(radians($lat)) *
+                sin(radians(latitude))
+            )
+        ) AS distance")
+    )
+    ->where('role', 'driver')
+    ->where('is_online', 1)
+    ->where('is_blocked', 0)
+    ->having('distance', '<=', $radius)
+    ->orderBy('distance', 'asc')
+    ->get();
+✅ 2. API Response Example
+return response()->json([
+    'status' => true,
+    'drivers' => $drivers
+]);
+🧠 How It Works
+Uses Haversine formula → accurate spherical Earth calculation.
+
+Computes distance between:
+
+request lat/lng
+
+driver lat/lng in database
+
+Filters only those within 4000 meters
+
+Sorts by nearest first
+
+📌 Example Output
+[
+  {
+    "id": 12,
+    "name": "Driver A",
+    "distance": 532.55
+  },
+  {
+    "id": 9,
+    "name": "Driver B",
+    "distance": 1890.22
+  }
+]
+🔥 Optional — Only pick nearest driver within 4 km
+$nearest = $drivers->first();
+⚠️ Important
+Your users table must have:
+
+latitude (float)
+longitude (float)
+🆘 If you want:
+I can add:
+✅ Vehicle category wise
+✅ Driver availability status filtering
+✅ Zone-based driver filtering
+✅ Multi-radius fallback (4km → 6km → 10km fallback)
+✅ Optimized index for ultra-fast search
+
+Just tell me what you want added.
+
+
+
+No file chosenNo file chosen
+ChatGPT can make mistakes. Check important info. See Cookie Preferences.
+Sidebar
+Chat history
+
