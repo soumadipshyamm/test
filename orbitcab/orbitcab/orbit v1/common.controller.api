@@ -1,3 +1,280 @@
+
+  public function getFareByLocation(Request $request)
+
+    {
+        $t0 = microtime(true);
+
+        // =========================
+        // 1) Inputs & validation
+        // =========================
+        // dd($request->all());
+        $pickupLat = (float) ($request->input('pickup.lat') ?? $request->input('lat'));
+        $pickupLng = (float) ($request->input('pickup.lng') ?? $request->input('lng'));
+        $radiusKm  = (int) ($request->input('radius_km') ?? 5);       // default 5km
+        $avgSpeedKmph = (int) ($request->input('avg_speed_kmph') ?? 25); // realistic city avg
+
+        if (!$pickupLat || !$pickupLng) {
+            Log::warning('nearestVehicles: invalid pickup lat/lng', compact('pickupLat', 'pickupLng'));
+            return $this->responseJson(false, 422, __('Invalid pickup coordinates'), []);
+        }
+
+        $distances = calculateDistances($request->pickup, $request->drop);
+        $totalDistanceKm = $distances['distance'] ?? 0;
+        $totalDurationMin = round($distances['duration']) ?? 0;
+
+        $currentLat = $request->input('lat');
+        $currentLng = $request->input('lng');
+
+        // Optional route (pickup->drop) from client; else we fallback to driver->pickup
+        $routeDistanceKm = $totalDistanceKm;
+        $routeDurationMin =  $totalDurationMin;
+        // $routeDistanceKm = (float) ($request->input('route.distance_km') ?? 0);
+        // $routeDurationMin = (int) ($request->input('route.duration_min') ?? 0);
+
+
+        // =========================
+        // 2) Online & available drivers
+        // =========================
+        $driversOnlineList = $this->userService->findUserByRole([
+            'is_online'  => 1,
+            'is_blocked' => 0,
+        ], 'driver');
+
+        $driverIds = $driversOnlineList->pluck('id')->toArray();
+        if (empty($driverIds)) {
+            Log::info('nearestVehicles: no online drivers');
+            return $this->responseJson(false, 200, __('No Online Drivers Available'), []);
+        }
+
+        $busyDriverIds = Booking::query()
+            ->whereIn('status', [1, 2, 3, 4])
+            ->where('is_accepted', 2)
+            ->whereNotNull('driver_id')
+            ->distinct()
+            ->pluck('driver_id')
+            ->toArray();
+
+        $availableDriverIds = array_diff($driverIds, $busyDriverIds);
+        if (empty($availableDriverIds)) {
+            Log::info('nearestVehicles: no available drivers after excluding busy ones');
+            return $this->responseJson(false, 200, __('No Available Drivers'), []);
+        }
+
+        // =========================
+        // 3) Bounding-box prefilter (fast coarse filter)
+        // =========================
+        // ~111.32 km per degree latitude; longitude depends on latitude (cos)
+        $latDelta = $radiusKm / 111.32;
+        $lngDelta = $radiusKm / (111.32 * max(cos(deg2rad($pickupLat)), 0.000001));
+
+        $minLat = $pickupLat - $latDelta;
+        $maxLat = $pickupLat + $latDelta;
+        $minLng = $pickupLng - $lngDelta;
+        $maxLng = $pickupLng + $lngDelta;
+
+        // =========================
+        // 4) Haversine distance expr (KM) and query
+        // =========================
+        $earthRadius = 6371; // km
+        $haversineExpr = "$earthRadius * acos(
+        cos(radians(?)) * cos(radians(users.latitude)) *
+        cos(radians(users.longitude) - radians(?)) +
+        sin(radians(?)) * sin(radians(users.latitude))
+        )";
+
+        $bindings = [$pickupLat, $pickupLng, $pickupLat];
+
+        $q0 = microtime(true);
+
+        $vehicles = Vehicle::query()
+            ->join('users', 'users.id', '=', 'vehicles.user_id')
+            ->whereIn('vehicles.user_id', $availableDriverIds)
+            ->where('vehicles.is_primary', 1)
+            ->whereNotNull('users.latitude')
+            ->whereNotNull('users.longitude')
+            // Bounding box first (cheap)
+            ->whereBetween('users.latitude', [$minLat, $maxLat])
+            ->whereBetween('users.longitude', [$minLng, $maxLng])
+            // Only categories with active fares
+            ->whereHas('category', function ($q) {
+                $q->where('is_active', 1)
+                    ->whereHas('fares', fn($fq) => $fq->where('is_active', 1));
+            })
+            // Minimal base columns but eager relationships required by resource
+            ->select('vehicles.*')
+            ->selectRaw("$haversineExpr AS distance_km", $bindings)
+            // NOW filter by radius using WHERE (not HAVING)
+            ->whereRaw("$haversineExpr <= ?", array_merge($bindings, [$radiusKm]))
+            ->with([
+                'category.parent',
+                'category.fares'     => fn($q) => $q->where('is_active', 1),
+                'category.faresDate' => fn($q) => $q->where('is_active', 1),
+                'brand',
+                'car',
+                'user:id,latitude,longitude',
+            ])
+            ->orderBy('distance_km', 'asc')
+            ->get();
+
+        // dd($vehicles);
+        $q1 = microtime(true);
+        // Log::debug('nearestVehicles: query runtime (ms)', ['ms' => round(($q1 - $q0) * 1000, 2)]);
+
+        if ($vehicles->isEmpty()) {
+            // Log::info('nearestVehicles: no vehicles within radius', compact('radiusKm'));
+            return $this->responseJson(false, 200, __('No vehicles within radius'), []);
+        }
+
+        // =========================
+        // 5) Fare cache by category (avoid repeated helper calls)
+        // =========================
+        $fareByCategory = [];
+
+        $hasSpecialHelper = function_exists('getBaseFareFromSpecialTimeSlot');
+        $hasRegularHelper = function_exists('getBaseFareFromTimeSlot');
+        $fareByCategory = [];
+
+        $selectAppliedFare = function ($category, $preferSpecial = false) use (&$fareByCategory, $hasSpecialHelper, $hasRegularHelper) {
+            if (!$category || !$category->id) return null;
+            $cid = $category->id;
+
+            if (array_key_exists($cid, $fareByCategory)) {
+                return $fareByCategory[$cid];
+            }
+
+            $faresSpecial = $category->faresDate ?? null;
+            $faresRegular = $category->fares ?? null;
+
+            $special = ($hasSpecialHelper && !empty($faresSpecial)) ? getBaseFareFromSpecialTimeSlot($faresSpecial) : null;
+            $regular = ($hasRegularHelper && !empty($faresRegular)) ? getBaseFareFromTimeSlot($faresRegular) : null;
+            // dd($special, $regular);
+            // precedence toggle: prefer special or regular
+            $applied = $preferSpecial ? ($special ?? $regular) : ($regular ?? $special);
+
+            return $fareByCategory[$cid] = $applied;
+        };
+
+        // =========================
+        // 6) Attach distance, compute fare, build list
+        // =========================
+        $nearestVehicles = $vehicles->map(function ($v) use ($avgSpeedKmph, $routeDistanceKm, $routeDurationMin, $selectAppliedFare) {
+
+            // Base distance from SQL (driver -> pickup)
+            $kmDriverToPickup = round((float) $v->distance_km, 3);
+            $minDriverToPickup = (int) ceil(($kmDriverToPickup / max($avgSpeedKmph, 1)) * 60);
+
+            // Prefer client-provided route, else fallback
+            $totalDistanceKm  = $routeDistanceKm > 0 ? round($routeDistanceKm, 3) : $kmDriverToPickup;
+            $totalDurationMin = $routeDurationMin > 0 ? (int) $routeDurationMin : $minDriverToPickup;
+
+            // Applied fare from cache
+            $appliedFare = $selectAppliedFare($v->category);
+
+            if ($appliedFare === null) {
+                // If you want to exclude vehicles with no fare, return null here and filter later
+                $v->setAttribute('total_fare', 0);
+                Log::debug('nearestVehicles: no applied fare for category', [
+                    'category_id' => optional($v->category)->id,
+                    'vehicle_id'  => $v->id
+                ]);
+            } else {
+
+                info("===================================");
+                info($appliedFare->base_fare);
+                info($appliedFare->rate_per_km);
+                info($totalDistanceKm);
+                info(((float)($appliedFare->rate_per_km ?? 0) * $totalDistanceKm));
+                info($appliedFare->rate_per_minute);
+                info($totalDurationMin);
+                info(((float)($appliedFare->rate_per_minute ?? 0) * $totalDurationMin));
+                info("===================================");
+
+                $totalFare = (float)($appliedFare->base_fare ?? 0)
+                    + ((float)($appliedFare->rate_per_km ?? 0) * $totalDistanceKm)
+                    + ((float)($appliedFare->rate_per_minute ?? 0) * $totalDurationMin);
+
+                $fareWithGst = function_exists('calculateAmountWithGST')
+                    ? calculateAmountWithGST($totalFare)
+                    : $totalFare;
+                info("*********************************************************");
+                info($fareWithGst);
+                info($totalFare);
+                info("*********************************************************");
+                $v->setAttribute('total_fare', round((float) $fareWithGst, 2));
+            }
+
+
+
+            // Base numeric values you already computed
+            $km   = round((float) $totalDistanceKm, 3);
+            $min  = (int) max($totalDurationMin, 0);
+
+            // Derived units
+            $meters = (int) round($km * 1000);                  // m
+            $hours  = round($min / 60, 2);                      // h (2-decimal precision)
+
+            // Friendly text (localized messages can replace hardcoded strings)
+            $distanceText = $km >= 1
+                ? ($km . ' km')
+                : ($meters . ' m');
+
+            $durationText = $min >= 60
+                ? ($hours . ' h')
+                : ($min . ' min');
+
+            $v->setAttribute('distance', [
+                // Raw numeric values
+                'distance_km'   => $km,        // kilometers
+                'distance_m'    => $meters,    // meters
+                'duration_min'  => $min,       // minutes
+                'duration_hr'   => $hours,     // hours (decimal)
+
+                // Friendly strings
+                'distance' => $distanceText,  // e.g., "3.2 km" or "850 m"
+                'duration' => $durationText,  // e.g., "45 min" or "1.75 h"
+            ]);
+
+
+            // Attach payload for VehicleNewResource
+            // $v->setAttribute('distance', [
+            //     'distance' => $totalDistanceKm,   // km
+            //     'duration' => $totalDurationMin,  // minutes
+            // ]);
+            info("===================================");
+            info($v->total_fare);
+            info($v);
+            info("===================================");
+            return $v;
+        })
+            // Uncomment to drop vehicles without fare:
+            ->filter(fn($v) => ($v->total_fare ?? 0) > 0)
+            ->values();
+
+        $t1 = microtime(true);
+        // Log::debug('nearestVehicles: total runtime (ms)', ['ms' => round(($t1 - $t0) * 1000, 2)]);
+        // Log::debug('nearestVehicles: result size', ['count' => $nearestVehicles->count()]);
+        info("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+        info($nearestVehicles);
+        info("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%");
+
+        // =========================
+        // 7) Return with your exact signature
+        // =========================
+        return $this->responseJson(
+            true,
+            200,
+            __('Vehicle Found Successfully'),
+            VehicleNewResource::collection($nearestVehicles)
+        );
+    }
+
+
+
+*********************************************************************************************************************************************
+
+
+
+
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
