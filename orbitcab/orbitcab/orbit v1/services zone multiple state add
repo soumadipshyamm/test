@@ -1,5 +1,177 @@
 
 
+@extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
+
+
+@push('styles')
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/icheck/icheck.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/toggle/bootstrap-switch.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/toggle/switchery.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/css/plugins/forms/switch.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/vendor/datatables/responsive.bootstrap4.min.css') }}">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+@endpush
+
+
+@section('content')
+    <div class="content-header row top_header">
+        <h4 class="py-2 mb-0"><span class="text-muted fw-light">{{ __(' City Services Zone List') }}</span></h4>
+        <div class="d-flex align-content-center flex-wrap gap-3">
+            <a href="{{ route('admin.service-zones.create') }}" class="btn btn-primary">{{ __('Add Service City') }}</a>
+        </div>
+    </div>
+
+    <div class="content-body">
+        <section id="row-selection">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <a class="heading-elements-toggle"><i class="fa fa-ellipsis-v font-medium-3"></i></a>
+                            <div class="heading-elements">
+                                <ul class="list-inline mb-0">
+                                    <li><a data-action="collapse"><i class="ft-minus"></i></a></li>
+                                    <li><a data-action="reload"><i class="ft-rotate-cw"></i></a></li>
+                                    <li><a data-action="expand"><i class="ft-maximize"></i></a></li>
+                                    <li><a data-action="close"><i class="ft-x"></i></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card-content collapse show">
+                            <div class="card-body">
+                                <table class="table table-striped table-bordered customdatatable" id="carTooable">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ __('Sr. No.') }}</th>
+                                            <th>{{ __('State Name') }}</th>
+                                            <th>{{ __('Service Area') }}</th>
+                                            <th>{{ __('Action') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($zones as $key => $valu)
+                                            {{-- @dd($valu) --}}
+                                            <tr>
+                                                <td>{{ $key + 1 }}</td>
+                                                <td>{{ $valu?->city?->name }} <span
+                                                        class="badge bg-success ms-1 ">add</span></td>
+                                                <td>
+                                                    @if ($valu->status == 1 && $valu?->id !== null && $valu?->city?->id !== null)
+                                                        @if (!$valu->cabZone->first())
+                                                            <a href="{{ route('admin.service-zones.editPolygonDraw', [$valu?->id, $valu?->city->id]) }}"
+                                                                class="btn btn-primary">
+                                                                <i class="fa-solid fa-draw-polygon"></i> Add Service Area
+                                                            </a>
+                                                        @endif
+                                                        @if ($valu->cabZone->first())
+                                                            <a href="{{ route('admin.service-zones.viewPolygonDraw', [$valu->id, $valu->city->id]) }}"
+                                                                class="btn btn-secondary">
+                                                                <i class="fa-solid fa-street-view"></i> View
+                                                            </a>
+                                                        @endif
+                                                        @if ($valu->cabZone->first())
+                                                            <a class="btn btn-danger deleteData"
+                                                                data-uuid="{{ $valu->cabZone->first()->uuid }}"
+                                                                href="javascript:void(0)" data-table="cab_zones">
+                                                                <i class="fa-solid fa-trash"></i> Delete
+                                                            </a>
+                                                        @endif
+                                                    @else
+                                                        @if (!$valu->cabZone->first())
+                                                            <button class="btn btn-secondary" disabled>
+                                                                <i class="fa-solid fa-draw-polygon"></i> Add Service Area
+                                                            </button>
+                                                        @else
+                                                            <button class="btn btn-secondary" disabled>
+                                                                <i class="fa-solid fa-street-view"></i> View
+                                                            </button>
+                                                            <button class="btn btn-danger" disabled>
+                                                                <i class="fa-solid fa-trash"></i> Delete
+                                                            </button>
+                                                        @endif
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    <div class="">
+                                                        <label class="switch">
+                                                            <input type="checkbox" class="changeStatus"
+                                                                id="switchery_inline{{ $valu->uuid }}" name="is_active"
+                                                                {{ $valu->status ? 'checked' : '' }}
+                                                                data-uuid="{{ $valu->uuid }}"
+                                                                data-table="service_zone_cities" data-message="deactive">
+                                                            <span class="slider round"></span>
+                                                        </label>
+                                                        @if (!$valu->cabZone->first())
+                                                            <a class="deleteData" href="javascript:void(0)"
+                                                                data-table="service_zone_cities"
+                                                                data-uuid="{{ $valu->uuid }}"> <span
+                                                                    style="margin-right: 5px;"><i
+                                                                        class="fa-solid fa-trash"></i></span>Delete
+                                                            </a>
+                                                        @endif
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        </section>
+    </div>
+@endsection
+@push('scripts')
+    <script src="{{ asset('app-assets/vendors/js/forms/icheck/icheck.min.js') }}"></script>
+    <script src="{{ asset('app-assets/vendors/js/forms/toggle/bootstrap-switch.min.js') }}"></script>
+    <script src="{{ asset('app-assets/vendors/js/forms/toggle/switchery.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/dataTables.bootstrap4.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/dataTables.responsive.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/responsive.bootstrap4.min.js') }}"></script>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.flash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.print.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script src="{{ asset('assets/custom/js/datatableajax.js') }}"></script>
+
+    <script>
+        $(".badge").on("click", function() {
+        //   add on  select option dropdown lis which is listing state listing
+            var state = $(this).attr("data-state");
+            $('#state').val(state).trigger('change');
+
+        });
+    </script>
+@endpush
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 Nice — below is a ready-to-drop-in Laravel example that follows the same idea: a button opens a Bootstrap modal in a Blade view, the country `<select>` is populated from the database, when a country is chosen the states are fetched by AJAX and rendered as **checkboxes**, and the selected values are POSTed to the server and validated.
 
