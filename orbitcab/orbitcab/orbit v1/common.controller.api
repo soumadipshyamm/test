@@ -1,6 +1,47 @@
+function calculateDistances($pickup, $drop)
+{
+    // dd($pickup, $drop);
+    $params = [
+        'origins' => "{$pickup['lat']},{$pickup['lng']}",
+        'destinations' => implode('|', array_map(function ($drop) {
+            // return "{$drop['lat']},{$drop['lng']}";
+            return "{$drop['location']['lat']},{$drop['location']['lng']}";
+        }, $drop)),
+        'key' => config('constants.GOOGLE_MAP_API_KEY'),
+        'mode' => 'driving'
+    ];
 
-  public function getFareByLocation(Request $request)
+    $response = Http::get(config('constants.GOOGLE_MAP_DISTANCE_URL'), $params);
+    $distances = $response->json();
 
+    if ($distances) {
+        $totalDistance = 0;
+        $totalDuration = 0;
+        $totalkilometers = [];
+
+        foreach ($distances['rows'] as $row) {
+            foreach ($row['elements'] as $key => $element) {
+                $totalDistance += $element['distance']['value']; // meters
+                $totalDuration += $element['duration']['value']; // seconds
+
+                $totalkilometers[$key] = [
+                    'distance' => $element['distance']['text'],
+                    'duration' => $element['duration']['text']
+                ];
+            }
+        }
+
+        return [
+            'distance' => round($totalDistance / 1000, 2), // Convert to km
+            'duration' => round($totalDuration / 60, 2), // Convert to min
+            'totalkilometers' => $totalkilometers
+        ];
+    }
+
+    return null;
+}
+
+ public function getFareByLocation(Request $request)
     {
         $t0 = microtime(true);
 
@@ -169,8 +210,9 @@
 
             // Applied fare from cache
             $appliedFare = $selectAppliedFare($v->category);
-
+            info("==================================1=");
             if ($appliedFare === null) {
+                info("==================================2=");
                 // If you want to exclude vehicles with no fare, return null here and filter later
                 $v->setAttribute('total_fare', 0);
                 Log::debug('nearestVehicles: no applied fare for category', [
@@ -179,7 +221,7 @@
                 ]);
             } else {
 
-                info("===================================");
+                info("==================================3=");
                 info($appliedFare->base_fare);
                 info($appliedFare->rate_per_km);
                 info($totalDistanceKm);
@@ -187,7 +229,7 @@
                 info($appliedFare->rate_per_minute);
                 info($totalDurationMin);
                 info(((float)($appliedFare->rate_per_minute ?? 0) * $totalDurationMin));
-                info("===================================");
+                info("=============================4======");
 
                 $totalFare = (float)($appliedFare->base_fare ?? 0)
                     + ((float)($appliedFare->rate_per_km ?? 0) * $totalDistanceKm)
@@ -267,7 +309,6 @@
             VehicleNewResource::collection($nearestVehicles)
         );
     }
-
 
 
 *********************************************************************************************************************************************
