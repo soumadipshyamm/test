@@ -1,3 +1,6 @@
+
+
+
 @extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
 
 @push('styles')
@@ -499,6 +502,20 @@
 
 
 
+
+ public function saveStates(Request $request)
+    {
+        // dd($request->all());
+        $id = uuidtoid($request->service_zone_id, 'service_zone_cities');
+        //    $state=ServiceZoneCity::find($id);
+        $state = CabZone::where('service_zone_id', $id)->first();
+
+        // dd($state, $request->state_id);
+        $state->states_id = $request->states;
+        $state->save();
+        // dd($state);
+        return response()->json($state);
+    }
 
 
 
