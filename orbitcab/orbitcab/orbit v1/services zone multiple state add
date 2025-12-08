@@ -1,6 +1,523 @@
 @extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
 
 @push('styles')
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/icheck/icheck.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/toggle/bootstrap-switch.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/vendors/css/forms/toggle/switchery.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('app-assets/css/plugins/forms/switch.css') }}">
+    <link rel="stylesheet" href="{{ asset('assets/vendor/datatables/responsive.bootstrap4.min.css') }}">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+@endpush
+
+@section('content')
+    <div class="content-header row top_header">
+        <h4 class="py-2 mb-0"><span class="text-muted fw-light">{{ __('City Services Zone List') }}</span></h4>
+        <div class="d-flex align-content-center flex-wrap gap-3">
+            <a href="{{ route('admin.service-zones.create') }}" class="btn btn-primary">{{ __('Add Service City') }}</a>
+            {{-- <button class="btn btn-secondary" data-toggle="modal"
+                data-target="#addStateModal">{{ __('Add State') }}</button> --}}
+        </div>
+    </div>
+
+    <div class="content-body">
+        <section id="row-selection">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <a class="heading-elements-toggle"><i class="fa fa-ellipsis-v font-medium-3"></i></a>
+                            <div class="heading-elements">
+                                <ul class="list-inline mb-0">
+                                    <li><a data-action="collapse"><i class="ft-minus"></i></a></li>
+                                    <li><a data-action="reload"><i class="ft-rotate-cw"></i></a></li>
+                                    <li><a data-action="expand"><i class="ft-maximize"></i></a></li>
+                                    <li><a data-action="close"><i class="ft-x"></i></a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="card-content collapse show">
+                            <div class="card-body">
+                                <table class="table table-striped table-bordered customdatatable" id="carTooable">
+                                    <thead>
+                                        <tr>
+                                            <th>{{ __('Sr. No.') }}</th>
+                                            <th>{{ __('State Name') }}</th>
+                                            <th>{{ __('Service Area') }}</th>
+                                            <th>{{ __('Action') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($zones as $key => $valu)
+                                            <tr>
+                                                <td>{{ $key + 1 }}</td>
+                                                <input type="hidden" class="serviceZoneId" id="serviceZoneId"
+                                                    value="{{ $valu?->uuid }}">
+                                                {{-- @dd($valu) --}}
+                                                @php
+                                                    $cabezones = $valu?->cabZone->first();
+                                                @endphp
+                                                <td>
+                                                    @if (isset($cabezones) && isset($cabezones->states_id) && $cabezones->states_id !== null)
+                                                        {{ findState($cabezones->states_id, 'name') }}
+                                                    @else
+                                                        {{ $valu->state?->name }}
+                                                    @endif
+                                                    @if ($valu->status == 1 && $valu?->id !== null && $valu?->city?->id !== null)
+                                                        @if (!$valu->cabZone->first())
+                                                            <div class="text-right">
+                                                                <a href="#" class="btn btn-sm btn-primary disabled"
+                                                                    data-toggle="modal" data-target="#addStateModal">
+                                                                    <i class="fas fa-plus-circle"></i>
+                                                                </a>
+                                                            </div>
+                                                        @else
+                                                            <div class="text-right">
+                                                                <a href="#" class="btn btn-sm btn-primary addStateBtn"
+                                                                    data-toggle="modal" data-uuid="{{ $valu->uuid }}"
+                                                                    data-target="#addStateModal">
+                                                                    <i class="fas fa-plus-circle"></i>
+                                                                </a>
+                                                            </div>
+                                                        @endif
+                                                    @else
+                                                        <div class="text-right">
+                                                            <a href="#" class="btn btn-sm btn-primary disabled"
+                                                                data-toggle="modal" data-target="#addStateModal">
+                                                                <i class="fas fa-plus-circle"></i>
+                                                            </a>
+                                                        </div>
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    @if ($valu->status == 1 && $valu?->id !== null && $valu?->city?->id !== null)
+                                                        @if (!$valu->cabZone->first())
+                                                            <a href="{{ route('admin.service-zones.editPolygonDraw', [$valu?->id, $valu?->city->id]) }}"
+                                                                class="btn btn-primary">
+                                                                <i class="fa-solid fa-draw-polygon"></i> Add Service Area
+                                                            </a>
+                                                        @endif
+                                                        @if ($valu->cabZone->first())
+                                                            <a href="{{ route('admin.service-zones.viewPolygonDraw', [$valu->id, $valu->city->id]) }}"
+                                                                class="btn btn-secondary">
+                                                                <i class="fa-solid fa-street-view"></i> View
+                                                            </a>
+                                                        @endif
+                                                        @if ($valu->cabZone->first())
+                                                            <a class="btn btn-danger deleteData"
+                                                                data-uuid="{{ $valu->cabZone->first()->uuid }}"
+                                                                href="javascript:void(0)" data-table="cab_zones">
+                                                                <i class="fa-solid fa-trash"></i> Delete
+                                                            </a>
+                                                        @endif
+                                                    @else
+                                                        @if (!$valu->cabZone->first())
+                                                            <button class="btn btn-secondary" disabled>
+                                                                <i class="fa-solid fa-draw-polygon"></i> Add Service Area
+                                                            </button>
+                                                        @else
+                                                            <button class="btn btn-secondary" disabled>
+                                                                <i class="fa-solid fa-street-view"></i> View
+                                                            </button>
+                                                            <button class="btn btn-danger" disabled>
+                                                                <i class="fa-solid fa-trash"></i> Delete
+                                                            </button>
+                                                        @endif
+                                                    @endif
+                                                </td>
+                                                <td>
+                                                    <div class="">
+                                                        <label class="switch">
+                                                            <input type="checkbox" class="changeStatus"
+                                                                id="switchery_inline{{ $valu->uuid }}" name="is_active"
+                                                                {{ $valu->status ? 'checked' : '' }}
+                                                                data-uuid="{{ $valu->uuid }}"
+                                                                data-table="service_zone_cities" data-message="deactive">
+                                                            <span class="slider round"></span>
+                                                        </label>
+                                                        <a class="deleteData" href="javascript:void(0)"
+                                                            data-table="service_zone_cities"
+                                                            data-uuid="{{ $valu->uuid }}"> <span
+                                                                style="margin-right: 5px;"><i
+                                                                    class="fa-solid fa-trash"></i></span>Delete</a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        </section>
+    </div>
+
+    <!-- Modal for Add State -->
+    <div class="modal fade" id="addStateModal" tabindex="-1" role="dialog" aria-labelledby="addStateModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addStateModalLabel">{{ __('Add State') }}</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="countrySelect">{{ __('Select Country') }}</label>
+                        <select id="countrySelect" class="form-control">
+                            <option value="">{{ __('Select Country') }}</option>
+                            @foreach ($countries as $country)
+                                <option value="{{ $country->id }}" {{ $country->id == 101 ? 'selected' : '' }}>
+                                    {{ $country->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="stateSelect">{{ __('Select States') }}</label>
+                        <select id="stateSelect" class="form-control" multiple>
+                            <!-- States will be populated based on selected country -->
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">{{ __('Close') }}</button>
+                    <button type="button" class="btn btn-primary" id="saveStates">{{ __('Save States') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+@endsection
+
+@push('scripts')
+    <script src="{{ asset('app-assets/vendors/js/forms/icheck/icheck.min.js') }}"></script>
+    <script src="{{ asset('app-assets/vendors/js/forms/toggle/bootstrap-switch.min.js') }}"></script>
+    <script src="{{ asset('app-assets/vendors/js/forms/toggle/switchery.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/dataTables.bootstrap4.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/dataTables.responsive.min.js') }}"></script>
+    <script src="{{ asset('assets/vendor/datatables/responsive.bootstrap4.min.js') }}"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.flash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.print.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="{{ asset('assets/custom/js/datatableajax.js') }}"></script>
+
+    <script>
+        $(document).ready(function() {
+
+                // Handle "Add State" button click
+                $('.addStateBtn').on('click', function(event) {
+                    resetAddStateModal();
+                });
+
+                // Handle country dropdown change
+                $('#countrySelect').change(function() {
+                    var countryId = $(this).val();
+                    loadStatesForCountry(countryId);
+                });
+
+                // Handle "Save States" button click
+                $('#saveStates').click(function() {
+                    saveSelectedStates();
+                });
+
+                // Clear modal when it's hidden
+                $('#addStateModal').on('hidden.bs.modal', function() {
+                    clearAddStateModal();
+                });
+            });
+
+            function resetAddStateModal() {
+                // Reset the country dropdown
+                $('#countrySelect').val('').trigger('change');
+
+                // Clear all state checkboxes
+                $('#stateSelect').empty();
+
+                // Reset any error messages if present
+                $('.state-error').remove();
+
+                // Also reset the form if it's inside a form element
+                $('#addStateModal form')[0]?.reset();
+            }
+
+            function loadStatesForCountry(countryId) {
+                var stateCheckboxes = $('#stateSelect');
+
+                // Clear previous checkboxes and any error messages
+                stateCheckboxes.empty();
+                $('.state-error').remove();
+
+                if (countryId) {
+                    $.ajax({
+                        url: baseUrl + 'ajax/states/' + countryId,
+                        method: 'GET',
+                        success: function(data) {
+                            if (data.length > 0) {
+                                $.each(data, function(index, state) {
+                                    stateCheckboxes.append(
+                                        '<div class="form-check">' +
+                                        '<input class="form-check-input" type="checkbox" value="' +
+                                        state.id + '" id="state' + state.id + '">' +
+                                        '<label class="form-check-label" for="state' +
+                                        state.id + '">' + state.name + '</label>' +
+                                        '</div>'
+                                    );
+                                });
+                            } else {
+                                stateCheckboxes.append(
+                                    '<div class="alert alert-warning state-error">No states found for this country.</div>'
+                                );
+                            }
+                        },
+                        error: function(xhr) {
+                            console.error(xhr.responseText);
+                            stateCheckboxes.append(
+                                '<div class="alert alert-danger state-error">Error loading states. Please try again.</div>'
+                            );
+                        }
+                    });
+                } else {
+                    stateCheckboxes.append(
+                        '<div class="text-muted state-error">Please select a country first.</div>'
+                    );
+                }
+            }
+
+            function saveSelectedStates() {
+                var selectedStates = [];
+                var modal = $('#addStateModal');
+                var serviceZoneId = modal.data('serviceZoneId');
+
+                // If service zone ID is not found in the modal, try to get it from the last clicked button
+                if (!serviceZoneId) {
+                    serviceZoneId = $('.addStateBtn').data('uuid');
+                }
+
+                console.log("Service Zone ID:", serviceZoneId);
+
+                $('#stateSelect input:checked').each(function() {
+                    selectedStates.push($(this).val());
+                });
+
+                if (selectedStates.length > 0 && serviceZoneId) {
+                    $.ajax({
+                        url: baseUrl + 'ajax/save-states',
+                        method: 'POST',
+                        data: {
+                            states: selectedStates,
+                            service_zone_id: serviceZoneId,
+                            _token: '{{ csrf_token() }}'
+                        },
+                        success: function(response) {
+                            console.log(response);
+                            showToast('States added successfully!', 'success');
+                        },
+                        error: function(xhr) {
+                            console.error(xhr.responseText);
+                            showToast('Error saving states. Please try again.', 'error');
+                        }
+                    });
+                } else if (!serviceZoneId) {
+                    showToast('Error: No service zone ID found. Please open the modal again.', 'error');
+                } else {
+                    showToast('Please select at least one state.', 'warning');
+                }
+            }
+
+            function clearAddStateModal() {
+                // Reset form if exists
+                $('#addStateModal form')[0]?.reset();
+
+                // Clear all state checkboxes
+                $('#stateSelect').empty();
+
+                // Reset country dropdown
+                $('#countrySelect').val('').trigger('change');
+
+                // Clear service zone ID
+                $('#serviceZoneId').val('');
+            }
+
+            function showToast(message, type = 'info') {
+                // You can implement your toast notification here
+                // Example with Bootstrap toast if available
+                console.log(type.toUpperCase() + ': ' + message);
+            }
+
+
+
+
+
+
+
+            // $('.addStateBtn').on('click', function(event) {
+            //     var button = $(event.relatedTarget);
+
+            //     // Reset the country dropdown
+            //     $('#countrySelect').val('').trigger('change');
+
+            //     // Clear all state checkboxes
+            //     $('#stateSelect').empty();
+
+            //     // Reset any error messages if present
+            //     $('.state-error').remove();
+
+            //     // Also reset the form if it's inside a form element
+            //     $('#addStateModal form')[0]?.reset();
+
+            // });
+
+            // $('#countrySelect').change(function() {
+            //     var countryId = $(this).val();
+            //     var stateCheckboxes = $('#stateSelect');
+
+            //     // Clear previous checkboxes and any error messages
+            //     stateCheckboxes.empty();
+            //     $('.state-error').remove();
+
+            //     if (countryId) {
+            //         $.ajax({
+            //             url: baseUrl + 'ajax/states/' + countryId,
+            //             method: 'GET',
+            //             success: function(data) {
+            //                 if (data.length > 0) {
+            //                     $.each(data, function(index, state) {
+            //                         stateCheckboxes.append(
+            //                             '<div class="form-check">' +
+            //                             '<input class="form-check-input" type="checkbox" value="' +
+            //                             state.id + '" id="state' + state.id + '">' +
+            //                             '<label class="form-check-label" for="state' +
+            //                             state.id + '">' + state.name + '</label>' +
+            //                             '</div>'
+            //                         );
+            //                     });
+            //                 } else {
+            //                     stateCheckboxes.append(
+            //                         '<div class="alert alert-warning state-error">No states found for this country.</div>'
+            //                     );
+            //                 }
+            //             },
+            //             error: function(xhr) {
+            //                 console.error(xhr.responseText);
+            //                 stateCheckboxes.append(
+            //                     '<div class="alert alert-danger state-error">Error loading states. Please try again.</div>'
+            //                 );
+            //             }
+            //         });
+            //     } else {
+            //         stateCheckboxes.append(
+            //             '<div class="text-muted state-error">Please select a country first.</div>'
+            //         );
+            //     }
+            // });
+
+
+            // $('#saveStates').click(function() {
+            //     var selectedStates = [];
+
+            //     // Get the modal instance and find which button opened it
+            //     var modal = $('#addStateModal');
+            //     var serviceZoneId = null;
+
+            //     // Try to get from modal data first
+            //     serviceZoneId = modal.data('serviceZoneId');
+
+            //     // If not found, try to get from the last clicked button
+            //     if (!serviceZoneId) {
+            //         // This assumes you're tracking the last clicked button
+            //         serviceZoneId = $('.addStateBtn').last().data('uuid');
+            //     }
+
+            //     console.log("Service Zone ID:", serviceZoneId);
+
+            //     $('#stateSelect input:checked').each(function() {
+            //         selectedStates.push($(this).val());
+            //     });
+
+            //     if (selectedStates.length > 0 && serviceZoneId) {
+            //         $.ajax({
+            //             url: baseUrl + 'ajax/save-states',
+            //             method: 'POST',
+            //             data: {
+            //                 states: selectedStates,
+            //                 service_zone_id: serviceZoneId,
+            //                 _token: '{{ csrf_token() }}'
+            //             },
+            //             success: function(response) {
+            //                 console.log(response);
+            //                 // $('#addStateModal').modal('hide');
+            //                 showToast('States added successfully!', 'success');
+            //             },
+            //             error: function(xhr) {
+            //                 console.error(xhr.responseText);
+            //                 showToast('Error saving states. Please try again.', 'error');
+            //             }
+            //         });
+            //     } else if (!serviceZoneId) {
+            //         alert('Error: No service zone ID found. Please open the modal again.');
+            //     } else {
+            //         alert('Please select at least one state.');
+            //     }
+            // });
+
+            // // Optional: Clear form when modal is closed completely
+            // $('#addStateModal').on('hidden.bs.modal', function() {
+            //     // Reset form if exists
+            //     $('#addStateModal form')[0]?.reset();
+
+            //     // Clear all state checkboxes
+            //     $('#stateSelect').empty();
+
+            //     // Reset country dropdown
+            //     $('#countrySelect').val('').trigger('change');
+
+            //     // Clear service zone ID
+            //     $('#serviceZoneId').val('');
+            // });
+
+            // // Optional: Toast notification function
+            // function showToast(message, type = 'info') {
+            //     // You can implement your toast notification here
+            //     // Example with Bootstrap toast if available
+            //     console.log(type.toUpperCase() + ': ' + message);
+            // }
+        // });
+    </script>
+@endpush
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
+
+@push('styles')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 @endpush
 
