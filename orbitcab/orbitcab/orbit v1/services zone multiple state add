@@ -1,3 +1,587 @@
+Great — here’s a **complete, copy-pasteable implementation** that does everything you asked:
+
+* Add / update selected states (store **only the state IDs** as a JSON array in `cab_zones.states_id`)
+* Return the saved list from the server
+* Show selected state **names** in the table row (listing the selected values)
+* Support prefill (when opening the modal) and update in-place
+
+I'll give you: migration, model, routes, controllers, and a single Blade file (table + modal + JS). Drop these into your project and they should work together (adjust namespaces or paths if yours differ).
+
+---
+
+## 1) Migration — add `states_id` JSON to `cab_zones`
+
+Create migration:
+
+```bash
+php artisan make:migration add_states_id_to_cab_zones_table --table=cab_zones
+```
+
+Paste into migration file:
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class AddStatesIdToCabZonesTable extends Migration
+{
+    public function up()
+    {
+        Schema::table('cab_zones', function (Blueprint $table) {
+            if (! Schema::hasColumn('cab_zones', 'states_id')) {
+                $table->json('states_id')->nullable()->after('service_zone_id');
+            }
+        });
+    }
+
+    public function down()
+    {
+        Schema::table('cab_zones', function (Blueprint $table) {
+            if (Schema::hasColumn('cab_zones', 'states_id')) {
+                $table->dropColumn('states_id');
+            }
+        });
+    }
+}
+```
+
+Run:
+
+```
+php artisan migrate
+```
+
+---
+
+## 2) Model — `CabZone` cast (so `states_id` is array in PHP)
+
+`app/Models/CabZone.php`:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class CabZone extends Model
+{
+    protected $table = 'cab_zones';
+
+    // So Eloquent returns states_id as PHP array
+    protected $casts = [
+        'states_id' => 'array',
+    ];
+
+    // Optional: relation to states if you want to use it elsewhere
+    public function statesRelation()
+    {
+        return $this->belongsToMany(
+            \App\Models\State::class,
+            'cab_zone_state', // if you later use pivot
+            'cab_zone_id',
+            'state_id'
+        );
+    }
+}
+```
+
+---
+
+## 3) Routes
+
+Add these to `routes/web.php` (web for CSRF):
+
+```php
+use App\Http\Controllers\LocationController;
+use App\Http\Controllers\CabZoneController;
+
+// Frontend AJAX: countries & states
+Route::get('/api/countries', [LocationController::class, 'countries']);
+Route::get('/api/countries/{country}/states', [LocationController::class, 'statesByCountry']);
+
+// Get saved states for a given service-zone uuid (prefill modal)
+Route::get('/admin/service-zones/{uuid}/states', [CabZoneController::class, 'getStatesForZone']);
+
+// Save states (add/update) — stores ONLY state IDs array in cab_zones.states_id
+Route::post('/ajax/save-states', [CabZoneController::class, 'saveStates'])->name('ajax.save-states');
+```
+
+---
+
+## 4) Controllers
+
+### `LocationController` (countries & states)
+
+`app/Http/Controllers/LocationController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Country;
+use App\Models\State;
+use Illuminate\Http\Request;
+
+class LocationController extends Controller
+{
+    public function countries()
+    {
+        // returns [{id, name}, ...]
+        $countries = Country::select('id','name')->orderBy('name')->get();
+        return response()->json($countries);
+    }
+
+    public function statesByCountry($countryId)
+    {
+        // returns [{id, name}, ...]
+        $states = State::where('country_id', $countryId)->select('id','name')->orderBy('name')->get();
+        return response()->json($states);
+    }
+}
+```
+
+### `CabZoneController` (get prefills + save)
+
+`app/Http/Controllers/CabZoneController.php`:
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use App\Models\CabZone;
+use App\Models\State;
+
+class CabZoneController extends Controller
+{
+    /**
+     * Return saved country_id and states for prefill (modal)
+     * Response:
+     * {
+     *   country_id: int|null,
+     *   states_id: [id,id,...],
+     *   states: [{id,name}, ...]
+     * }
+     */
+    public function getStatesForZone($uuid)
+    {
+        // Find service_zone id by uuid
+        $svc = \DB::table('service_zone_cities')->where('uuid', $uuid)->first();
+        if (!$svc) {
+            return response()->json(['message' => 'Service zone not found'], 404);
+        }
+        $serviceZoneId = $svc->id;
+
+        // Find related cab_zone row (may or may not exist)
+        $cabZone = CabZone::where('service_zone_id', $serviceZoneId)->first();
+
+        $statesId = [];
+        if ($cabZone && $cabZone->states_id) {
+            $statesId = $cabZone->states_id;
+        }
+
+        // If service_zone_cities has country_id, return it (attempt)
+        $countryId = $svc->country_id ?? null;
+
+        // Provide state objects for display (names)
+        $states = [];
+        if (!empty($statesId)) {
+            $states = State::whereIn('id', $statesId)->select('id','name')->orderBy('name')->get();
+        }
+
+        return response()->json([
+            'country_id' => $countryId,
+            'states_id' => $statesId,
+            'states' => $states,
+        ]);
+    }
+
+    /**
+     * Save states (store only integer IDs in cab_zones.states_id as JSON array)
+     * Request:
+     * - service_zone_id (uuid)
+     * - states (array ints)
+     *
+     * Response:
+     * {
+     *   success: true,
+     *   cab_zone_id: int,
+     *   states_id: [4002,4003,...],
+     *   states: [{id,name},...],
+     *   state_count: int
+     * }
+     */
+    public function saveStates(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'service_zone_id' => 'required|string',
+            'states' => 'nullable|array',
+            'states.*' => 'integer|exists:states,id',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $uuid = $request->input('service_zone_id');
+        $stateIds = $request->input('states', []);
+
+        // sanitize: ints, positive, unique
+        $stateIds = array_values(array_unique(array_map('intval', array_filter($stateIds, function($v) {
+            return is_numeric($v) && intval($v) > 0;
+        }))));
+
+        // convert uuid -> service_zone_cities.id
+        $svc = \DB::table('service_zone_cities')->where('uuid', $uuid)->first();
+        if (!$svc) {
+            return response()->json(['success' => false, 'message' => 'Service zone not found'], 404);
+        }
+        $serviceZoneId = $svc->id;
+
+        // find or create cab_zone row
+        $cabZone = CabZone::firstOrCreate(['service_zone_id' => $serviceZoneId]);
+
+        // Save only IDs (Eloquent cast will handle JSON)
+        $cabZone->states_id = $stateIds;
+        $cabZone->save();
+
+        // prepare states objects to return
+        $states = [];
+        if (!empty($stateIds)) {
+            $states = State::whereIn('id', $stateIds)->select('id','name')->orderBy('name')->get();
+        }
+
+        return response()->json([
+            'success' => true,
+            'cab_zone_id' => $cabZone->id,
+            'states_id' => $cabZone->states_id,
+            'states' => $states,
+            'state_count' => count($cabZone->states_id ?? [])
+        ]);
+    }
+}
+```
+
+---
+
+## 5) Blade — full page (table, modal, JS).
+
+Place this in the Blade view that renders `$zones` and `$countries`. It assumes `$zones` contains service-zone rows and `$countries` is an array of countries (you can also fetch countries via AJAX).
+
+**Important:** this Blade uses Bootstrap 4/5 jQuery modal markup (your project already has Bootstrap/jQuery). Adjust only if different.
+
+```blade
+@extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
+
+@push('styles')
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
+@endpush
+
+@section('content')
+<div class="content-header row top_header">
+    <h4 class="py-2 mb-0"><span class="text-muted fw-light">City Services Zone List</span></h4>
+    <div class="d-flex align-content-center flex-wrap gap-3">
+        <a href="{{ route('admin.service-zones.create') }}" class="btn btn-primary">Add Service City</a>
+    </div>
+</div>
+
+<div class="content-body">
+    <section id="row-selection">
+        <div class="card">
+            <div class="card-body">
+                <table class="table table-striped table-bordered" id="zonesTable">
+                    <thead>
+                        <tr>
+                            <th>Sr. No.</th>
+                            <th>City</th>
+                            <th>Selected States</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach ($zones as $key => $valu)
+                        @php
+                            // Get display names for selected states (if cabZone exists)
+                            $cabzone = $valu->cabZone->first() ?? null;
+                            $selectedStates = [];
+                            if ($cabzone && $cabzone->states_id) {
+                                // states_id is stored as json array; use helper or eager load to avoid N+1
+                                $selectedStates = \App\Models\State::whereIn('id', $cabzone->states_id)->pluck('name')->toArray();
+                            }
+                        @endphp
+                        <tr data-uuid="{{ $valu->uuid }}">
+                            <td>{{ $key + 1 }}</td>
+                            <td>{{ $valu->city?->name ?? '-' }}</td>
+                            <td class="selected-states-cell">
+                                @if(!empty($selectedStates))
+                                    {{ implode(', ', $selectedStates) }}
+                                @else
+                                    <span class="text-muted">No states selected</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if($valu->status == 1)
+                                    <a href="#" class="btn btn-sm btn-primary addStateBtn"
+                                       data-uuid="{{ $valu->uuid }}"
+                                       data-country-id="{{ $valu->country_id ?? '' }}">
+                                       <i class="fas fa-plus-circle"></i> Edit States
+                                    </a>
+                                @else
+                                    <button class="btn btn-sm btn-secondary" disabled>Inactive</button>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Modal -->
+<div class="modal fade" id="addStateModal" tabindex="-1" role="dialog" aria-labelledby="addStateModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <form id="addStateModalForm" autocomplete="off">
+        <div class="modal-header">
+          <h5 class="modal-title" id="addStateModalLabel">Select States</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span>&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="modal_service_zone_uuid" />
+
+            <div class="form-group">
+                <label for="countrySelect">Country</label>
+                <select id="countrySelect" class="form-control">
+                    <option value="">-- Select Country --</option>
+                    @foreach ($countries as $c)
+                        <option value="{{ $c->id }}">{{ $c->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>States</label>
+                <div id="stateContainer" style="max-height:300px; overflow:auto; border:1px solid #eee; padding:8px; border-radius:4px;">
+                    <p class="text-muted">Select a country to load states</p>
+                </div>
+            </div>
+
+            <div id="addStateError" class="text-danger small d-none"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="saveStates" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+@endsection
+
+@push('scripts')
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+// Make sure CSRF is available for AJAX
+$.ajaxSetup({
+    headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' }
+});
+
+$(function() {
+    const baseUrl = window.baseUrl || '/';
+
+    // Open modal and load preselected states
+    $(document).on('click', '.addStateBtn', function(e) {
+        e.preventDefault();
+        $('#addStateError').addClass('d-none').text('');
+        const uuid = $(this).data('uuid');
+        const initialCountryId = $(this).data('country-id') || '';
+
+        $('#modal_service_zone_uuid').val(uuid);
+        if (initialCountryId) {
+            $('#countrySelect').val(initialCountryId);
+        } else {
+            $('#countrySelect').val('');
+        }
+
+        // show loading
+        $('#stateContainer').html('<p class="text-muted small">Loading selected states...</p>');
+
+        // Prefill: get existing saved states for this uuid
+        $.get('/admin/service-zones/' + uuid + '/states')
+            .done(function(res) {
+                const countryId = res.country_id || initialCountryId || '';
+                $('#countrySelect').val(countryId);
+                loadStates(countryId, res.states_id || []);
+                $('#addStateModal').modal('show');
+            })
+            .fail(function() {
+                if (initialCountryId) {
+                    loadStates(initialCountryId, []);
+                } else {
+                    $('#stateContainer').html('<p class="text-muted small">Select a country to load states.</p>');
+                }
+                $('#addStateModal').modal('show');
+            });
+    });
+
+    // when country changes
+    $('#countrySelect').on('change', function() {
+        const cid = $(this).val();
+        if (!cid) {
+            $('#stateContainer').html('<p class="text-muted small">Select a country to load states.</p>');
+            return;
+        }
+        loadStates(cid, []);
+    });
+
+    // Load states for country and pre-check ids
+    function loadStates(countryId, preSelectedIds = []) {
+        $('#stateContainer').html('<p class="text-muted small">Loading states...</p>');
+
+        $.get(baseUrl + 'api/countries/' + countryId + '/states')
+            .done(function(list) {
+                if (!Array.isArray(list) || list.length === 0) {
+                    $('#stateContainer').html('<p class="text-muted small">No states found for this country.</p>');
+                    return;
+                }
+                let html = '<div class="list-group">';
+                list.forEach(function(s) {
+                    const checked = (preSelectedIds && preSelectedIds.indexOf(s.id) !== -1) ? 'checked' : '';
+                    html += `<label class="list-group-item">
+                                <input type="checkbox" class="state-checkbox me-2" value="${s.id}" ${checked}>
+                                ${s.name}
+                             </label>`;
+                });
+                html += '</div>';
+                $('#stateContainer').html(html);
+            })
+            .fail(function(xhr) {
+                console.error('Error loading states', xhr.responseText || xhr.statusText);
+                $('#stateContainer').html('<div class="text-danger small">Failed to load states. Try again.</div>');
+            });
+    }
+
+    // Save selected states (store only IDs)
+    $('#saveStates').on('click', function(e) {
+        e.preventDefault();
+        $('#addStateError').addClass('d-none').text('');
+        const uuid = $('#modal_service_zone_uuid').val();
+        if (!uuid) {
+            $('#addStateError').removeClass('d-none').text('Invalid service zone. Close and reopen modal.');
+            return;
+        }
+
+        // collect selected ids and dedupe
+        const selected = [];
+        $('#stateContainer').find('.state-checkbox:checked').each(function() {
+            const v = parseInt($(this).val(), 10);
+            if (!isNaN(v) && v > 0) selected.push(v);
+        });
+        const uniq = Array.from(new Set(selected));
+
+        // send to server
+        const payload = {
+            service_zone_id: uuid,
+            states: uniq
+        };
+
+        const $btn = $(this);
+        $btn.prop('disabled', true).text('Saving...');
+
+        $.post(baseUrl + 'ajax/save-states', payload)
+            .done(function(resp) {
+                if (resp.success) {
+                    // update table cell: show names (server returned 'states' array)
+                    const $row = $(`tr[data-uuid="${uuid}"]`);
+                    if (resp.states && resp.states.length > 0) {
+                        const names = resp.states.map(s => s.name).join(', ');
+                        $row.find('.selected-states-cell').text(names);
+                    } else {
+                        $row.find('.selected-states-cell').html('<span class="text-muted">No states selected</span>');
+                    }
+
+                    $('#addStateModal').modal('hide');
+                } else {
+                    $('#addStateError').removeClass('d-none').text(resp.message || 'Save failed');
+                }
+            })
+            .fail(function(xhr) {
+                let msg = 'Error saving states.';
+                if (xhr.responseJSON && xhr.responseJSON.message) msg = xhr.responseJSON.message;
+                $('#addStateError').removeClass('d-none').text(msg);
+            })
+            .always(function() {
+                $btn.prop('disabled', false).text('Save');
+            });
+    });
+
+    // optional: initialize datatable
+    $('#zonesTable').DataTable && $('#zonesTable').DataTable();
+
+    // cleanup modal on close
+    $('#addStateModal').on('hidden.bs.modal', function () {
+        $('#modal_service_zone_uuid').val('');
+        $('#stateContainer').html('<p class="text-muted small">Select a country to load states.</p>');
+        $('#addStateError').addClass('d-none').text('');
+    });
+});
+</script>
+@endpush
+```
+
+---
+
+## 6) Notes & small tips
+
+* The controller stores only the IDs in `cab_zones.states_id` (JSON). Example DB cell content:
+
+  ```
+  [4002,4003,4005,4006]
+  ```
+* The controller responds with `states` array (objects) so the frontend updates text with names.
+* If you prefer to fetch countries via AJAX instead of preloading `$countries` in the Blade, remove the server-side `@foreach` and call `/api/countries` from JS — both will work.
+* Performance: If you have many rows, it's better to eager-load related cabZone to avoid N+1. Example in controller that serves the Blade view:
+
+  ```php
+  $zones = ServiceZoneCity::with('cabZone')->get();
+  ```
+
+  and ensure `cabZone()` relation returns the cab_zones records.
+
+---
+
+If you want, I can now:
+
+* produce a small migration to **backfill** `states_id` from any existing pivot table or legacy column, or
+* convert the checkbox UI into a searchable **Select2 multi-select** (better when the list is long).
+
+Which one shall I add next?
+
+
+
+
+
+
+
+
+
+
 
 
 
