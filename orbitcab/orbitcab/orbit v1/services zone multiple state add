@@ -1,3 +1,148 @@
+public function getExistingStates(Request $request)
+{
+    try {
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        
+        // Find existing states for this service zone from cab_zones table
+        $existingStates = CabZone::where('service_zone_cities_id', function($query) use ($serviceZoneUuid) {
+                $query->select('id')
+                      ->from('service_zone_cities')
+                      ->where('uuid', $serviceZoneUuid);
+            })
+            ->with(['state' => function($query) {
+                $query->select('id', 'name', 'country_id');
+            }])
+            ->get()
+            ->groupBy('country_id') // Group by country
+            ->map(function($cabZones) {
+                // Get first cab zone to get country info
+                $firstCabZone = $cabZones->first();
+                return [
+                    'country_id' => $firstCabZone->country_id,
+                    'name' => $firstCabZone->state->name ?? null,
+                    'states_id' => $cabZones->pluck('states_id')->toArray()
+                ];
+            })
+            ->values()
+            ->toArray();
+
+        return response()->json([
+            'success' => true,
+            'existing_states' => $existingStates
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function getStatesByCountry(Request $request)
+{
+    try {
+        $countryId = $request->input('country_id');
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        
+        // Get all states for the country
+        $states = State::where('country_id', $countryId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'country_id']);
+        
+        // Get existing states for this service zone and country
+        $existingStates = [];
+        if ($serviceZoneUuid) {
+            $existingStates = CabZone::where('service_zone_cities_id', function($query) use ($serviceZoneUuid) {
+                    $query->select('id')
+                          ->from('service_zone_cities')
+                          ->where('uuid', $serviceZoneUuid);
+                })
+                ->where('country_id', $countryId)
+                ->pluck('states_id')
+                ->toArray();
+        }
+
+        return response()->json([
+            'success' => true,
+            'states' => $states,
+            'existing_states' => $existingStates
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function saveStates(Request $request)
+{
+    try {
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        $states = $request->input('states', []);
+        $countryId = $request->input('country_id');
+        
+        // Validate input
+        if (empty($states) || !is_array($states)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No states provided'
+            ], 400);
+        }
+        
+        // Find service zone city
+        $serviceZone = ServiceZoneCity::where('uuid', $serviceZoneUuid)->first();
+        
+        if (!$serviceZone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Service zone not found'
+            ], 404);
+        }
+        
+        // Delete existing states for this service zone and country
+        CabZone::where('service_zone_cities_id', $serviceZone->id)
+            ->where('country_id', $countryId)
+            ->delete();
+        
+        // Insert new states
+        $insertData = [];
+        foreach ($states as $stateId) {
+            $insertData[] = [
+                'uuid' => Str::uuid(),
+                'service_zone_cities_id' => $serviceZone->id,
+                'states_id' => $stateId,
+                'country_id' => $countryId,
+                'status' => 1,
+                'created_by' => auth()->id(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+        }
+        
+        // Batch insert for better performance
+        CabZone::insert($insertData);
+        
+        // Get state names for response
+        $stateNames = State::whereIn('id', $states)
+            ->pluck('name')
+            ->toArray();
+        
+        return response()->json([
+            'success' => true,
+            'message' => count($states) . ' state(s) saved successfully',
+            'saved_states' => $states,
+            'state_names' => $stateNames
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
 {
     "success": true,
     "existing_states": [
