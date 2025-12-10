@@ -1,3 +1,380 @@
+
+public function saveStates(Request $request)
+{
+    try {
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        $states = $request->input('states', []);
+        $countryId = $request->input('country_id');
+        
+        // Validate input
+        if (!is_array($states)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'States should be an array'
+            ], 400);
+        }
+        
+        // Find service zone city
+        $serviceZone = ServiceZoneCity::where('uuid', $serviceZoneUuid)->first();
+        
+        if (!$serviceZone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Service zone not found'
+            ], 404);
+        }
+        
+        // Find existing cab zone for this service zone
+        $cabZone = CabZone::where('service_zone_cities_id', $serviceZone->id)
+            ->where('country_id', $countryId)
+            ->first();
+        
+        if (empty($states)) {
+            // If no states selected, delete the record if exists
+            if ($cabZone) {
+                $cabZone->delete();
+                return response()->json([
+                    'success' => true,
+                    'message' => 'All states removed for this country'
+                ]);
+            }
+        } else {
+            // Prepare states array - ensure they are integers
+            $statesArray = array_map('intval', $states);
+            
+            if ($cabZone) {
+                // Update existing record
+                $cabZone->update([
+                    'states_id' => json_encode($statesArray),
+                    'updated_at' => now(),
+                    'updated_by' => auth()->id()
+                ]);
+            } else {
+                // Create new record
+                CabZone::create([
+                    'uuid' => Str::uuid(),
+                    'service_zone_cities_id' => $serviceZone->id,
+                    'country_id' => $countryId,
+                    'states_id' => json_encode($statesArray),
+                    'status' => 1,
+                    'created_by' => auth()->id()
+                ]);
+            }
+            
+            // Get state names for response
+            $stateNames = State::whereIn('id', $statesArray)
+                ->pluck('name')
+                ->toArray();
+            
+            return response()->json([
+                'success' => true,
+                'message' => count($statesArray) . ' state(s) saved successfully',
+                'saved_states' => $statesArray,
+                'state_names' => $stateNames
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Operation completed successfully'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+// Also update the getExistingStates function
+public function getExistingStates(Request $request)
+{
+    try {
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        
+        // Find existing states for this service zone from cab_zones table
+        $existingCabZones = CabZone::where('service_zone_cities_id', function($query) use ($serviceZoneUuid) {
+                $query->select('id')
+                      ->from('service_zone_cities')
+                      ->where('uuid', $serviceZoneUuid);
+            })
+            ->get();
+        
+        $existingStates = [];
+        
+        foreach ($existingCabZones as $cabZone) {
+            // Decode the JSON array from states_id field
+            $statesArray = json_decode($cabZone->states_id, true) ?: [];
+            
+            // Get state details
+            if (!empty($statesArray)) {
+                $states = State::whereIn('id', $statesArray)
+                    ->get(['id', 'name', 'country_id']);
+                
+                foreach ($states as $state) {
+                    $existingStates[] = [
+                        'state_id' => $state->id,
+                        'name' => $state->name,
+                        'country_id' => $state->country_id
+                    ];
+                }
+            }
+        }
+        
+        return response()->json([
+            'success' => true,
+            'existing_states' => $existingStates
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+// Update getStatesByCountry function
+public function getStatesByCountry(Request $request)
+{
+    try {
+        $countryId = $request->input('country_id');
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        
+        // Get all states for the country
+        $states = State::where('country_id', $countryId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'country_id']);
+        
+        // Get existing states for this service zone and country
+        $existingStateIds = [];
+        if ($serviceZoneUuid) {
+            $cabZone = CabZone::where('service_zone_cities_id', function($query) use ($serviceZoneUuid) {
+                    $query->select('id')
+                          ->from('service_zone_cities')
+                          ->where('uuid', $serviceZoneUuid);
+                })
+                ->where('country_id', $countryId)
+                ->first();
+            
+            if ($cabZone && $cabZone->states_id) {
+                $existingStateIds = json_decode($cabZone->states_id, true) ?: [];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'states' => $states,
+            'existing_states' => $existingStateIds
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+class CabZone extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'uuid',
+        'service_zone_cities_id',
+        'country_id',
+        'states_id',
+        'status',
+        'created_by',
+        'updated_by'
+    ];
+
+    // Cast states_id as array for automatic JSON encoding/decoding
+    protected $casts = [
+        'states_id' => 'array',
+        'status' => 'boolean',
+    ];
+
+    // Relationships
+    public function serviceZoneCity()
+    {
+        return $this->belongsTo(ServiceZoneCity::class, 'service_zone_cities_id');
+    }
+
+    public function country()
+    {
+        return $this->belongsTo(Country::class);
+    }
+
+    public function states()
+    {
+        // This is a custom relationship for the JSON array
+        return State::whereIn('id', $this->states_id ?? [])->get();
+    }
+
+    public function createdBy()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updatedBy()
+    {
+        return $this->belongsTo(User::class, 'updated_by');
+    }
+}
+
+
+
+
+
+// Update the renderStatesCheckboxes function
+function renderStatesCheckboxes() {
+    let html = '';
+    
+    if (allStates.length === 0) {
+        html = '<div class="alert alert-warning">No states found for this country.</div>';
+    } else {
+        // Get current country ID
+        const currentCountryId = parseInt($('#countrySelect').val());
+        
+        // Find existing states for current country
+        const existingStateIdsForCountry = existingStates
+            .filter(state => state.country_id == currentCountryId)
+            .map(state => state.state_id);
+        
+        console.log("Existing state IDs for country", currentCountryId, ":", existingStateIdsForCountry);
+        
+        // Create checkboxes
+        allStates.forEach(state => {
+            const isSelected = existingStateIdsForCountry.includes(state.id);
+            
+            html += `
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input state-checkbox" 
+                           id="state_${state.id}" 
+                           value="${state.id}"
+                           ${isSelected ? 'checked' : ''}>
+                    <label class="form-check-label" for="state_${state.id}">
+                        ${state.name}
+                        ${isSelected ? '<span class="badge badge-success ml-2">Already Added</span>' : ''}
+                    </label>
+                </div>
+                <hr class="my-1">
+            `;
+        });
+    }
+    
+    $('#stateCheckboxContainer').html(html);
+    updateSelectedCount();
+    
+    // Add change event listener to checkboxes
+    $('.state-checkbox').on('change', function() {
+        updateSelectedCount();
+    });
+}
+
+// Update the saveSelectedStates function
+function saveSelectedStates() {
+    const selectedStates = [];
+    $('.state-checkbox:checked').each(function() {
+        selectedStates.push(parseInt($(this).val()));
+    });
+
+    const countryId = parseInt($('#countrySelect').val());
+    if (!countryId) {
+        showError('Please select a country');
+        return;
+    }
+
+    // Show loading state
+    const saveButton = $('#saveStates');
+    const originalText = saveButton.html();
+    saveButton.html(`
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        Saving...
+    `).prop('disabled', true);
+
+    $.ajax({
+        url: '{{ route("admin.service-zones.save-states") }}',
+        method: 'POST',
+        data: {
+            service_zone_uuid: serviceZoneId,
+            country_id: countryId,
+            states: selectedStates, // This will be sent as array
+            _token: '{{ csrf_token() }}'
+        },
+        success: function(response) {
+            if (response.success) {
+                showSuccess(response.message || 'States saved successfully!');
+                
+                // Update existing states for this country
+                // Remove existing states for this country
+                existingStates = existingStates.filter(state => state.country_id !== countryId);
+                
+                // Add newly selected states
+                selectedStates.forEach(stateId => {
+                    existingStates.push({
+                        state_id: stateId,
+                        country_id: countryId
+                    });
+                });
+                
+                // Re-render checkboxes to update "Already Added" badges
+                renderStatesCheckboxes();
+                
+                // Close modal after 2 seconds
+                setTimeout(() => {
+                    $('#addStateModal').modal('hide');
+                    // Optional: Reload page or update table
+                    location.reload();
+                }, 2000);
+            } else {
+                showError(response.message || 'Failed to save states');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error saving states:', xhr);
+            showError('Error saving states. Please try again.');
+        },
+        complete: function() {
+            saveButton.html(originalText).prop('disabled', false);
+        }
+    });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function loadExistingStates(serviceZoneUuid) {
     $.ajax({
         url: '{{ route("admin.service-zones.get-existing-states") }}',
