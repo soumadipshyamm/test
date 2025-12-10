@@ -1,3 +1,130 @@
+// In your ServiceZoneController.php
+use App\Models\CabZone;
+use App\Models\State;
+use Illuminate\Http\Request;
+
+public function getExistingStates(Request $request)
+{
+    try {
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        
+        // Find existing states for this service zone from cab_zones table
+        $existingStates = CabZone::where('service_zone_cities_id', function($query) use ($serviceZoneUuid) {
+                $query->select('id')
+                      ->from('service_zone_cities')
+                      ->where('uuid', $serviceZoneUuid);
+            })
+            ->with('state')
+            ->get()
+            ->map(function($cabZone) {
+                return [
+                    'state_id' => $cabZone->states_id,
+                    'name' => $cabZone->state->name ?? null,
+                    'country_id' => $cabZone->state->country_id ?? null
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'existing_states' => $existingStates
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function getStatesByCountry(Request $request)
+{
+    try {
+        $countryId = $request->input('country_id');
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        
+        // Get all states for the country
+        $states = State::where('country_id', $countryId)
+            ->orderBy('name')
+            ->get(['id', 'name', 'country_id']);
+        
+        // Get existing states for this service zone
+        $existingStates = [];
+        if ($serviceZoneUuid) {
+            $existingStates = CabZone::where('service_zone_cities_id', function($query) use ($serviceZoneUuid) {
+                    $query->select('id')
+                          ->from('service_zone_cities')
+                          ->where('uuid', $serviceZoneUuid);
+                })
+                ->pluck('states_id')
+                ->toArray();
+        }
+
+        return response()->json([
+            'success' => true,
+            'states' => $states,
+            'existing_states' => $existingStates
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function saveStates(Request $request)
+{
+    try {
+        $serviceZoneUuid = $request->input('service_zone_uuid');
+        $states = $request->input('states', []);
+        $countryId = $request->input('country_id');
+        
+        // Find service zone city
+        $serviceZone = ServiceZoneCity::where('uuid', $serviceZoneUuid)->first();
+        
+        if (!$serviceZone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Service zone not found'
+            ], 404);
+        }
+        
+        // Delete existing states for this service zone
+        CabZone::where('service_zone_cities_id', $serviceZone->id)->delete();
+        
+        // Insert new states
+        foreach ($states as $stateId) {
+            CabZone::create([
+                'uuid' => Str::uuid(),
+                'service_zone_cities_id' => $serviceZone->id,
+                'states_id' => $stateId,
+                'country_id' => $countryId,
+                'status' => 1,
+                'created_by' => auth()->id()
+            ]);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'States saved successfully',
+            'updated_states' => $states
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+
+
+
+
+
+
+
+
 @extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
 
 @push('styles')
