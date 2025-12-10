@@ -6,6 +6,844 @@
 
 @push('styles')
     <style>
+        .geofencing-container {
+            padding: 20px;
+        }
+
+        .header-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e8e8e8;
+        }
+
+        .control-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e8e8e8;
+        }
+
+        .map-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e8e8e8;
+        }
+
+        .info-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e8e8e8;
+        }
+
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .search-box {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .search-box input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 24px 0;
+        }
+
+        .control-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #4b5563, #374151);
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .coordinates-display {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .coordinates-display pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-card h4 {
+            font-size: 12px;
+            color: #6b7280;
+            margin: 0 0 8px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card p {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        .place-info {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            display: none;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+        }
+
+        .alert-info {
+            background: #dbeafe;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .form-control:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            outline: none;
+        }
+
+        .instructions {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+        }
+
+        .instructions h5 {
+            color: #92400e;
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .instructions ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #92400e;
+        }
+
+        .instructions li {
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .polygon-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 768px) {
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            #map {
+                height: 400px;
+            }
+            
+            .control-panel,
+            .map-container,
+            .info-panel {
+                padding: 16px;
+            }
+        }
+    </style>
+@endpush
+
+@section('content')
+<div class="geofencing-container">
+    <!-- Header Section -->
+    <div class="header-card">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="text-2xl font-bold mb-2">Dynamic Geofencing</h2>
+                <p class="text-gray-600 mb-0">
+                    <i class="fas fa-map-marker-alt mr-2"></i>
+                    {{ $cabZone->city->name }}, {{ $cabZone->state->name ?? 'State' }}, {{ $cabZone->country->name ?? 'Country' }}
+                </p>
+            </div>
+            <x-site.back />
+        </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <h4 class="font-semibold mb-4"><i class="fas fa-cogs mr-2"></i>Zone Configuration</h4>
+        
+        <div class="search-box">
+            <input id="city-input" type="text" placeholder="Search for a city or place..." />
+        </div>
+        
+        <div id="place-info" class="place-info" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="font-semibold mb-1" id="place-name"></h6>
+                    <p class="text-sm text-gray-600 mb-0">
+                        Place ID: <span id="place-id" class="font-mono"></span>
+                    </p>
+                </div>
+                <button id="center-to-place" class="btn btn-secondary btn-sm">
+                    <i class="fas fa-crosshairs mr-1"></i> Center
+                </button>
+            </div>
+        </div>
+
+        <div class="controls-grid">
+            <button id="start-drawing" class="control-btn btn-primary">
+                <i class="fas fa-draw-polygon"></i>
+                Start Drawing
+            </button>
+            
+            <button id="save-geofence" class="control-btn btn-success" style="display: none;">
+                <i class="fas fa-save"></i>
+                Save Geofence
+            </button>
+            
+            <button id="clear-polygon" class="control-btn btn-secondary" style="display: none;">
+                <i class="fas fa-eraser"></i>
+                Clear Polygon
+            </button>
+            
+            <button id="cancel-drawing" class="control-btn btn-danger" style="display: none;">
+                <i class="fas fa-times"></i>
+                Cancel
+            </button>
+        </div>
+
+        <!-- Alert Messages -->
+        <div id="alert-message" class="alert"></div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="map-container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="font-semibold mb-0"><i class="fas fa-map mr-2"></i>Zone Map</h4>
+            <div class="text-sm text-gray-500">
+                <span id="drawing-status">Ready to draw</span>
+            </div>
+        </div>
+        <div id="map"></div>
+        
+        <div class="instructions">
+            <h5><i class="fas fa-info-circle mr-2"></i>Drawing Instructions</h5>
+            <ul>
+                <li>Click "Start Drawing" to begin creating your polygon</li>
+                <li>Click on the map to add vertices for your polygon</li>
+                <li>Double-click or click the first point to complete the polygon</li>
+                <li>Drag vertices to adjust the shape after drawing</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Information Panel -->
+    <div class="info-panel">
+        <h4 class="font-semibold mb-4"><i class="fas fa-info-circle mr-2"></i>Polygon Information</h4>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h4>Area</h4>
+                <p id="area-value">0 km²</p>
+            </div>
+            <div class="stat-card">
+                <h4>Perimeter</h4>
+                <p id="perimeter-value">0 km</p>
+            </div>
+            <div class="stat-card">
+                <h4>Vertices</h4>
+                <p id="vertices-count">0</p>
+            </div>
+            <div class="stat-card">
+                <h4>Status</h4>
+                <p id="polygon-status">Not Drawn</p>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="zone-name">Zone Name (Optional)</label>
+            <input type="text" id="zone-name" class="form-control" placeholder="Enter a name for this zone...">
+        </div>
+
+        <div class="coordinates-display">
+            <h6 class="font-semibold mb-2">Coordinates</h6>
+            <pre id="coordinates-text">No polygon drawn yet</pre>
+        </div>
+
+        <div class="polygon-actions">
+            <button id="copy-coordinates" class="btn btn-secondary btn-sm">
+                <i class="fas fa-copy mr-1"></i> Copy Coordinates
+            </button>
+            <button id="download-geojson" class="btn btn-secondary btn-sm">
+                <i class="fas fa-download mr-1"></i> Download GeoJSON
+            </button>
+        </div>
+    </div>
+
+    <!-- Hidden Inputs -->
+    <input type="hidden" id="country_id" value="{{ $cabZone->country_id }}">
+    <input type="hidden" id="state_id" value="{{ $cabZone->state_id }}">
+    <input type="hidden" id="city_id" value="{{ $cabZone->city->id }}">
+    <input type="hidden" id="city_lat" value="{{ $cabZone->city->latitude }}">
+    <input type="hidden" id="city_lng" value="{{ $cabZone->city->longitude }}">
+</div>
+@endsection
+
+@push('scripts')
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing,geometry&callback=initMap" async defer></script>
+    <script>
+        let map, drawingManager, currentPolygon = null;
+        let markers = [], zonePolygons = [];
+        let isDrawing = false;
+        let placeMarker = null;
+
+        function initMap() {
+            const cityLat = parseFloat(document.getElementById('city_lat').value) || 22.57;
+            const cityLng = parseFloat(document.getElementById('city_lng').value) || 88.36;
+
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: cityLat, lng: cityLng },
+                zoom: 13,
+                mapTypeControl: true,
+                streetViewControl: false,
+                fullscreenControl: true,
+                zoomControl: true,
+                mapTypeId: 'roadmap',
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
+            });
+
+            // Initialize existing zones
+            loadExistingZones();
+            
+            // Initialize autocomplete
+            initAutocomplete();
+            
+            // Initialize drawing manager
+            initDrawingManager();
+        }
+
+        function initAutocomplete() {
+            const input = document.getElementById("city-input");
+            const autocomplete = new google.maps.places.Autocomplete(input, {
+                types: ["(cities)"],
+                fields: ["place_id", "geometry", "name", "formatted_address"]
+            });
+
+            autocomplete.addListener("place_changed", () => {
+                const place = autocomplete.getPlace();
+                
+                if (!place.geometry) {
+                    showAlert("Please select a valid location from the suggestions", "error");
+                    return;
+                }
+
+                // Update place info display
+                document.getElementById("place-name").textContent = place.name;
+                document.getElementById("place-id").textContent = place.place_id;
+                document.getElementById("place-info").style.display = "block";
+
+                // Center map to place
+                map.setCenter(place.geometry.location);
+                map.setZoom(14);
+
+                // Add marker for the place
+                if (placeMarker) placeMarker.setMap(null);
+                
+                placeMarker = new google.maps.Marker({
+                    position: place.geometry.location,
+                    map: map,
+                    title: place.name,
+                    icon: {
+                        path: google.maps.SymbolPath.CIRCLE,
+                        scale: 8,
+                        fillColor: "#3B82F6",
+                        fillOpacity: 1,
+                        strokeColor: "#FFFFFF",
+                        strokeWeight: 2
+                    }
+                });
+            });
+        }
+
+        function initDrawingManager() {
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: null,
+                drawingControl: false,
+                polygonOptions: {
+                    fillColor: '#3B82F6',
+                    fillOpacity: 0.35,
+                    strokeColor: '#1D4ED8',
+                    strokeWeight: 2,
+                    strokeOpacity: 0.8,
+                    editable: true,
+                    draggable: false
+                }
+            });
+
+            drawingManager.setMap(map);
+
+            google.maps.event.addListener(drawingManager, 'polygoncomplete', (polygon) => {
+                currentPolygon = polygon;
+                isDrawing = false;
+                
+                // Show save and clear buttons
+                document.getElementById('save-geofence').style.display = 'flex';
+                document.getElementById('clear-polygon').style.display = 'flex';
+                document.getElementById('cancel-drawing').style.display = 'none';
+                document.getElementById('start-drawing').style.display = 'flex';
+                
+                // Update status
+                document.getElementById('drawing-status').textContent = 'Polygon completed';
+                document.getElementById('polygon-status').textContent = 'Drawn';
+                
+                // Update polygon info
+                updatePolygonInfo(polygon);
+                
+                // Add listeners for updates
+                polygon.getPath().addListener('set_at', () => updatePolygonInfo(polygon));
+                polygon.getPath().addListener('insert_at', () => updatePolygonInfo(polygon));
+            });
+        }
+
+        function updatePolygonInfo(polygon) {
+            const path = polygon.getPath();
+            const vertices = path.getArray();
+            
+            // Calculate area
+            const area = google.maps.geometry.spherical.computeArea(path);
+            const areaKm = (area / 1000000).toFixed(4);
+            document.getElementById('area-value').textContent = `${areaKm} km²`;
+            
+            // Calculate perimeter
+            let perimeter = 0;
+            for (let i = 0; i < vertices.length; i++) {
+                const next = (i + 1) % vertices.length;
+                perimeter += google.maps.geometry.spherical.computeDistanceBetween(
+                    vertices[i], vertices[next]
+                );
+            }
+            const perimeterKm = (perimeter / 1000).toFixed(2);
+            document.getElementById('perimeter-value').textContent = `${perimeterKm} km`;
+            
+            // Update vertices count
+            document.getElementById('vertices-count').textContent = vertices.length;
+            
+            // Update coordinates display
+            const coords = vertices.map(coord => ({
+                lat: coord.lat().toFixed(6),
+                lng: coord.lng().toFixed(6)
+            }));
+            document.getElementById('coordinates-text').textContent = JSON.stringify(coords, null, 2);
+        }
+
+        function loadExistingZones() {
+            const cityId = document.getElementById('city_id').value;
+            
+            axios.get(`/ajax/service-zone/cities/zones/${cityId}`)
+                .then(({ data }) => {
+                    data.forEach(zone => {
+                        if (!zone.coordinates) return;
+                        
+                        let paths;
+                        try {
+                            paths = typeof zone.coordinates === "string" 
+                                ? JSON.parse(zone.coordinates) 
+                                : zone.coordinates;
+                        } catch (e) {
+                            console.error("Invalid coordinates", e);
+                            return;
+                        }
+                        
+                        // Convert coordinates to LatLng objects
+                        const latLngPaths = paths.map(coord => 
+                            new google.maps.LatLng(coord.lat, coord.lng)
+                        );
+                        
+                        const polygon = new google.maps.Polygon({
+                            paths: latLngPaths,
+                            strokeColor: '#059669',
+                            strokeOpacity: 0.8,
+                            strokeWeight: 2,
+                            fillColor: '#10B981',
+                            fillOpacity: 0.2,
+                            map: map,
+                            zIndex: 1
+                        });
+                        
+                        // Add info window for the polygon
+                        const infoWindow = new google.maps.InfoWindow({
+                            content: `
+                                <div style="padding: 8px;">
+                                    <h6 style="margin: 0 0 8px 0; font-weight: 600;">Zone #${zone.id}</h6>
+                                    <p style="margin: 0; font-size: 12px;">Click to view details</p>
+                                </div>
+                            `
+                        });
+                        
+                        polygon.addListener('click', () => {
+                            infoWindow.open(map);
+                            infoWindow.setPosition(polygon.getPath().getAt(0));
+                        });
+                        
+                        zonePolygons.push(polygon);
+                    });
+                })
+                .catch(error => {
+                    console.error("Error loading existing zones:", error);
+                });
+        }
+
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.getElementById('alert-message');
+            alertDiv.textContent = message;
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                alertDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function startDrawing() {
+            isDrawing = true;
+            drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+            
+            // Update UI
+            document.getElementById('start-drawing').style.display = 'none';
+            document.getElementById('cancel-drawing').style.display = 'flex';
+            document.getElementById('drawing-status').textContent = 'Click on map to start drawing polygon';
+            document.getElementById('polygon-status').textContent = 'Drawing in progress';
+            
+            showAlert('Click on the map to start drawing your polygon. Double-click or click the first point to complete.', 'info');
+        }
+
+        function cancelDrawing() {
+            if (currentPolygon) {
+                currentPolygon.setMap(null);
+                currentPolygon = null;
+            }
+            
+            drawingManager.setDrawingMode(null);
+            isDrawing = false;
+            
+            // Update UI
+            document.getElementById('start-drawing').style.display = 'flex';
+            document.getElementById('cancel-drawing').style.display = 'none';
+            document.getElementById('save-geofence').style.display = 'none';
+            document.getElementById('clear-polygon').style.display = 'none';
+            document.getElementById('drawing-status').textContent = 'Ready to draw';
+            document.getElementById('polygon-status').textContent = 'Not Drawn';
+            
+            // Clear polygon info
+            document.getElementById('area-value').textContent = '0 km²';
+            document.getElementById('perimeter-value').textContent = '0 km';
+            document.getElementById('vertices-count').textContent = '0';
+            document.getElementById('coordinates-text').textContent = 'No polygon drawn yet';
+        }
+
+        function saveGeofence() {
+            if (!currentPolygon) {
+                showAlert('Please draw a polygon first', 'error');
+                return;
+            }
+
+            const zoneName = document.getElementById('zone-name').value.trim();
+            const cityId = document.getElementById('city_id').value;
+            const countryId = document.getElementById('country_id').value;
+            const stateId = document.getElementById('state_id').value;
+            const coords = currentPolygon.getPath().getArray().map(coord => ({
+                lat: coord.lat(),
+                lng: coord.lng()
+            }));
+
+            showAlert('Saving geofence...', 'info');
+
+            axios.post("{{ route('admin.service-zones.storePolygon') }}", {
+                name: zoneName || `Zone ${new Date().toLocaleDateString()}`,
+                services_id: "{{ $cityId }}",
+                city_id: cityId,
+                country_id: countryId,
+                state_id: stateId,
+                coordinates: coords
+            })
+            .then(response => {
+                showAlert('Geofence saved successfully!', 'success');
+                
+                // Reset UI
+                cancelDrawing();
+                
+                // Reload zones
+                zonePolygons.forEach(p => p.setMap(null));
+                zonePolygons = [];
+                loadExistingZones();
+                
+                // Redirect to view page
+                setTimeout(() => {
+                    window.location.href = `/admin/service-zones/view-polygon/${response.data.data.service_zone_id}/${response.data.data.city_id}`;
+                }, 1500);
+            })
+            .catch(error => {
+                console.error('Error saving geofence:', error);
+                showAlert('Failed to save geofence. Please try again.', 'error');
+            });
+        }
+
+        function copyCoordinates() {
+            const coordsText = document.getElementById('coordinates-text').textContent;
+            if (coordsText === 'No polygon drawn yet') {
+                showAlert('No coordinates to copy', 'error');
+                return;
+            }
+
+            navigator.clipboard.writeText(coordsText)
+                .then(() => showAlert('Coordinates copied to clipboard!', 'success'))
+                .catch(() => showAlert('Failed to copy coordinates', 'error'));
+        }
+
+        function downloadGeoJSON() {
+            if (!currentPolygon) {
+                showAlert('Please draw a polygon first', 'error');
+                return;
+            }
+
+            const path = currentPolygon.getPath().getArray();
+            const coordinates = path.map(coord => [coord.lng(), coord.lat()]);
+            
+            // Close the polygon
+            const firstPoint = path[0];
+            coordinates.push([firstPoint.lng(), firstPoint.lat()]);
+
+            const geoJson = {
+                type: "Feature",
+                properties: {
+                    name: document.getElementById('zone-name').value || "Geofence",
+                    area: document.getElementById('area-value').textContent,
+                    created: new Date().toISOString()
+                },
+                geometry: {
+                    type: "Polygon",
+                    coordinates: [coordinates]
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(geoJson, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `geofence-${Date.now()}.geojson`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showAlert('GeoJSON file downloaded', 'success');
+        }
+
+        // Event Listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Drawing controls
+            document.getElementById('start-drawing').addEventListener('click', startDrawing);
+            document.getElementById('cancel-drawing').addEventListener('click', cancelDrawing);
+            document.getElementById('save-geofence').addEventListener('click', saveGeofence);
+            document.getElementById('clear-polygon').addEventListener('click', cancelDrawing);
+            
+            // Utility buttons
+            document.getElementById('copy-coordinates').addEventListener('click', copyCoordinates);
+            document.getElementById('download-geojson').addEventListener('click', downloadGeoJSON);
+            document.getElementById('center-to-place').addEventListener('click', () => {
+                if (placeMarker) {
+                    map.panTo(placeMarker.getPosition());
+                    map.setZoom(15);
+                }
+            });
+        });
+    </script>
+@endpush
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+
+@push('styles')
+    <style>
         #map {
             height: 600px;
             width: 100%;
