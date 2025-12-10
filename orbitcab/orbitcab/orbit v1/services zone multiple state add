@@ -1,3 +1,22 @@
+{
+    "success": true,
+    "existing_states": [
+        {
+            "states_id": [
+                "4032",
+                "4033",
+                "4034",
+                "4035",
+                "4036"
+            ],
+            "name": "Uttar Pradesh",
+            "country_id": 101
+        }
+    ]
+}
+
+
+
 @extends('layouts.app', ['isSidebar' => true, 'isNavbar' => true, 'isFooter' => false])
 
 @push('styles')
