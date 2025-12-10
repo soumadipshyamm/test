@@ -1,0 +1,479 @@
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+
+@push('styles')
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #city {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        #city:focus {
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
+        }
+
+        #geofence-form {
+            margin-bottom: 25px;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .page-header {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        .city-search-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        #city-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        #city-input:focus {
+            border-color: #4299e1;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
+            outline: none;
+        }
+
+        .place-id-container {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 15px 0;
+        }
+
+        #polygon-info {
+            background: #fff;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 13px;
+            color: #4a5568;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            font-weight: 600;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #4299e1;
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background: #3182ce;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: #48bb78;
+            border: none;
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+            transform: translateY(-1px);
+        }
+    </style>
+@endpush
+
+@section('content')
+    <div class="page-header">
+        <h2 class="text-2xl font-bold">Dynamic Geofencing ({{ $cabZone->city->name }})</h2>
+        <div class="d-flex align-items-center justify-content-between mt-3">
+            <x-site.back />
+        </div>
+    </div>
+
+    <div class="city-search-container">
+        <input id="city-input" type="text" placeholder="Enter city name" />
+        <div class="place-id-container">
+            <p class="mb-0"><strong>Place ID:</strong> <span id="place-id" class="ml-2 text-gray-600"></span></p>
+        </div>
+    </div>
+
+    <div id="polygon-info"></div>
+
+    {{-- {{ $cabZone }} --}}
+    <input type="hidden" id="country_id" value="{{ $cabZone->country_id }}">
+    <input type="hidden" id="state_id" value="{{ $cabZone->state_id }}">
+    <input type="hidden" id="city" value="{{ $cabZone->city->id }}">
+    <input type="hidden" id="city-lat" value="{{ $cabZone->city->latitude }}">
+    <input type="hidden" id="city-lng" value="{{ $cabZone->city->longitude }}">
+
+    <div id="geofence-form" class="mb-3">
+        <button id="start-drawing" type="button" class="btn btn-primary">
+            <i class="fa-solid fa-pencil-alt mr-2"></i> Draw Geofence
+        </button>
+        <button id="save-geofence" type="button" class="btn btn-success" style="display:none;">
+            <i class="fa-solid fa-save mr-2"></i> Save Geofence
+        </button>
+    </div>
+
+    <div id="map" style="height: 400px;"></div>
+    <div id="status" class="mt-3"></div>
+@endsection
+
+@push('scripts')
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing,geometry&callback=initMap">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        let map, drawingManager, currentPolygon = null,
+            markers = [],
+            city = '',
+            cityLatLng = null;
+        let zonePolygons = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            let citySel = document.getElementById('city');
+            let cityId = citySel.value;
+            city = cityId ? citySel.text : '';
+            document.getElementById('start-drawing').disabled = !cityId;
+
+            // Remove polygons from last city
+            zonePolygons.forEach(p => p.setMap(null));
+            zonePolygons = [];
+
+            if (cityId) {
+                // Center map to city
+                let opt = cityId;
+                let lat = parseFloat(document.getElementById('city-lat').value);
+                let lng = parseFloat(document.getElementById('city-lng').value);
+                // alert( lat + ' ' + lng);
+
+                if (!map) {
+                    initMap(lat, lng);
+                } else {
+                    map.setCenter({
+                        lat: lat,
+                        lng: lng
+                    });
+                    map.setZoom(12);
+                }
+                cityLatLng = {
+                    lat: lat,
+                    lng: lng
+                };
+
+                // Highlight existing zones for city
+                axios.get('/ajax/service-zone/cities/zones/' + cityId).then(({
+                    data
+                }) => {
+                    data.forEach(zone => {
+                        if (!zone.coordinates) return;
+                        let paths;
+                        if (typeof zone.coordinates === "string") {
+                            try {
+                                paths = JSON.parse(zone.coordinates);
+                            } catch (e) {
+                                console.error("Invalid JSON in zone.coordinates", zone
+                                    .coordinates);
+                                return;
+                            }
+                        } else {
+                            paths = zone.coordinates;
+                        }
+
+                        let polygon = new google.maps.Polygon({
+                            paths: paths,
+                            strokeColor: '#4285F4',
+                            strokeOpacity: 0.8,
+                            strokeWeight: 2,
+                            fillColor: '#4285F4',
+                            fillOpacity: 0.25,
+                            map: map
+                        });
+
+                        // Highlight border on mouseover
+                        google.maps.event.addListener(polygon, 'mouseover', function() {
+                            this.setOptions({
+                                strokeColor: '#FF0000', // Highlight color (red)
+                                strokeWeight: 4,
+                                fillOpacity: 0.35
+                            });
+                        });
+                        // Reset border on mouseout
+                        google.maps.event.addListener(polygon, 'mouseout', function() {
+                            this.setOptions({
+                                strokeColor: '#4285F4',
+                                strokeWeight: 2,
+                                fillOpacity: 0.25
+                            });
+                        });
+                        // Click to select polygon (highlight green)
+                        google.maps.event.addListener(polygon, 'click', function() {
+                            zonePolygons.forEach(p => p.setOptions({
+                                strokeColor: '#4285F4',
+                                strokeWeight: 2,
+                                fillOpacity: 0.25
+                            }));
+                            this.setOptions({
+                                strokeColor: '#00C853',
+                                strokeWeight: 4,
+                                fillOpacity: 0.40
+                            });
+                        });
+
+                        zonePolygons.push(polygon);
+                    });
+                });
+            }
+
+        });
+
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: {
+                    lat: 22.57,
+                    lng: 88.36
+                },
+                zoom: 13,
+                mapId: "bcf774f5bfcd145f3932055d"
+            });
+
+            const featureLayer = map.getFeatureLayer("LOCALITY");
+            initAutocomplete(featureLayer);
+            initDrawingManager();
+        }
+
+        document.getElementById('start-drawing').addEventListener(
+            'click',
+            function() {
+                if (currentPolygon) currentPolygon.setMap(null);
+                drawingManager = new google.maps.drawing
+                    .DrawingManager({
+                        drawingMode: google.maps.drawing
+                            .OverlayType.POLYGON,
+                        drawingControl: true,
+                        drawingControlOptions: {
+                            position: google.maps
+                                .ControlPosition.TOP_CENTER,
+                            drawingModes: ['polygon'],
+                        },
+                        polygonOptions: {
+                            fillColor: '#00FF00',
+                            fillOpacity: 0.5,
+                            strokeWeight: 2,
+                            clickable: false,
+                            editable: true,
+                            zIndex: 2,
+                        },
+                    });
+                drawingManager.setMap(map);
+                google.maps.event.addListener(drawingManager,
+                    'overlaycomplete',
+                    function(event) {
+                        if (currentPolygon) currentPolygon
+                            .setMap(null);
+                        currentPolygon = event.overlay;
+                        drawingManager.setMap(null);
+                        document.getElementById('save-geofence')
+                            .style.display = 'block';
+                    });
+            });
+
+        document.getElementById('save-geofence').addEventListener(
+            'click',
+            function() {
+                // const areaName = prompt("Enter a name for this geofence:");
+                alert('Saving geofence...');
+                // let areaName = citySel.options[citySel.selectedIndex].text;
+
+                if (currentPolygon) {
+                    // alert('Saving geofence "' + areaName + '" to database...');
+                    const coords = currentPolygon.getPath()
+                        .getArray().map(coord => ({
+                            lat: coord.lat(),
+                            lng: coord.lng()
+                        }));
+                    let citySel = document.getElementById('city');
+                    let cityId = citySel.value;
+                    let country_id = $('#country_id').val();
+                    let state_id = $('#state_id').val();
+                    axios.post(
+                        "{{ route('admin.service-zones.storePolygon') }}", {
+                            // name: areaName,
+                            services_id: "{{ $cityId }}",
+                            city_id: cityId,
+                            country_id: country_id,
+                            state_id: state_id,
+                            coordinates: coords
+                        }).then(function(response) {
+                        console.log("------------------", response.data.data.service_zone_id, response.data.data
+                            .city_id);
+
+                        alert(
+                            'Geofence saved to database!');
+                        currentPolygon.setMap(null);
+                        document.getElementById(
+                                'save-geofence').style
+                            .display = 'none';
+                        // Optionally re-trigger city dropdown to reload highlighted zones
+                        let citySelect = document
+                            .getElementById('city');
+                        let evt = new Event('change');
+                        citySelect.dispatchEvent(evt);
+                        console.log(response);
+                        let service_zone_id = response.data.data.service_zone_id;
+                        let city_id = response.data.data.city_id;
+                        window.location.href =
+                            "/admin/service-zones/view-polygon/" + service_zone_id + "/" + city_id;
+
+                    }).catch(function(error) {
+                        alert('Failed to save geofence.');
+                    });
+                } else {
+                    alert(
+                        "Please draw a polygon first or provide a valid name.");
+                }
+            });
+
+
+
+        function initAutocomplete(featureLayer) {
+            const input = document.getElementById("city-input");
+            const autocomplete = new google.maps.places.Autocomplete(input, {
+                types: ["(cities)"],
+                fields: ["place_id", "geometry", "name"],
+            });
+
+            autocomplete.bindTo("bounds", map);
+
+            autocomplete.addListener("place_changed", () => {
+                const place = autocomplete.getPlace();
+
+                if (!place.place_id || !place.geometry) {
+                    alert("Please select a valid city from the suggestions.");
+                    return;
+                }
+                // document.getElementById("place-id-txt").value = place;
+                document.getElementById("place-id").textContent = place.place_id;
+
+
+                map.setCenter(place.geometry.location);
+                map.setZoom(14);
+
+                const style = {
+                    strokeColor: "#810FCB",
+                    strokeOpacity: 1.0,
+                    strokeWeight: 2.0,
+                    fillColor: "#810FCB",
+                    fillOpacity: 0.4,
+                };
+
+                featureLayer.style = (params) => {
+                    return params.feature.placeId === place.place_id ? style : null;
+                };
+            });
+        }
+
+        function initDrawingManager() {
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: null,
+                drawingControl: true,
+                drawingControlOptions: {
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ["polygon"],
+                },
+                polygonOptions: {
+                    fillColor: "#FF0000",
+                    fillOpacity: 0.4,
+                    strokeWeight: 2,
+                    clickable: true,
+                    editable: true,
+                    zIndex: 1,
+                },
+            });
+
+            drawingManager.setMap(map);
+
+            google.maps.event.addListener(drawingManager, "overlaycomplete", function(event) {
+                if (drawnPolygon) {
+                    drawnPolygon.setMap(null);
+                }
+                if (event.type === "polygon") {
+                    drawnPolygon = event.overlay;
+                    drawingManager.setDrawingMode(null);
+                    showPolygonDetails(drawnPolygon);
+                }
+            });
+        }
+
+        function showPolygonDetails(polygon) {
+            const path = polygon.getPath();
+            const bounds = new google.maps.LatLngBounds();
+            const coords = [];
+
+            for (let i = 0; i < path.getLength(); i++) {
+                const latLng = path.getAt(i);
+                coords.push({
+                    lat: latLng.lat(),
+                    lng: latLng.lng()
+                });
+                bounds.extend(latLng);
+            }
+
+            const area = google.maps.geometry.spherical.computeArea(path); // in m²
+            const info = `
+ Area: ${(area / 1000000).toFixed(4)} km²
+ Bounds:
+  SW: ${bounds.getSouthWest().lat().toFixed(5)}, ${bounds.getSouthWest().lng().toFixed(5)}
+  NE: ${bounds.getNorthEast().lat().toFixed(5)}, ${bounds.getNorthEast().lng().toFixed(5)}
+
+ Coordinates:
+${JSON.stringify(coords, null, 2)}
+`;
+            document.getElementById("polygon-info").textContent = info;
+        }
+
+        function savePolygon() {
+            if (!drawnPolygon) {
+                alert("Please draw a polygon first.");
+                return;
+            }
+            showPolygonDetails(drawnPolygon);
+        }
+    </script>
+@endpush
+
