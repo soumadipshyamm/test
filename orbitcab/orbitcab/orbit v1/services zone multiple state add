@@ -1,3 +1,220 @@
+function loadExistingStates(serviceZoneUuid) {
+    $.ajax({
+        url: '{{ route("admin.service-zones.get-existing-states") }}',
+        method: 'GET',
+        data: {
+            service_zone_uuid: serviceZoneUuid,
+            _token: '{{ csrf_token() }}'
+        },
+        success: function(response) {
+            if (response.success) {
+                // Flatten the array of states_id arrays into a single array
+                existingStates = [];
+                
+                response.existing_states.forEach(function(stateGroup) {
+                    if (stateGroup.states_id && Array.isArray(stateGroup.states_id)) {
+                        // Convert string IDs to numbers and add to existingStates
+                        stateGroup.states_id.forEach(function(stateId) {
+                            existingStates.push({
+                                state_id: parseInt(stateId),
+                                name: stateGroup.name,
+                                country_id: stateGroup.country_id
+                            });
+                        });
+                    }
+                });
+                
+                console.log("Processed existing states:", existingStates);
+                
+                // Set default country (India = 101) if no existing states
+                let defaultCountryId = 101;
+                if (existingStates.length > 0 && existingStates[0].country_id) {
+                    defaultCountryId = existingStates[0].country_id;
+                }
+                
+                // Set country select
+                $('#countrySelect').val(defaultCountryId).trigger('change');
+            } else {
+                showError('Failed to load existing states');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading existing states:', xhr);
+            showError('Error loading existing states');
+        }
+    });
+}
+
+function renderStatesCheckboxes() {
+    let html = '';
+    
+    if (allStates.length === 0) {
+        html = '<div class="alert alert-warning">No states found for this country.</div>';
+    } else {
+        // Get current country ID
+        const currentCountryId = $('#countrySelect').val();
+        
+        // Filter existing states for current country
+        const existingStateIdsForCountry = existingStates
+            .filter(state => state.country_id == currentCountryId)
+            .map(state => state.state_id);
+        
+        console.log("Existing state IDs for country", currentCountryId, ":", existingStateIdsForCountry);
+        
+        // Create checkboxes
+        allStates.forEach(state => {
+            const isSelected = existingStateIdsForCountry.includes(state.id);
+            
+            html += `
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input state-checkbox" 
+                           id="state_${state.id}" 
+                           value="${state.id}"
+                           ${isSelected ? 'checked' : ''}>
+                    <label class="form-check-label" for="state_${state.id}">
+                        ${state.name}
+                        ${isSelected ? '<span class="badge badge-success ml-2">Already Added</span>' : ''}
+                    </label>
+                </div>
+                <hr class="my-1">
+            `;
+        });
+    }
+    
+    $('#stateCheckboxContainer').html(html);
+    updateSelectedCount();
+    
+    // Add change event listener to checkboxes
+    $('.state-checkbox').on('change', function() {
+        updateSelectedCount();
+    });
+}
+
+function saveSelectedStates() {
+    const selectedStates = [];
+    $('.state-checkbox:checked').each(function() {
+        selectedStates.push(parseInt($(this).val()));
+    });
+
+    if (selectedStates.length === 0) {
+        showError('Please select at least one state');
+        return;
+    }
+
+    const countryId = parseInt($('#countrySelect').val());
+    if (!countryId) {
+        showError('Please select a country');
+        return;
+    }
+
+    // Show loading state
+    const saveButton = $('#saveStates');
+    const originalText = saveButton.html();
+    saveButton.html(`
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        Saving...
+    `).prop('disabled', true);
+
+    $.ajax({
+        url: '{{ route("admin.service-zones.save-states") }}',
+        method: 'POST',
+        data: {
+            service_zone_uuid: serviceZoneId,
+            country_id: countryId,
+            states: selectedStates,
+            _token: '{{ csrf_token() }}'
+        },
+        success: function(response) {
+            if (response.success) {
+                showSuccess(response.message || 'States saved successfully!');
+                
+                // Update existing states for this country
+                // Remove existing states for this country first
+                existingStates = existingStates.filter(state => state.country_id !== countryId);
+                
+                // Add newly selected states
+                selectedStates.forEach(stateId => {
+                    existingStates.push({
+                        state_id: stateId,
+                        country_id: countryId
+                    });
+                });
+                
+                // Re-render checkboxes to update "Already Added" badges
+                renderStatesCheckboxes();
+                
+                // Close modal after 2 seconds
+                setTimeout(() => {
+                    $('#addStateModal').modal('hide');
+                    // Optional: Reload page or update table
+                    location.reload();
+                }, 2000);
+            } else {
+                showError(response.message || 'Failed to save states');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error saving states:', xhr);
+            showError('Error saving states. Please try again.');
+        },
+        complete: function() {
+            saveButton.html(originalText).prop('disabled', false);
+        }
+    });
+}
+
+// Also update the getStatesByCountry function
+function getStatesByCountry(countryId) {
+    $('#stateCheckboxContainer').html(`
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading states...</p>
+        </div>
+    `);
+
+    $.ajax({
+        url: '{{ route("admin.service-zones.get-states-by-country") }}',
+        method: 'GET',
+        data: {
+            country_id: countryId,
+            service_zone_uuid: serviceZoneId,
+            _token: '{{ csrf_token() }}'
+        },
+        success: function(response) {
+            if (response.success) {
+                allStates = response.states || [];
+                renderStatesCheckboxes();
+            } else {
+                $('#stateCheckboxContainer').html(`
+                    <div class="alert alert-danger">
+                        Failed to load states
+                    </div>
+                `);
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading states:', xhr);
+            $('#stateCheckboxContainer').html(`
+                <div class="alert alert-danger">
+                    Error loading states. Please try again.
+                </div>
+            `);
+        }
+    });
+}
+
+
+
+
+
+
+
+
+
+
+
 public function getExistingStates(Request $request)
 {
     try {
