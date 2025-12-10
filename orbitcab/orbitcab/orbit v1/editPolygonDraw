@@ -19,6 +19,1118 @@
             border: 1px solid #e8e8e8;
         }
 
+        .search-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e8e8e8;
+        }
+
+        .map-container {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e8e8e8;
+            height: 700px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e8e8e8;
+        }
+
+        #map {
+            flex: 1;
+            width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Enhanced Search Box */
+        .search-box-wrapper {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-box {
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 14px 50px 14px 45px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: #f8fafc;
+        }
+
+        .search-box input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+            background: white;
+            outline: none;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-size: 18px;
+            z-index: 10;
+        }
+
+        .clear-search {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px;
+            display: none;
+            z-index: 10;
+        }
+
+        .clear-search:hover {
+            color: #64748b;
+        }
+
+        .search-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-top: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: none;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .suggestion-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .suggestion-item:hover {
+            background: #f8fafc;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-icon {
+            color: #3b82f6;
+            font-size: 14px;
+        }
+
+        .suggestion-text {
+            flex: 1;
+        }
+
+        .suggestion-name {
+            font-weight: 500;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+
+        .suggestion-address {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        /* Search Results Panel */
+        .search-results {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .place-details {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .place-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+
+        .place-title h5 {
+            margin: 0;
+            color: #1e40af;
+            font-weight: 600;
+        }
+
+        .place-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .place-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .place-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-weight: 500;
+            color: #1e293b;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Map Controls */
+        .map-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 200px;
+        }
+
+        .control-group {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .control-group:last-child {
+            border-bottom: none;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .control-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        /* Drawing Controls */
+        .drawing-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .drawing-status {
+            background: #3b82f6;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Info Window Styling */
+        .gm-style .gm-style-iw-c {
+            padding: 0;
+            border-radius: 8px;
+            max-width: 300px;
+        }
+
+        .info-window-content {
+            padding: 16px;
+        }
+
+        .info-window-title {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .info-window-text {
+            font-size: 14px;
+            color: #64748b;
+            margin-bottom: 12px;
+        }
+
+        /* Stats Panel */
+        .stats-panel {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #3b82f6;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Place Types Filter */
+        .place-types {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 15px;
+        }
+
+        .type-chip {
+            padding: 6px 12px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .type-chip:hover {
+            background: #e2e8f0;
+        }
+
+        .type-chip.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .map-container {
+                height: 500px;
+                padding: 16px;
+            }
+
+            .map-controls {
+                top: 10px;
+                right: 10px;
+                width: 160px;
+            }
+
+            .drawing-controls {
+                bottom: 10px;
+                padding: 10px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .search-box input {
+                padding: 12px 40px 12px 40px;
+                font-size: 14px;
+            }
+
+            .place-info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Animation for new features */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+@endpush
+
+@section('content')
+<div class="geofencing-container">
+    <!-- Header Section -->
+    <div class="header-card">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="text-2xl font-bold mb-2">Advanced Geofencing with Google Search</h2>
+                <p class="text-gray-600 mb-0">
+                    <i class="fas fa-map-marker-alt mr-2"></i>
+                    {{ $cabZone->city->name }}, {{ $cabZone->state->name ?? 'State' }}, {{ $cabZone->country->name ?? 'Country' }}
+                </p>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-primary">
+                    <i class="fas fa-sync-alt mr-1"></i> Live Mode
+                </span>
+                <x-site.back />
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Container -->
+    <div class="search-container">
+        <h4 class="font-semibold mb-4">
+            <i class="fas fa-search mr-2"></i>Search & Discover Locations
+        </h4>
+        
+        <div class="search-box-wrapper">
+            <div class="search-box">
+                <i class="fas fa-search search-icon"></i>
+                <input 
+                    type="text" 
+                    id="search-input" 
+                    placeholder="Search for cities, landmarks, addresses, or coordinates..."
+                    autocomplete="off"
+                />
+                <button id="clear-search" class="clear-search">
+                    <i class="fas fa-times"></i>
+                </button>
+                <div id="search-suggestions" class="search-suggestions"></div>
+            </div>
+        </div>
+
+        <!-- Search Filters -->
+        <div class="place-types">
+            <div class="type-chip active" data-type="cities">Cities</div>
+            <div class="type-chip" data-type="landmarks">Landmarks</div>
+            <div class="type-chip" data-type="addresses">Addresses</div>
+            <div class="type-chip" data-type="coordinates">Coordinates</div>
+            <div class="type-chip" data-type="establishments">Establishments</div>
+        </div>
+
+        <!-- Search Results -->
+        <div id="search-results" class="search-results">
+            <div class="place-details fade-in">
+                <div class="place-header">
+                    <div class="place-title">
+                        <h5 id="place-name">Location Name</h5>
+                        <div class="place-meta">
+                            <span><i class="fas fa-map-marker-alt mr-1"></i> <span id="place-type">City</span></span>
+                            <span><i class="fas fa-globe mr-1"></i> <span id="place-country">Country</span></span>
+                        </div>
+                    </div>
+                    <div class="place-actions">
+                        <button id="add-to-map" class="btn-sm btn-primary">
+                            <i class="fas fa-plus mr-1"></i> Add Marker
+                        </button>
+                        <button id="center-on-place" class="btn-sm btn-secondary">
+                            <i class="fas fa-crosshairs mr-1"></i> Center
+                        </button>
+                    </div>
+                </div>
+
+                <div class="place-info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Place ID</span>
+                        <span class="info-value" id="place-id-value">N/A</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Latitude</span>
+                        <span class="info-value" id="place-lat">0.000000</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Longitude</span>
+                        <span class="info-value" id="place-lng">0.000000</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Accuracy</span>
+                        <span class="info-value" id="place-accuracy">N/A</span>
+                    </div>
+                </div>
+
+                <div class="stats-panel">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="distance-to-center">0 km</div>
+                            <div class="stat-label">From Center</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="search-count">0</div>
+                            <div class="stat-label">Searches</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="markers-count">0</div>
+                            <div class="stat-label">Markers</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="zoom-level">12</div>
+                            <div class="stat-label">Zoom Level</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div class="map-container">
+        <div id="map"></div>
+        
+        <!-- Map Controls Overlay -->
+        <div class="map-controls">
+            <div class="control-group">
+                <div class="control-label">Drawing Tools</div>
+                <div class="control-buttons">
+                    <button id="start-drawing" class="btn-sm btn-primary">
+                        <i class="fas fa-draw-polygon"></i> Draw
+                    </button>
+                    <button id="edit-polygon" class="btn-sm btn-secondary" style="display: none;">
+                        <i class="fas fa-edit"></i> Edit
+                    </button>
+                    <button id="clear-all" class="btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+            </div>
+            <div class="control-group">
+                <div class="control-label">View Options</div>
+                <div class="control-buttons">
+                    <button id="toggle-satellite" class="btn-sm btn-secondary">
+                        <i class="fas fa-satellite"></i> Satellite
+                    </button>
+                    <button id="show-boundaries" class="btn-sm btn-secondary">
+                        <i class="fas fa-layer-group"></i> Boundaries
+                    </button>
+                </div>
+            </div>
+            <div class="control-group">
+                <div class="control-label">Search Radius</div>
+                <div class="control-buttons">
+                    <button class="btn-sm btn-secondary" data-radius="1">1km</button>
+                    <button class="btn-sm btn-secondary" data-radius="5">5km</button>
+                    <button class="btn-sm btn-secondary active" data-radius="10">10km</button>
+                    <button class="btn-sm btn-secondary" data-radius="25">25km</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Drawing Controls Overlay -->
+        <div id="drawing-controls" class="drawing-controls">
+            <div class="drawing-status">
+                <i class="fas fa-pencil-alt"></i>
+                <span id="drawing-instruction">Click to start drawing polygon</span>
+            </div>
+            <button id="save-polygon" class="btn-sm btn-success">
+                <i class="fas fa-save"></i> Save Polygon
+            </button>
+            <button id="cancel-drawing" class="btn-sm btn-danger">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button id="undo-point" class="btn-sm btn-secondary">
+                <i class="fas fa-undo"></i> Undo
+            </button>
+        </div>
+    </div>
+
+    <!-- Information Panel -->
+    <div class="info-panel">
+        <h4 class="font-semibold mb-4">
+            <i class="fas fa-info-circle mr-2"></i>Geofence Information
+        </h4>
+        
+        <div class="form-group mb-4">
+            <label for="zone-name" class="form-label">Zone Name</label>
+            <input type="text" id="zone-name" class="form-control" placeholder="Enter a descriptive name for this zone...">
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="coordinates-display mb-4">
+                    <h6 class="font-semibold mb-2">
+                        <i class="fas fa-code mr-2"></i>Coordinates (GeoJSON)
+                    </h6>
+                    <div class="code-block">
+                        <pre id="coordinates-text">{"type": "Polygon", "coordinates": []}</pre>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="polygon-stats mb-4">
+                    <h6 class="font-semibold mb-2">
+                        <i class="fas fa-chart-bar mr-2"></i>Polygon Statistics
+                    </h6>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value" id="area-stat">0 km²</div>
+                            <div class="stat-label">Area</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="perimeter-stat">0 km</div>
+                            <div class="stat-label">Perimeter</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="vertices-stat">0</div>
+                            <div class="stat-label">Vertices</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="polygon-actions d-flex gap-3">
+            <button id="copy-coordinates" class="btn btn-primary">
+                <i class="fas fa-copy mr-2"></i> Copy Coordinates
+            </button>
+            <button id="export-geojson" class="btn btn-success">
+                <i class="fas fa-download mr-2"></i> Export GeoJSON
+            </button>
+            <button id="save-geofence" class="btn btn-warning" style="display: none;">
+                <i class="fas fa-save mr-2"></i> Save to Database
+            </button>
+        </div>
+    </div>
+
+    <!-- Hidden Inputs -->
+    <input type="hidden" id="country_id" value="{{ $cabZone->country_id }}">
+    <input type="hidden" id="state_id" value="{{ $cabZone->state_id }}">
+    <input type="hidden" id="city_id" value="{{ $cabZone->city->id }}">
+    <input type="hidden" id="city_lat" value="{{ $cabZone->city->latitude }}">
+    <input type="hidden" id="city_lng" value="{{ $cabZone->city->longitude }}">
+</div>
+@endsection
+
+@push('scripts')
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAVZ1qG4_OeMi2QisK6dwZYv7lsjMZF_BE&libraries=places,drawing,geometry&callback=initMap" async defer></script>
+    <script>
+        let map, drawingManager, currentPolygon = null;
+        let markers = [], zonePolygons = [], searchMarkers = [];
+        let isDrawing = false, currentSearchPlace = null;
+        let autocompleteService, placesService;
+        let searchRadius = 10; // in km
+        let searchCount = 0;
+
+        function initMap() {
+            const cityLat = parseFloat(document.getElementById('city_lat').value) || 22.57;
+            const cityLng = parseFloat(document.getElementById('city_lng').value) || 88.36;
+
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: cityLat, lng: cityLng },
+                zoom: 13,
+                mapTypeControl: false,
+                streetViewControl: true,
+                fullscreenControl: true,
+                zoomControl: true,
+                mapTypeId: 'roadmap',
+                styles: [
+                    {
+                        featureType: "poi",
+                        elementType: "labels",
+                        stylers: [{ visibility: "on" }]
+                    },
+                    {
+                        featureType: "transit",
+                        elementType: "labels",
+                        stylers: [{ visibility: "off" }]
+                    }
+                ]
+            });
+
+            // Initialize services
+            autocompleteService = new google.maps.places.AutocompleteService();
+            placesService = new google.maps.places.PlacesService(map);
+
+            // Initialize existing zones
+            loadExistingZones();
+            
+            // Initialize drawing manager
+            initDrawingManager();
+            
+            // Initialize event listeners
+            initEventListeners();
+            
+            // Initialize search
+            initSearch();
+
+            // Add map event listeners
+            google.maps.event.addListener(map, 'zoom_changed', updateZoomLevel);
+            google.maps.event.addListener(map, 'center_changed', updateCenterInfo);
+        }
+
+        function initSearch() {
+            const searchInput = document.getElementById('search-input');
+            const clearBtn = document.getElementById('clear-search');
+            const suggestions = document.getElementById('search-suggestions');
+
+            // Initialize autocomplete
+            const autocomplete = new google.maps.places.Autocomplete(searchInput, {
+                types: ['(regions)', 'geocode', 'establishment'],
+                componentRestrictions: { country: 'us' }
+            });
+
+            autocomplete.addListener('place_changed', () => {
+                const place = autocomplete.getPlace();
+                if (place.geometry) {
+                    handlePlaceSelection(place);
+                }
+            });
+
+            // Real-time search suggestions
+            searchInput.addEventListener('input', debounce(function(e) {
+                const query = e.target.value.trim();
+                if (query.length < 2) {
+                    suggestions.style.display = 'none';
+                    return;
+                }
+
+                // Get search type from active chip
+                const activeType = document.querySelector('.type-chip.active').dataset.type;
+                let types = ['(cities)'];
+                
+                switch(activeType) {
+                    case 'landmarks':
+                        types = ['tourist_attraction', 'point_of_interest'];
+                        break;
+                    case 'addresses':
+                        types = ['address'];
+                        break;
+                    case 'coordinates':
+                        // Handle coordinate search
+                        if (query.match(/^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/)) {
+                            const coords = query.split(',').map(coord => parseFloat(coord.trim()));
+                            handleCoordinateSearch(coords[0], coords[1]);
+                            return;
+                        }
+                        break;
+                    case 'establishments':
+                        types = ['establishment'];
+                        break;
+                }
+
+                autocompleteService.getPlacePredictions({
+                    input: query,
+                    types: types,
+                    componentRestrictions: { country: 'in' }
+                }, (predictions, status) => {
+                    if (status !== google.maps.places.PlacesServiceStatus.OK || !predictions) {
+                        suggestions.style.display = 'none';
+                        return;
+                    }
+
+                    suggestions.innerHTML = '';
+                    predictions.slice(0, 5).forEach(prediction => {
+                        const item = document.createElement('div');
+                        item.className = 'suggestion-item';
+                        item.innerHTML = `
+                            <i class="fas fa-map-marker-alt suggestion-icon"></i>
+                            <div class="suggestion-text">
+                                <div class="suggestion-name">${prediction.structured_formatting.main_text}</div>
+                                <div class="suggestion-address">${prediction.structured_formatting.secondary_text || ''}</div>
+                            </div>
+                        `;
+                        item.addEventListener('click', () => {
+                            searchInput.value = prediction.description;
+                            suggestions.style.display = 'none';
+                            getPlaceDetails(prediction.place_id);
+                        });
+                        suggestions.appendChild(item);
+                    });
+                    
+                    suggestions.style.display = 'block';
+                });
+            }, 300));
+
+            // Clear search button
+            clearBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                clearBtn.style.display = 'none';
+                suggestions.style.display = 'none';
+                document.getElementById('search-results').style.display = 'none';
+                clearSearchMarkers();
+            });
+
+            searchInput.addEventListener('focus', () => {
+                if (searchInput.value) {
+                    clearBtn.style.display = 'block';
+                }
+            });
+
+            searchInput.addEventListener('keyup', () => {
+                clearBtn.style.display = searchInput.value ? 'block' : 'none';
+            });
+
+            // Close suggestions when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target) && !suggestions.contains(e.target)) {
+                    suggestions.style.display = 'none';
+                }
+            });
+        }
+
+        function getPlaceDetails(placeId) {
+            placesService.getDetails({
+                placeId: placeId,
+                fields: ['name', 'geometry', 'formatted_address', 'place_id', 'types', 'address_components']
+            }, (place, status) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+                    handlePlaceSelection(place);
+                }
+            });
+        }
+
+        function handlePlaceSelection(place) {
+            currentSearchPlace = place;
+            searchCount++;
+            
+            // Update search stats
+            document.getElementById('search-count').textContent = searchCount;
+
+            // Center map on place
+            map.setCenter(place.geometry.location);
+            map.setZoom(15);
+
+            // Add marker for the place
+            clearSearchMarkers();
+            addPlaceMarker(place);
+
+            // Update search results panel
+            updatePlaceInfo(place);
+
+            // Calculate distance from center
+            const cityLat = parseFloat(document.getElementById('city_lat').value);
+            const cityLng = parseFloat(document.getElementById('city_lng').value);
+            const distance = calculateDistance(
+                cityLat, cityLng,
+                place.geometry.location.lat(), place.geometry.location.lng()
+            );
+            document.getElementById('distance-to-center').textContent = `${distance.toFixed(1)} km`;
+
+            // Show results panel
+            document.getElementById('search-results').style.display = 'block';
+        }
+
+        function handleCoordinateSearch(lat, lng) {
+            const location = new google.maps.LatLng(lat, lng);
+            
+            // Create a mock place object
+            const place = {
+                name: `Coordinates: ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                geometry: { location: location },
+                formatted_address: '',
+                place_id: null,
+                types: ['coordinates']
+            };
+
+            handlePlaceSelection(place);
+        }
+
+        function addPlaceMarker(place) {
+            const marker = new google.maps.Marker({
+                position: place.geometry.location,
+                map: map,
+                title: place.name,
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: "#3B82F6",
+                    fillOpacity: 1,
+                    strokeColor: "#FFFFFF",
+                    strokeWeight: 2
+                },
+                animation: google.maps.Animation.DROP
+            });
+
+            // Add info window
+            const infoWindow = new google.maps.InfoWindow({
+                content: `
+                    <div class="info-window-content">
+                        <h6 class="info-window-title">${place.name}</h6>
+                        <p class="info-window-text">${place.formatted_address || 'No address available'}</p>
+                        <div class="d-flex gap-2">
+                            <button onclick="addAsVertex(${place.geometry.location.lat()}, ${place.geometry.location.lng()})" 
+                                    class="btn-sm btn-primary">
+                                Add as Vertex
+                            </button>
+                            <button onclick="centerOnLocation(${place.geometry.location.lat()}, ${place.geometry.location.lng()})" 
+                                    class="btn-sm btn-secondary">
+                                Center
+                            </button>
+                        </div>
+                    </div>
+                `
+            });
+
+            marker.addListener('click', () => {
+                infoWindow.open(map, marker);
+            });
+
+            searchMarkers.push(marker);
+            updateMarkersCount();
+        }
+
+        function updatePlaceInfo(place) {
+            document.getElementById('place-name').textContent = place.name;
+            document.getElementById('place-type').textContent = place.types ? place.types[0] : 'Unknown';
+            document.getElementById('place-id-value').textContent = place.place_id || 'N/A';
+            document.getElementById('place-lat').textContent = place.geometry.location.lat().toFixed(6);
+            document.getElementById('place-lng').textContent = place.geometry.location.lng().toFixed(6);
+            
+            // Extract country from address components
+            const country = place.address_components?.find(comp => 
+                comp.types.includes('country')
+            )?.long_name || 'Unknown';
+            document.getElementById('place-country').textContent = country;
+        }
+
+        function updateMarkersCount() {
+            document.getElementById('markers-count').textContent = searchMarkers.length;
+        }
+
+        function updateZoomLevel() {
+            document.getElementById('zoom-level').textContent = map.getZoom();
+        }
+
+        function updateCenterInfo() {
+            const center = map.getCenter();
+            // Could update center coordinates if needed
+        }
+
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function clearSearchMarkers() {
+            searchMarkers.forEach(marker => marker.setMap(null));
+            searchMarkers = [];
+            updateMarkersCount();
+        }
+
+        function addAsVertex(lat, lng) {
+            if (isDrawing && currentPolygon) {
+                const path = currentPolygon.getPath();
+                path.push(new google.maps.LatLng(lat, lng));
+                updatePolygonInfo(currentPolygon);
+            }
+        }
+
+        function centerOnLocation(lat, lng) {
+            map.panTo(new google.maps.LatLng(lat, lng));
+            map.setZoom(18);
+        }
+
+        // Place type filter
+        document.querySelectorAll('.type-chip').forEach(chip => {
+            chip.addEventListener('click', function() {
+                document.querySelectorAll('.type-chip').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // Search radius buttons
+        document.querySelectorAll('[data-radius]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('[data-radius]').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                searchRadius = parseInt(this.dataset.radius);
+            });
+        });
+
+        // Utility functions
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Add the rest of the drawing and polygon management functions from the previous version
+        // ... (include all the drawing, saving, and polygon management functions from the previous response)
+        
+        // Initialize drawing manager and other functions
+        function initDrawingManager() {
+            // ... (copy the drawing manager initialization from previous response)
+        }
+
+        function initEventListeners() {
+            // ... (copy event listeners from previous response)
+        }
+
+        // Add global functions for info window buttons
+        window.addAsVertex = addAsVertex;
+        window.centerOnLocation = centerOnLocation;
+    </script>
+@endpush
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@extends('layouts.app', [
+    'isSidebar' => true,
+    'isNavbar' => true,
+    'isFooter' => false,
+])
+
+@push('styles')
+    <style>
+        .geofencing-container {
+            padding: 20px;
+        }
+
+        .header-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e8e8e8;
+        }
+
         .control-panel {
             background: white;
             border-radius: 12px;
