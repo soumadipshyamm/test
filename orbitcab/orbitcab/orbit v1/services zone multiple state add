@@ -551,7 +551,19 @@
 
 
 
-
+// Add these routes to your web.php file
+Route::prefix('admin')->middleware(['auth', 'admin'])->group(function () {
+    // ... other routes ...
+    
+    Route::get('/service-zones/get-existing-states', [ServiceZoneController::class, 'getExistingStates'])
+        ->name('admin.service-zones.get-existing-states');
+    
+    Route::get('/service-zones/get-states-by-country', [ServiceZoneController::class, 'getStatesByCountry'])
+        ->name('admin.service-zones.get-states-by-country');
+    
+    Route::post('/service-zones/save-states', [ServiceZoneController::class, 'saveStates'])
+        ->name('admin.service-zones.save-states');
+});
 
 
 
