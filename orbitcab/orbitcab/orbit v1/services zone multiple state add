@@ -1,4 +1,104 @@
 
+
+
+
+
+
+function updateSelectedCount() {
+    // Get selected states count for current country
+    const selectedCount = $('.state-checkbox:checked').length;
+    const totalCount = $('.state-checkbox').length;
+    
+    // Update the display for current country
+    $('#selectedCountInfo').html(`
+        ${selectedCount} of ${totalCount} states selected
+    `);
+    
+    // Calculate total selected states across all countries for this service zone
+    let totalSelectedStatesCount = 0;
+    
+    // Count from existingStates (which contains all states for this service zone)
+    if (existingStates && existingStates.length > 0) {
+        totalSelectedStatesCount = existingStates.length;
+    }
+    
+    // Add current selections that haven't been saved yet
+    const currentCountryId = parseInt($('#countrySelect').val());
+    const currentSelectedStates = [];
+    $('.state-checkbox:checked').each(function() {
+        currentSelectedStates.push(parseInt($(this).val()));
+    });
+    
+    // Check if we're adding to existing or just viewing
+    // We'll add the modal header to show total count
+    $('#addStateModalLabel').html(`
+        ${__('Manage States for Service Zone')}
+        <span class="badge badge-info ml-2">Total: ${totalSelectedStatesCount} states</span>
+    `);
+    
+    // Update status message with total count
+    if (selectedCount === 0) {
+        $('#stateStatusMessage').html('<span class="text-danger">Please select at least one state</span>');
+    } else {
+        $('#stateStatusMessage').html(`
+            <span class="text-success">
+                ${selectedCount} states selected (Total: ${totalSelectedStatesCount} states for this service zone)
+            </span>
+        `);
+    }
+}
+
+
+
+
+function loadExistingStates(serviceZoneUuid) {
+    $.ajax({
+        url: '{{ route("admin.service-zones.get-existing-states") }}',
+        method: 'GET',
+        data: {
+            service_zone_uuid: serviceZoneUuid,
+            _token: '{{ csrf_token() }}'
+        },
+        success: function(response) {
+            if (response.success) {
+                existingStates = response.existing_states || [];
+                
+                console.log("Total existing states for service zone:", existingStates.length);
+                
+                // Update modal title with total count
+                if (existingStates.length > 0) {
+                    $('#addStateModalLabel').html(`
+                        ${__('Manage States for Service Zone')}
+                        <span class="badge badge-info ml-2">Already have: ${existingStates.length} states</span>
+                    `);
+                }
+                
+                // Set default country (India = 101) if no existing states
+                let defaultCountryId = 101;
+                if (existingStates.length > 0 && existingStates[0].country_id) {
+                    defaultCountryId = existingStates[0].country_id;
+                }
+                
+                // Set country select
+                $('#countrySelect').val(defaultCountryId).trigger('change');
+            } else {
+                showError('Failed to load existing states');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading existing states:', xhr);
+            showError('Error loading existing states');
+        }
+    });
+}
+
+
+
+
+
+
+
+
 public function saveStates(Request $request)
 {
     try {
