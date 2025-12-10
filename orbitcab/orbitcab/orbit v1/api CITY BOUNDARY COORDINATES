@@ -1,3 +1,1384 @@
+
+
+I'll create a complete Laravel API to dynamically fetch boundary coordinates from a `cab_zone` table and check if points are inside them.
+
+## 1. Database Migration
+
+First, create the `cab_zones` table:
+
+```bash
+php artisan make:migration create_cab_zones_table
+```
+
+**database/migrations/[timestamp]_create_cab_zones_table.php**:
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::create('cab_zones', function (Blueprint $table) {
+            $table->id();
+            $table->string('zone_name');
+            $table->string('city');
+            $table->string('state')->nullable();
+            $table->string('country')->default('India');
+            $table->json('coordinates'); // Store polygon coordinates as JSON
+            $table->enum('status', ['active', 'inactive'])->default('active');
+            $table->decimal('area_sq_km', 10, 2)->nullable();
+            $table->string('zone_type')->default('normal'); // normal, premium, airport, etc.
+            $table->decimal('center_lat', 10, 6)->nullable();
+            $table->decimal('center_lng', 10, 6)->nullable();
+            $table->text('description')->nullable();
+            $table->timestamps();
+            $table->softDeletes();
+            
+            $table->index(['city', 'status']);
+            $table->spatialIndex('coordinates');
+        });
+
+        // Create zones table for many-to-many relationship with cab_zones
+        Schema::create('zone_prices', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('cab_zone_id')->constrained('cab_zones')->onDelete('cascade');
+            $table->string('vehicle_type'); // sedan, suv, premium, etc.
+            $table->decimal('base_fare', 10, 2);
+            $table->decimal('per_km_rate', 10, 2);
+            $table->decimal('per_minute_rate', 10, 2);
+            $table->decimal('min_fare', 10, 2);
+            $table->json('peak_hours_rate')->nullable(); // Store peak hour rates as JSON
+            $table->timestamps();
+            
+            $table->unique(['cab_zone_id', 'vehicle_type']);
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('zone_prices');
+        Schema::dropIfExists('cab_zones');
+    }
+};
+```
+
+## 2. Create Models
+
+**app/Models/CabZone.php**:
+```php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+class CabZone extends Model
+{
+    use HasFactory, SoftDeletes;
+
+    protected $fillable = [
+        'zone_name',
+        'city',
+        'state',
+        'country',
+        'coordinates',
+        'status',
+        'area_sq_km',
+        'zone_type',
+        'center_lat',
+        'center_lng',
+        'description'
+    ];
+
+    protected $casts = [
+        'coordinates' => 'array',
+        'status' => 'string',
+        'area_sq_km' => 'decimal:2',
+        'center_lat' => 'decimal:6',
+        'center_lng' => 'decimal:6',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime'
+    ];
+
+    // Relationships
+    public function prices()
+    {
+        return $this->hasMany(ZonePrice::class, 'cab_zone_id');
+    }
+
+    // Accessor for formatted coordinates
+    public function getFormattedCoordinatesAttribute()
+    {
+        return collect($this->coordinates)->map(function($coord) {
+            return [
+                'lat' => $coord[0],
+                'lng' => $coord[1]
+            ];
+        });
+    }
+
+    // Check if point is inside this zone
+    public function isPointInside($lat, $lng)
+    {
+        return $this->checkPointInPolygon($lat, $lng, $this->coordinates);
+    }
+
+    // Ray casting algorithm
+    private function checkPointInPolygon($lat, $lng, $polygon)
+    {
+        $x = $lng;
+        $y = $lat;
+        $inside = false;
+        $n = count($polygon);
+
+        for ($i = 0, $j = $n - 1; $i < $n; $j = $i++) {
+            $xi = $polygon[$i][1];
+            $yi = $polygon[$i][0];
+            $xj = $polygon[$j][1];
+            $yj = $polygon[$j][0];
+
+            $intersect = (($yi > $y) != ($yj > $y))
+                && ($x < ($xj - $xi) * ($y - $yi) / ($yj - $yi) + $xi);
+
+            if ($intersect) {
+                $inside = !$inside;
+            }
+        }
+
+        return $inside;
+    }
+
+    // Calculate area
+    public function calculateArea()
+    {
+        $area = 0;
+        $n = count($this->coordinates);
+        
+        if ($n < 3) return 0;
+        
+        for ($i = 0; $i < $n; $i++) {
+            $j = ($i + 1) % $n;
+            $area += $this->coordinates[$i][1] * $this->coordinates[$j][0];
+            $area -= $this->coordinates[$i][0] * $this->coordinates[$j][1];
+        }
+        
+        $area = abs($area) / 2;
+        
+        // Convert to square kilometers
+        $center = $this->calculateCenter();
+        $latRad = deg2rad($center['lat']);
+        $kmPerDegreeLat = 111.0;
+        $kmPerDegreeLng = 111.0 * cos($latRad);
+        
+        return round($area * $kmPerDegreeLat * $kmPerDegreeLng, 2);
+    }
+
+    // Calculate center point
+    public function calculateCenter()
+    {
+        $n = count($this->coordinates);
+        $sumLat = 0;
+        $sumLng = 0;
+        
+        foreach ($this->coordinates as $coord) {
+            $sumLat += $coord[0];
+            $sumLng += $coord[1];
+        }
+        
+        return [
+            'lat' => round($sumLat / $n, 6),
+            'lng' => round($sumLng / $n, 6)
+        ];
+    }
+
+    // Find overlapping zones with another zone
+    public function findOverlappingZones()
+    {
+        // This would require spatial queries
+        // For now, return empty
+        return collect();
+    }
+}
+```
+
+**app/Models/ZonePrice.php**:
+```php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+class ZonePrice extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'cab_zone_id',
+        'vehicle_type',
+        'base_fare',
+        'per_km_rate',
+        'per_minute_rate',
+        'min_fare',
+        'peak_hours_rate'
+    ];
+
+    protected $casts = [
+        'base_fare' => 'decimal:2',
+        'per_km_rate' => 'decimal:2',
+        'per_minute_rate' => 'decimal:2',
+        'min_fare' => 'decimal:2',
+        'peak_hours_rate' => 'array'
+    ];
+
+    public function zone()
+    {
+        return $this->belongsTo(CabZone::class, 'cab_zone_id');
+    }
+}
+```
+
+## 3. Controller for Dynamic Boundary Checking
+
+**app/Http/Controllers/Api/CabZoneController.php**:
+```php
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\CabZone;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+
+class CabZoneController extends Controller
+{
+    /**
+     * Check if point is inside any active cab zone
+     */
+    public function checkPoint(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'lat' => 'required|numeric|between:-90,90',
+            'lng' => 'required|numeric|between:-180,180',
+            'city' => 'string|max:100',
+            'zone_type' => 'string|in:normal,premium,airport,all'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $lat = $request->input('lat');
+        $lng = $request->input('lng');
+        $city = $request->input('city');
+        $zoneType = $request->input('zone_type', 'all');
+
+        // Build query
+        $query = CabZone::where('status', 'active');
+        
+        if ($city) {
+            $query->where('city', 'like', "%{$city}%");
+        }
+        
+        if ($zoneType !== 'all') {
+            $query->where('zone_type', $zoneType);
+        }
+
+        $zones = $query->get();
+        
+        if ($zones->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'No active zones found',
+                'data' => [
+                    'point' => ['lat' => $lat, 'lng' => $lng],
+                    'is_inside_any_zone' => false,
+                    'matching_zones' => []
+                ]
+            ]);
+        }
+
+        $matchingZones = [];
+        
+        foreach ($zones as $zone) {
+            if ($zone->isPointInside($lat, $lng)) {
+                $matchingZones[] = [
+                    'zone_id' => $zone->id,
+                    'zone_name' => $zone->zone_name,
+                    'city' => $zone->city,
+                    'zone_type' => $zone->zone_type,
+                    'area_sq_km' => $zone->area_sq_km,
+                    'prices' => $zone->prices->map(function($price) {
+                        return [
+                            'vehicle_type' => $price->vehicle_type,
+                            'base_fare' => $price->base_fare,
+                            'per_km_rate' => $price->per_km_rate,
+                            'per_minute_rate' => $price->per_minute_rate,
+                            'min_fare' => $price->min_fare
+                        ];
+                    })
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'point' => ['lat' => $lat, 'lng' => $lng],
+                'is_inside_any_zone' => !empty($matchingZones),
+                'total_zones_checked' => $zones->count(),
+                'matching_zones' => $matchingZones,
+                'matching_zone_count' => count($matchingZones)
+            ]
+        ]);
+    }
+
+    /**
+     * Find which zone(s) a point is in
+     */
+    public function findZoneForPoint(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'lat' => 'required|numeric|between:-90,90',
+            'lng' => 'required|numeric|between:-180,180'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $lat = $request->input('lat');
+        $lng = $request->input('lng');
+
+        // Get all active zones
+        $zones = CabZone::where('status', 'active')->get();
+        
+        $foundZones = [];
+        
+        foreach ($zones as $zone) {
+            if ($zone->isPointInside($lat, $lng)) {
+                $foundZones[] = [
+                    'id' => $zone->id,
+                    'name' => $zone->zone_name,
+                    'city' => $zone->city,
+                    'type' => $zone->zone_type,
+                    'area' => $zone->area_sq_km,
+                    'center' => [
+                        'lat' => $zone->center_lat,
+                        'lng' => $zone->center_lng
+                    ]
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'point' => ['lat' => $lat, 'lng' => $lng],
+                'zones_found' => $foundZones,
+                'zone_count' => count($foundZones),
+                'message' => count($foundZones) > 0 
+                    ? 'Point is inside ' . count($foundZones) . ' zone(s)' 
+                    : 'Point is not inside any active zone'
+            ]
+        ]);
+    }
+
+    /**
+     * Get all zones for a city
+     */
+    public function getZonesByCity($city)
+    {
+        $zones = CabZone::where('city', 'like', "%{$city}%")
+                       ->where('status', 'active')
+                       ->get();
+
+        if ($zones->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No zones found for this city'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'city' => $city,
+                'total_zones' => $zones->count(),
+                'zones' => $zones->map(function($zone) {
+                    return [
+                        'id' => $zone->id,
+                        'name' => $zone->zone_name,
+                        'type' => $zone->zone_type,
+                        'coordinates' => $zone->formatted_coordinates,
+                        'area_sq_km' => $zone->area_sq_km,
+                        'center' => [
+                            'lat' => $zone->center_lat,
+                            'lng' => $zone->center_lng
+                        ]
+                    ];
+                })
+            ]
+        ]);
+    }
+
+    /**
+     * Get zone by ID with details
+     */
+    public function getZone($id)
+    {
+        $zone = CabZone::with('prices')
+                      ->where('status', 'active')
+                      ->find($id);
+
+        if (!$zone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Zone not found or inactive'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'zone' => [
+                    'id' => $zone->id,
+                    'name' => $zone->zone_name,
+                    'city' => $zone->city,
+                    'state' => $zone->state,
+                    'country' => $zone->country,
+                    'type' => $zone->zone_type,
+                    'status' => $zone->status,
+                    'coordinates' => $zone->formatted_coordinates,
+                    'area_sq_km' => $zone->area_sq_km,
+                    'center' => [
+                        'lat' => $zone->center_lat,
+                        'lng' => $zone->center_lng
+                    ],
+                    'description' => $zone->description,
+                    'created_at' => $zone->created_at,
+                    'updated_at' => $zone->updated_at
+                ],
+                'pricing' => $zone->prices->map(function($price) {
+                    return [
+                        'vehicle_type' => $price->vehicle_type,
+                        'base_fare' => $price->base_fare,
+                        'per_km_rate' => $price->per_km_rate,
+                        'per_minute_rate' => $price->per_minute_rate,
+                        'min_fare' => $price->min_fare,
+                        'peak_hours' => $price->peak_hours_rate
+                    ];
+                })
+            ]
+        ]);
+    }
+
+    /**
+     * Create new zone
+     */
+    public function createZone(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'zone_name' => 'required|string|max:255',
+            'city' => 'required|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'country' => 'required|string|max:100',
+            'coordinates' => 'required|array|min:3',
+            'coordinates.*' => 'array|size:2',
+            'coordinates.*.0' => 'numeric|between:-90,90',
+            'coordinates.*.1' => 'numeric|between:-180,180',
+            'zone_type' => 'required|in:normal,premium,airport',
+            'description' => 'nullable|string'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        
+        try {
+            // Calculate area and center
+            $coordinates = $request->input('coordinates');
+            $zone = new CabZone();
+            
+            $center = $zone->calculateCenter();
+            $area = $zone->calculateArea();
+            
+            // Create zone
+            $zone = CabZone::create([
+                'zone_name' => $request->input('zone_name'),
+                'city' => $request->input('city'),
+                'state' => $request->input('state'),
+                'country' => $request->input('country'),
+                'coordinates' => $coordinates,
+                'zone_type' => $request->input('zone_type'),
+                'area_sq_km' => $area,
+                'center_lat' => $center['lat'],
+                'center_lng' => $center['lng'],
+                'description' => $request->input('description'),
+                'status' => 'active'
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Zone created successfully',
+                'data' => [
+                    'zone_id' => $zone->id,
+                    'zone_name' => $zone->zone_name,
+                    'area_sq_km' => $zone->area_sq_km,
+                    'center' => [
+                        'lat' => $zone->center_lat,
+                        'lng' => $zone->center_lng
+                    ]
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create zone',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update zone coordinates
+     */
+    public function updateZone(Request $request, $id)
+    {
+        $zone = CabZone::find($id);
+        
+        if (!$zone) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Zone not found'
+            ], 404);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'coordinates' => 'array|min:3',
+            'coordinates.*' => 'array|size:2',
+            'coordinates.*.0' => 'numeric|between:-90,90',
+            'coordinates.*.1' => 'numeric|between:-180,180',
+            'zone_name' => 'string|max:255',
+            'status' => 'in:active,inactive'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        
+        try {
+            $updates = [];
+            
+            if ($request->has('coordinates')) {
+                $coordinates = $request->input('coordinates');
+                $updates['coordinates'] = $coordinates;
+                
+                // Recalculate area and center
+                $center = $zone->calculateCenter();
+                $area = $zone->calculateArea();
+                
+                $updates['area_sq_km'] = $area;
+                $updates['center_lat'] = $center['lat'];
+                $updates['center_lng'] = $center['lng'];
+            }
+            
+            if ($request->has('zone_name')) {
+                $updates['zone_name'] = $request->input('zone_name');
+            }
+            
+            if ($request->has('status')) {
+                $updates['status'] = $request->input('status');
+            }
+            
+            $zone->update($updates);
+            
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Zone updated successfully',
+                'data' => $zone->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update zone',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Batch check multiple points
+     */
+    public function batchCheck(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'points' => 'required|array|min:1',
+            'points.*.lat' => 'required|numeric|between:-90,90',
+            'points.*.lng' => 'required|numeric|between:-180,180',
+            'city' => 'string|max:100'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $points = $request->input('points');
+        $city = $request->input('city');
+
+        // Get all active zones
+        $zones = CabZone::where('status', 'active');
+        
+        if ($city) {
+            $zones->where('city', 'like', "%{$city}%");
+        }
+        
+        $zones = $zones->get();
+
+        $results = [];
+        $statistics = [
+            'total_points' => count($points),
+            'points_in_zones' => 0,
+            'points_outside_zones' => 0,
+            'zones_matched' => []
+        ];
+
+        foreach ($points as $index => $point) {
+            $pointResult = [
+                'point_id' => $index + 1,
+                'coordinates' => $point,
+                'zones' => [],
+                'is_in_any_zone' => false
+            ];
+
+            foreach ($zones as $zone) {
+                if ($zone->isPointInside($point['lat'], $point['lng'])) {
+                    $pointResult['zones'][] = [
+                        'zone_id' => $zone->id,
+                        'zone_name' => $zone->zone_name,
+                        'zone_type' => $zone->zone_type
+                    ];
+                    $pointResult['is_in_any_zone'] = true;
+                    
+                    // Track zone matches
+                    if (!isset($statistics['zones_matched'][$zone->id])) {
+                        $statistics['zones_matched'][$zone->id] = [
+                            'zone_name' => $zone->zone_name,
+                            'match_count' => 0
+                        ];
+                    }
+                    $statistics['zones_matched'][$zone->id]['match_count']++;
+                }
+            }
+
+            if ($pointResult['is_in_any_zone']) {
+                $statistics['points_in_zones']++;
+            } else {
+                $statistics['points_outside_zones']++;
+            }
+
+            $results[] = $pointResult;
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'results' => $results,
+                'statistics' => $statistics,
+                'total_zones_checked' => $zones->count()
+            ]
+        ]);
+    }
+
+    /**
+     * Search zones near a point
+     */
+    public function searchZonesNearPoint(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'lat' => 'required|numeric|between:-90,90',
+            'lng' => 'required|numeric|between:-180,180',
+            'radius_km' => 'numeric|min:0.1|max:50'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $lat = $request->input('lat');
+        $lng = $request->input('lng');
+        $radiusKm = $request->input('radius_km', 5);
+
+        // Get zones within radius (approximate calculation)
+        $zones = CabZone::where('status', 'active')
+                       ->get()
+                       ->filter(function($zone) use ($lat, $lng, $radiusKm) {
+                           // Calculate distance between point and zone center
+                           $distance = $this->calculateDistance(
+                               $lat, $lng, 
+                               $zone->center_lat, $zone->center_lng
+                           );
+                           return $distance <= $radiusKm;
+                       })
+                       ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'center_point' => ['lat' => $lat, 'lng' => $lng],
+                'search_radius_km' => $radiusKm,
+                'zones_found' => $zones->count(),
+                'zones' => $zones->map(function($zone) use ($lat, $lng) {
+                    $distance = $this->calculateDistance(
+                        $lat, $lng, 
+                        $zone->center_lat, $zone->center_lng
+                    );
+                    
+                    return [
+                        'id' => $zone->id,
+                        'name' => $zone->zone_name,
+                        'city' => $zone->city,
+                        'type' => $zone->zone_type,
+                        'distance_km' => round($distance, 2),
+                        'area_sq_km' => $zone->area_sq_km,
+                        'is_point_inside' => $zone->isPointInside($lat, $lng)
+                    ];
+                })
+            ]
+        ]);
+    }
+
+    /**
+     * Calculate distance between two points in kilometers
+     */
+    private function calculateDistance($lat1, $lng1, $lat2, $lng2)
+    {
+        $earthRadius = 6371; // Earth's radius in kilometers
+        
+        $latDelta = deg2rad($lat2 - $lat1);
+        $lngDelta = deg2rad($lng2 - $lng1);
+        
+        $a = sin($latDelta / 2) * sin($latDelta / 2) +
+             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+             sin($lngDelta / 2) * sin($lngDelta / 2);
+        
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        
+        return $earthRadius * $c;
+    }
+}
+```
+
+## 4. API Routes
+
+**routes/api.php**:
+```php
+<?php
+
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\CabZoneController;
+
+Route::prefix('v1')->group(function () {
+    
+    // Zone checking endpoints
+    Route::post('/check-point', [CabZoneController::class, 'checkPoint']);
+    Route::post('/find-zone', [CabZoneController::class, 'findZoneForPoint']);
+    Route::post('/batch-check', [CabZoneController::class, 'batchCheck']);
+    Route::post('/search-zones-nearby', [CabZoneController::class, 'searchZonesNearPoint']);
+    
+    // Zone management endpoints
+    Route::get('/zones/city/{city}', [CabZoneController::class, 'getZonesByCity']);
+    Route::get('/zones/{id}', [CabZoneController::class, 'getZone']);
+    Route::post('/zones', [CabZoneController::class, 'createZone']);
+    Route::put('/zones/{id}', [CabZoneController::class, 'updateZone']);
+    
+    // Admin endpoints (add middleware in production)
+    Route::get('/zones', function () {
+        $zones = \App\Models\CabZone::with('prices')
+            ->where('status', 'active')
+            ->paginate(20);
+            
+        return response()->json([
+            'success' => true,
+            'data' => $zones
+        ]);
+    });
+    
+    // Test endpoint
+    Route::get('/health', function () {
+        return response()->json([
+            'status' => 'healthy',
+            'service' => 'Cab Zone API',
+            'version' => '1.0.0',
+            'timestamp' => now()
+        ]);
+    });
+});
+```
+
+## 5. Seeder for Sample Data
+
+**database/seeders/CabZoneSeeder.php**:
+```bash
+php artisan make:seeder CabZoneSeeder
+```
+
+**database/seeders/CabZoneSeeder.php**:
+```php
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\CabZone;
+use App\Models\ZonePrice;
+
+class CabZoneSeeder extends Seeder
+{
+    public function run()
+    {
+        // Clear existing data
+        CabZone::truncate();
+        ZonePrice::truncate();
+
+        // Sample zone 1: NewTown/Rajarhat area
+        $zone1 = CabZone::create([
+            'zone_name' => 'NewTown Zone',
+            'city' => 'Kolkata',
+            'state' => 'West Bengal',
+            'country' => 'India',
+            'coordinates' => [
+                [22.6544, 88.4370],
+                [22.6523, 88.4541],
+                [22.6479, 88.4715],
+                [22.6390, 88.4816],
+                [22.6267, 88.4842],
+                [22.6170, 88.4825],
+                [22.6102, 88.4710],
+                [22.6125, 88.4547],
+                [22.6225, 88.4402],
+                [22.6340, 88.4354],
+                [22.6456, 88.4338],
+                [22.6544, 88.4370]
+            ],
+            'status' => 'active',
+            'zone_type' => 'normal',
+            'description' => 'NewTown and Rajarhat area coverage',
+            'area_sq_km' => 16.45,
+            'center_lat' => 22.6360,
+            'center_lng' => 88.4540
+        ]);
+
+        // Sample zone 2: Salt Lake area
+        $zone2 = CabZone::create([
+            'zone_name' => 'Salt Lake Zone',
+            'city' => 'Kolkata',
+            'state' => 'West Bengal',
+            'country' => 'India',
+            'coordinates' => [
+                [22.5800, 88.4100],
+                [22.5800, 88.4300],
+                [22.5700, 88.4300],
+                [22.5700, 88.4100],
+                [22.5800, 88.4100]
+            ],
+            'status' => 'active',
+            'zone_type' => 'premium',
+            'description' => 'Salt Lake City area',
+            'area_sq_km' => 12.5,
+            'center_lat' => 22.5750,
+            'center_lng' => 88.4200
+        ]);
+
+        // Sample zone 3: Airport zone
+        $zone3 = CabZone::create([
+            'zone_name' => 'Airport Zone',
+            'city' => 'Kolkata',
+            'state' => 'West Bengal',
+            'country' => 'India',
+            'coordinates' => [
+                [22.6470, 88.4430],
+                [22.6470, 88.4480],
+                [22.6420, 88.4480],
+                [22.6420, 88.4430],
+                [22.6470, 88.4430]
+            ],
+            'status' => 'active',
+            'zone_type' => 'airport',
+            'description' => 'Netaji Subhas Chandra Bose International Airport',
+            'area_sq_km' => 3.2,
+            'center_lat' => 22.6445,
+            'center_lng' => 88.4455
+        ]);
+
+        // Add pricing for each zone
+        $pricing = [
+            ['vehicle_type' => 'sedan', 'base_fare' => 50, 'per_km_rate' => 12, 'per_minute_rate' => 2, 'min_fare' => 80],
+            ['vehicle_type' => 'suv', 'base_fare' => 80, 'per_km_rate' => 18, 'per_minute_rate' => 3, 'min_fare' => 120],
+            ['vehicle_type' => 'premium', 'base_fare' => 120, 'per_km_rate' => 25, 'per_minute_rate' => 4, 'min_fare' => 200]
+        ];
+
+        foreach ([$zone1, $zone2, $zone3] as $zone) {
+            foreach ($pricing as $price) {
+                // Adjust pricing for airport zone
+                if ($zone->zone_type === 'airport') {
+                    $price['base_fare'] *= 1.5;
+                    $price['per_km_rate'] *= 1.3;
+                    $price['per_minute_rate'] *= 1.2;
+                }
+                
+                // Adjust for premium zone
+                if ($zone->zone_type === 'premium') {
+                    $price['base_fare'] *= 1.2;
+                    $price['per_km_rate'] *= 1.1;
+                }
+
+                ZonePrice::create([
+                    'cab_zone_id' => $zone->id,
+                    'vehicle_type' => $price['vehicle_type'],
+                    'base_fare' => $price['base_fare'],
+                    'per_km_rate' => $price['per_km_rate'],
+                    'per_minute_rate' => $price['per_minute_rate'],
+                    'min_fare' => $price['min_fare'],
+                    'peak_hours_rate' => [
+                        'morning' => ['start' => '07:00', 'end' => '10:00', 'multiplier' => 1.3],
+                        'evening' => ['start' => '17:00', 'end' => '20:00', 'multiplier' => 1.5]
+                    ]
+                ]);
+            }
+        }
+
+        $this->command->info('Cab zones and pricing seeded successfully!');
+    }
+}
+```
+
+## 6. Test the API
+
+### Run migrations and seeders:
+```bash
+php artisan migrate
+php artisan db:seed --class=CabZoneSeeder
+```
+
+### Test with curl:
+```bash
+# Check if point is in any zone
+curl -X POST http://localhost:8000/api/v1/check-point \
+  -H "Content-Type: application/json" \
+  -d '{"lat": 22.6523, "lng": 88.4541}'
+
+# Find specific zone for point
+curl -X POST http://localhost:8000/api/v1/find-zone \
+  -H "Content-Type: application/json" \
+  -d '{"lat": 22.6523, "lng": 88.4541}'
+
+# Get zones for Kolkata
+curl http://localhost:8000/api/v1/zones/city/Kolkata
+
+# Get zone by ID
+curl http://localhost:8000/api/v1/zones/1
+
+# Batch check multiple points
+curl -X POST http://localhost:8000/api/v1/batch-check \
+  -H "Content-Type: application/json" \
+  -d '{
+    "points": [
+      {"lat": 22.6523, "lng": 88.4541},
+      {"lat": 22.5750, "lng": 88.4200},
+      {"lat": 22.6445, "lng": 88.4455}
+    ]
+  }'
+
+# Search zones near a point
+curl -X POST http://localhost:8000/api/v1/search-zones-nearby \
+  -H "Content-Type: application/json" \
+  -d '{"lat": 22.63, "lng": 88.45, "radius_km": 10}'
+```
+
+### Sample Response for `22.6523, 88.4541`:
+```json
+{
+  "success": true,
+  "data": {
+    "point": {
+      "lat": 22.6523,
+      "lng": 88.4541
+    },
+    "is_inside_any_zone": true,
+    "total_zones_checked": 3,
+    "matching_zones": [
+      {
+        "zone_id": 1,
+        "zone_name": "NewTown Zone",
+        "city": "Kolkata",
+        "zone_type": "normal",
+        "area_sq_km": 16.45,
+        "prices": [
+          {
+            "vehicle_type": "sedan",
+            "base_fare": 50,
+            "per_km_rate": 12,
+            "per_minute_rate": 2,
+            "min_fare": 80
+          },
+          {
+            "vehicle_type": "suv",
+            "base_fare": 80,
+            "per_km_rate": 18,
+            "per_minute_rate": 3,
+            "min_fare": 120
+          },
+          {
+            "vehicle_type": "premium",
+            "base_fare": 120,
+            "per_km_rate": 25,
+            "per_minute_rate": 4,
+            "min_fare": 200
+          }
+        ]
+      }
+    ],
+    "matching_zone_count": 1
+  }
+}
+```
+
+## 7. Frontend Integration Example
+
+Here's a simple HTML file to test the API:
+
+**public/test-boundary.html**:
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cab Zone Boundary Check</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 500px; border-radius: 8px; }
+        .zone-marker { background: #007bff; color: white; padding: 2px 8px; border-radius: 4px; }
+        .result-card { transition: all 0.3s; }
+        .inside { border-left: 4px solid #28a745; }
+        .outside { border-left: 4px solid #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="p-4">
+                    <h2>Cab Zone Check</h2>
+                    
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">Check Point</h5>
+                            <div class="mb-3">
+                                <label class="form-label">Latitude</label>
+                                <input type="number" step="0.000001" class="form-control" id="lat" value="22.6523">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Longitude</label>
+                                <input type="number" step="0.000001" class="form-control" id="lng" value="88.4541">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">City (Optional)</label>
+                                <input type="text" class="form-control" id="city" placeholder="Kolkata">
+                            </div>
+                            <button class="btn btn-primary w-100" onclick="checkPoint()">Check Point</button>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Results</h5>
+                            <div id="results"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="p-4">
+                    <div id="map"></div>
+                    <div class="mt-3">
+                        <button class="btn btn-outline-primary" onclick="loadAllZones()">Load All Zones</button>
+                        <button class="btn btn-outline-secondary" onclick="clearMap()">Clear Map</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        const API_BASE = '/api/v1';
+        let map = L.map('map').setView([22.63, 88.45], 12);
+        let markers = [];
+        let zoneLayers = [];
+        
+        // Initialize map
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+        
+        // Check point
+        function checkPoint() {
+            const lat = parseFloat($('#lat').val());
+            const lng = parseFloat($('#lng').val());
+            const city = $('#city').val();
+            
+            const payload = { lat, lng };
+            if (city) payload.city = city;
+            
+            fetch(API_BASE + '/check-point', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayResults(data.data);
+                    addMarker(lat, lng, data.data.matching_zones.length > 0);
+                    if (data.data.matching_zones.length > 0) {
+                        loadZone(data.data.matching_zones[0].zone_id);
+                    }
+                }
+            })
+            .catch(error => {
+                $('#results').html(`<div class="alert alert-danger">Error: ${error.message}</div>`);
+            });
+        }
+        
+        // Display results
+        function displayResults(data) {
+            let html = '';
+            
+            if (data.is_inside_any_zone) {
+                html += `
+                    <div class="alert alert-success">
+                        <h5>✅ Point is inside ${data.matching_zone_count} zone(s)</h5>
+                        <p>Lat: ${data.point.lat}, Lng: ${data.point.lng}</p>
+                    </div>
+                `;
+                
+                data.matching_zones.forEach(zone => {
+                    html += `
+                        <div class="card mb-2 inside">
+                            <div class="card-body">
+                                <h6>${zone.zone_name}</h6>
+                                <p>City: ${zone.city}<br>
+                                Type: ${zone.zone_type}<br>
+                                Area: ${zone.area_sq_km} sq km</p>
+                                <button class="btn btn-sm btn-primary" onclick="loadZone(${zone.zone_id})">Show on Map</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html += `
+                    <div class="alert alert-danger">
+                        <h5>❌ Point is outside all zones</h5>
+                        <p>Lat: ${data.point.lat}, Lng: ${data.point.lng}</p>
+                        <p>Checked against ${data.total_zones_checked} zones</p>
+                    </div>
+                `;
+            }
+            
+            $('#results').html(html);
+        }
+        
+        // Load zone on map
+        function loadZone(zoneId) {
+            fetch(API_BASE + '/zones/' + zoneId)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const zone = data.data.zone;
+                        
+                        // Clear existing zone layers
+                        zoneLayers.forEach(layer => map.removeLayer(layer));
+                        zoneLayers = [];
+                        
+                        // Draw zone boundary
+                        const polygon = L.polygon(zone.coordinates.map(c => [c.lat, c.lng]), {
+                            color: '#007bff',
+                            weight: 2,
+                            fillColor: '#007bff',
+                            fillOpacity: 0.2
+                        }).addTo(map);
+                        
+                        zoneLayers.push(polygon);
+                        
+                        // Add zone center marker
+                        const marker = L.marker([zone.center.lat, zone.center.lng])
+                            .addTo(map)
+                            .bindPopup(`<b>${zone.name}</b><br>${zone.area_sq_km} sq km`);
+                        
+                        zoneLayers.push(marker);
+                        
+                        // Zoom to zone
+                        map.fitBounds(polygon.getBounds(), { padding: [20, 20] });
+                    }
+                });
+        }
+        
+        // Load all zones
+        function loadAllZones() {
+            fetch(API_BASE + '/zones')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.data.data.forEach(zone => {
+                            if (zone.coordinates) {
+                                const polygon = L.polygon(zone.coordinates, {
+                                    color: zone.status === 'active' ? '#28a745' : '#dc3545',
+                                    weight: 2,
+                                    fillColor: zone.status === 'active' ? '#28a745' : '#dc3545',
+                                    fillOpacity: 0.1
+                                }).addTo(map)
+                                .bindPopup(`<b>${zone.zone_name}</b><br>Type: ${zone.zone_type}<br>Area: ${zone.area_sq_km} sq km`);
+                                
+                                zoneLayers.push(polygon);
+                            }
+                        });
+                    }
+                });
+        }
+        
+        // Add marker to map
+        function addMarker(lat, lng, isInside) {
+            // Clear previous markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            const color = isInside ? '#28a745' : '#dc3545';
+            const icon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="
+                    background: ${color};
+                    color: white;
+                    border-radius: 50%;
+                    width: 24px;
+                    height: 24px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 12px;
+                    font-weight: bold;
+                    border: 2px solid white;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                ">P</div>`,
+                iconSize: [24, 24],
+                iconAnchor: [12, 12]
+            });
+            
+            const marker = L.marker([lat, lng], { icon: icon })
+                .addTo(map)
+                .bindPopup(`<b>Point Checked</b><br>Lat: ${lat}<br>Lng: ${lng}<br>
+                           Status: ${isInside ? 'Inside Zone ✅' : 'Outside Zone ❌'}`);
+            
+            markers.push(marker);
+            map.setView([lat, lng], 14);
+        }
+        
+        // Clear map
+        function clearMap() {
+            markers.forEach(marker => map.removeLayer(marker));
+            zoneLayers.forEach(layer => map.removeLayer(layer));
+            markers = [];
+            zoneLayers = [];
+            $('#results').empty();
+        }
+        
+        // Test on load
+        $(document).ready(function() {
+            checkPoint();
+        });
+    </script>
+</body>
+</html>
+```
+
+## 8. Key Features of the Dynamic System:
+
+1. **Dynamic Zone Management**: Zones are stored in database and can be added/updated
+2. **Multiple Zones**: Can have overlapping or non-overlapping zones
+3. **Zone Types**: Different types (normal, premium, airport) with different pricing
+4. **Pricing System**: Each zone can have multiple vehicle type pricing
+5. **Spatial Queries**: Check if points are inside polygon boundaries
+6. **Search Functions**: Find zones by city, near a point, or containing a point
+7. **Area Calculation**: Automatically calculates zone area
+8. **Center Point**: Calculates geographic center of each zone
+9. **Batch Processing**: Check multiple points at once
+10. **RESTful API**: Complete CRUD operations for zones
+
+Now you can dynamically check if coordinates like `22.6523, 88.4541` are inside any zone stored in your `cab_zones` table!
+
+
+
+********************************************************************************************************************
+
+
+
 I'll create a complete Laravel API to check if coordinates are within the city boundary.
 
 ## 1. First, create a Laravel project:
